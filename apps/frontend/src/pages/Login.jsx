@@ -132,7 +132,7 @@ const Login = () => {
           <div className="mt-6 p-4 bg-blue-50 rounded-lg">
             <h3 className="text-sm font-medium text-blue-900 mb-2">Demo Credentials:</h3>
             <div className="text-xs text-blue-700 space-y-1">
-              <p><strong>Admin:</strong> admin@example.com / admin123</p>
+              <p><strong>Admin:</strong> admin@fwc.com / admin123</p>
               <p><strong>Employee:</strong> employee@example.com / employee123</p>
             </div>
           </div>

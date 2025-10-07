@@ -278,7 +278,7 @@ router.get('/:id', [
   param('id').isMongoId().withMessage('Invalid review ID')
 ], asyncHandler(async (req, res) => {
   const errors = validationResult(req);
-  if {!errors.isEmpty()) {
+  if (!errors.isEmpty()) {
     return res.status(400).json({ 
       message: 'Validation errors',
       errors: errors.array()
@@ -649,7 +649,7 @@ router.delete('/:id', [
   const errors = validationResult(req);
   if (!errors.isEmpty()) {
     return res.status(400).json({ 
-      message： 'Validation errors',
+      message: 'Validation errors',
       errors: errors.array()
     });
   }

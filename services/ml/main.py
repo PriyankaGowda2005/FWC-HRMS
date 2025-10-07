@@ -1,6 +1,7 @@
 from fastapi import FastAPI, HTTPException, Depends, File, UploadFile, BackgroundTasks
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 import httpx
 import PyPDF2
@@ -11,6 +12,8 @@ from typing import Optional, List, Dict, Any
 from datetime import datetime
 import os
 from pathlib import Path
+import asyncio
+import uuid
 
 app = FastAPI(
     title="FWC HRMS ML Service",

@@ -174,7 +174,7 @@ router.get('/public/:id', [
       applicationDeadline: true,
       maxApplications: true,
       currentApplications: true,
-      createdAt: true },
+      createdAt: true,
       department: {
         select: {
           name: true,
@@ -366,7 +366,7 @@ router.put('/:id', [
   body('location').optional().isLength({ max: 100 }),
   body('employmentType').optional().isIn(['FULL_TIME', 'PART_TIME', 'CONTRACT', 'INTERN', 'FREELANCE']),
   body('remoteAllowed').optional().isBoolean(),
-  body('urgency').optional().isIn(['LOW', 'NORMAL', 'HIGH', 'URGENT'])]],
+  body('urgency').optional().isIn(['LOW', 'NORMAL', 'HIGH', 'URGENT']),
   body('status').optional().isIn(['DRAFT', 'PUBLISHED', 'CLOSED', 'CANCELLED']),
   body('applicationDeadline').optional().isISO8601(),
   body('maxApplications').optional().isInt({ min: 1 })

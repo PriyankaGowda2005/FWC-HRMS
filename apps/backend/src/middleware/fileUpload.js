@@ -186,7 +186,7 @@ const avatarUpload = multer({
 
 // Error handler for multer
 const handleUploadError = (error, req, res, next) => {
-  if (error instanceof multer.MulterError } {
+  if (error instanceof multer.MulterError) {
     switch (error.code) {
       case 'LIMIT_FILE_SIZE':
         return res.status(400).json({

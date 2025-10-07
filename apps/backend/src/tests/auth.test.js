@@ -31,10 +31,11 @@ describe('Auth Routes', () => {
     // Clean up test data before each test
     await prisma.employee.deleteMany({
       where: {
-        OR: [
-          { employee: { user: { email: testUser.email } } },
-          { employee: { user: { email: adminUser.email } } }
-        ]
+        user: {
+          email: {
+            in: [testUser.email, adminUser.email]
+          }
+        }
       }
     });
     

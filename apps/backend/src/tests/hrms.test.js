@@ -12,15 +12,20 @@ let employeeId = '';
 
 describe('FWC HRMS System Tests', () => {
   beforeAll(async () => {
-    // Clean up test data
+    // Clean up test data in correct order (respecting foreign key constraints)
+    // First delete all dependent records
     await prisma.auditLog.deleteMany();
     await prisma.performanceReview.deleteMany();
     await prisma.payroll.deleteMany();
     await prisma.leaveRequest.deleteMany();
     await prisma.attendance.deleteMany();
+    
+    // Then delete employees (which have foreign keys to departments)
     await prisma.employee.deleteMany();
-    await prisma.user.deleteMany();
+    
+    // Finally delete departments and users
     await prisma.department.deleteMany();
+    await prisma.user.deleteMany();
 
     // Create test admin user
     const adminUser = await request(app)
