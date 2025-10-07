@@ -1,6 +1,6 @@
 # 🚀 FWC HRMS Local Setup Guide
 
-## Prerequisites
+## Prerequisite
 
 Make sure you have these installed on your Windows machine:
 
