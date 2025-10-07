@@ -129,7 +129,7 @@ npm run test:coverage  # For coverage report
 - [x] Backend: Render/Railway Docker setup
 - [x] Database: MongoDB Atlas configuration
 - [x] ML Service: Railway deployment ready
-- [x] Environment variables configured
+- [x] Environment variables
 
 ---
 
