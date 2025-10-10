@@ -142,6 +142,9 @@ dist/
 *.md
 !README.md
 
+# Code files
+*.code
+
 # PowerPoint files
 *.ppt
 *.pptx
