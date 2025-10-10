@@ -152,6 +152,9 @@ dist/
 *.ppsx
 *.ppt.html
 
+# Presentation files
+FWC-HRMS-Presentation.html
+
 # Additional documentation
 docs/
 *.txt
