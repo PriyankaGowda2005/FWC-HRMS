@@ -147,6 +147,7 @@ dist/
 *.pptx
 *.pps
 *.ppsx
+*.ppt.html
 
 # Additional documentation
 docs/
