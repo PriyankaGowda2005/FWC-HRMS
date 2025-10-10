@@ -1,8 +1,6 @@
 const request = require('supertest');
 const app = require('../server');
-const { PrismaClient } = require('@prisma/client');
-
-const prisma = new PrismaClient();
+const database = require('../database/connection');
 
 // Test data
 const testUser = {

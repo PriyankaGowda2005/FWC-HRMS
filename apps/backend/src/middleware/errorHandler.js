@@ -7,23 +7,23 @@ const errorHandler = (err, req, res, next) => {
     status: 500
   };
 
-  // Prisma errors
-  if (err.code === 'P2002') {
+  // MongoDB errors
+  if (err.code === 11000) {
     error = {
       message: 'Duplicate entry. This record already exists.',
       status: 400
     };
-  } else if (err.code === 'P2025') {
+  } else if (err.name === 'MongoError' && err.code === 11000) {
     error = {
-      message: 'Record not found.',
-      status: 404
+      message: 'Duplicate entry. This record already exists.',
+      status: 400
     };
   } else if (err.name === 'ValidationError') {
     error = {
       message: Object.values(err.errors).map(val => val.message).join(', '),
       status: 400
     };
-  } else if (err.name === 'CastError') {
+  } else if (err.name === 'CastError' || err.name === 'BSONTypeError') {
     error = {
       message: 'Invalid ID format',
       status: 400

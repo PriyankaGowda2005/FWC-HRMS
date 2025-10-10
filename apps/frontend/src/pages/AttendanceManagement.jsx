@@ -20,24 +20,44 @@ const AttendanceManagement = () => {
     }
   )
 
-  // Clock in/out mutation
-  const clockInOutMutation = useMutation(
-    (data) => attendanceAPI.clockInOut(data),
+  // Clock in mutation
+  const clockInMutation = useMutation(
+    (data) => attendanceAPI.clockIn(data),
     {
       onSuccess: () => {
-        toast.success('Attendance recorded successfully')
+        toast.success('Clocked in successfully')
         queryClient.invalidateQueries('attendance')
       },
       onError: (error) => {
-        toast.error(error.response?.data?.message || 'Failed to record attendance')
+        toast.error(error.response?.data?.message || 'Failed to clock in')
       }
     }
   )
 
-  const handleClockInOut = () => {
-    clockInOutMutation.mutate({
-      employeeId: user.employee.id,
-      date: selectedDate
+  // Clock out mutation
+  const clockOutMutation = useMutation(
+    (data) => attendanceAPI.clockOut(data),
+    {
+      onSuccess: () => {
+        toast.success('Clocked out successfully')
+        queryClient.invalidateQueries('attendance')
+      },
+      onError: (error) => {
+        toast.error(error.response?.data?.message || 'Failed to clock out')
+      }
+    }
+  )
+
+  const handleClockIn = () => {
+    clockInMutation.mutate({
+      notes: '',
+      workFromHome: false
+    })
+  }
+
+  const handleClockOut = () => {
+    clockOutMutation.mutate({
+      notes: ''
     })
   }
 
@@ -52,7 +72,7 @@ const AttendanceManagement = () => {
     )
   }
 
-  const attendanceRecords = attendanceData?.data || []
+  const attendanceRecords = attendanceData?.attendanceRecords || []
   const todayRecord = attendanceRecords.find(record => 
     record.employeeId === user.employee?.id && 
     new Date(record.date).toDateString() === new Date(selectedDate).toDateString()
@@ -115,11 +135,11 @@ const AttendanceManagement = () => {
             )}
             
             <button
-              onClick={handleClockInOut}
-              disabled={clockInOutMutation.isLoading}
+              onClick={todayRecord?.clockIn && !todayRecord?.clockOut ? handleClockOut : handleClockIn}
+              disabled={clockInMutation.isLoading || clockOutMutation.isLoading}
               className="w-full btn-primary"
             >
-              {clockInOutMutation.isLoading ? 'Processing...' : 
+              {(clockInMutation.isLoading || clockOutMutation.isLoading) ? 'Processing...' : 
                todayRecord?.clockIn && !todayRecord?.clockOut ? 'Clock Out' : 'Clock In'}
             </button>
           </div>
@@ -273,6 +293,112 @@ const AttendanceManagement = () => {
               )}
             </tbody>
           </table>
+        </div>
+      </div>
+
+      {/* Add Record Modal */}
+      {showAddModal && (
+        <AddAttendanceModal
+          onClose={() => setShowAddModal(false)}
+          onSubmit={(data) => {
+            // Handle add record logic here
+            console.log('Add attendance record:', data)
+            setShowAddModal(false)
+          }}
+        />
+      )}
+    </div>
+  )
+}
+
+// Add Attendance Modal Component
+const AddAttendanceModal = ({ onClose, onSubmit }) => {
+  const [formData, setFormData] = useState({
+    employeeId: '',
+    date: new Date().toISOString().split('T')[0],
+    clockIn: '',
+    clockOut: '',
+    notes: '',
+    workFromHome: false
+  })
+
+  const handleSubmit = (e) => {
+    e.preventDefault()
+    onSubmit(formData)
+  }
+
+  return (
+    <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
+      <div className="relative top-20 mx-auto p-5 border w-96 shadow-lg rounded-md bg-white">
+        <div className="mt-3">
+          <h3 className="text-lg font-medium text-gray-900 mb-4">Add Attendance Record</h3>
+          <form onSubmit={handleSubmit} className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700">Date</label>
+              <input
+                type="date"
+                required
+                value={formData.date}
+                onChange={(e) => setFormData({ ...formData, date: e.target.value })}
+                className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700">Clock In Time</label>
+              <input
+                type="time"
+                value={formData.clockIn}
+                onChange={(e) => setFormData({ ...formData, clockIn: e.target.value })}
+                className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700">Clock Out Time</label>
+              <input
+                type="time"
+                value={formData.clockOut}
+                onChange={(e) => setFormData({ ...formData, clockOut: e.target.value })}
+                className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700">Notes</label>
+              <textarea
+                rows={3}
+                value={formData.notes}
+                onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
+                className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2"
+                placeholder="Optional notes..."
+              />
+            </div>
+            <div className="flex items-center">
+              <input
+                type="checkbox"
+                id="workFromHome"
+                checked={formData.workFromHome}
+                onChange={(e) => setFormData({ ...formData, workFromHome: e.target.checked })}
+                className="h-4 w-4 text-primary-600 focus:ring-primary-500 border-gray-300 rounded"
+              />
+              <label htmlFor="workFromHome" className="ml-2 block text-sm text-gray-900">
+                Work from home
+              </label>
+            </div>
+            <div className="flex justify-end space-x-3 pt-4">
+              <button
+                type="button"
+                onClick={onClose}
+                className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-md hover:bg-gray-200"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                className="px-4 py-2 text-sm font-medium text-white bg-primary-600 rounded-md hover:bg-primary-700"
+              >
+                Add Record
+              </button>
+            </div>
+          </form>
         </div>
       </div>
     </div>

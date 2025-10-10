@@ -35,7 +35,7 @@ class InterviewBot:
                         'How would you design a scalable web application?',
                         'Describe how you\'d handle high-traffic scenarios.',
                         'What caching strategies have you used?',
-                        Describe a microservices architecture you\'ve worked with.'
+                        'Describe a microservices architecture you\'ve worked with.'
                     ]
                 }
             ],
