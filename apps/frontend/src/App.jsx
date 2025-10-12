@@ -4,13 +4,24 @@ import { QueryClient, QueryClientProvider } from 'react-query'
 import { ReactQueryDevtools } from 'react-query/devtools'
 import { AuthProvider } from './contexts/AuthContext'
 import { NavigationProvider } from './contexts/NavigationContext'
+import { CandidateAuthProvider } from './contexts/CandidateAuthContext'
 import ProtectedRoute from './components/ProtectedRoute'
 import Layout from './components/Layout'
+import CandidateLayout from './components/CandidateLayout'
 import LoadingSpinner from './components/LoadingSpinner'
+import ScrollToTop from './components/ScrollToTop'
 
 // Pages
 import Home from './pages/Home'
 import Login from './pages/Login'
+import WhoWeServe from './pages/WhoWeServe'
+import WhatWeDo from './pages/WhatWeDo'
+import WhoWeAre from './pages/WhoWeAre'
+import WhyChooseUs from './pages/WhyChooseUs'
+import Careers from './pages/Careers'
+import Contact from './pages/Contact'
+import CandidateRegister from './pages/CandidateRegister'
+import CandidateDashboard from './pages/CandidateDashboard'
 import PersonalizedDashboard from './pages/PersonalizedDashboard'
 import AdminDashboard from './pages/AdminDashboard'
 import HRDashboard from './pages/HRDashboard'
@@ -42,12 +53,40 @@ function App() {
       <AuthProvider>
         <Router>
           <NavigationProvider>
+            <ScrollToTop />
             <div className="App">
               <Routes>
                 {/* Public routes */}
                 <Route path="/" element={<Home />} />
+                <Route path="/who-we-serve" element={<WhoWeServe />} />
+                <Route path="/what-we-do" element={<WhatWeDo />} />
+                <Route path="/who-we-are" element={<WhoWeAre />} />
+                <Route path="/why-choose-us" element={<WhyChooseUs />} />
+                <Route path="/careers" element={<Careers />} />
+                <Route path="/contact" element={<Contact />} />
                 
-                <Route path="/login" element={<Login />} />
+                <Route path="/login" element={
+                  <CandidateAuthProvider>
+                    <Login />
+                  </CandidateAuthProvider>
+                } />
+                
+                {/* Candidate Portal Routes */}
+                <Route path="/candidate-portal/register" element={
+                  <CandidateAuthProvider>
+                    <CandidateRegister />
+                  </CandidateAuthProvider>
+                } />
+                
+                {/* Protected Candidate Routes */}
+                <Route path="/candidate-portal" element={
+                  <CandidateAuthProvider>
+                    <CandidateLayout />
+                  </CandidateAuthProvider>
+                }>
+                  <Route path="dashboard" element={<CandidateDashboard />} />
+                  {/* Add more candidate routes here */}
+                </Route>
                 
                 {/* Protected routes with role-based access */}
                 <Route path="/dashboard" element={

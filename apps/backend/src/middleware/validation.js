@@ -15,7 +15,7 @@ const commonSchemas = {
   email: z.string().email('Invalid email format').toLowerCase().trim(),
   
   password: z.string()
-    .min(8, 'Password must be at least 8 characters')
+    .min(6, 'Password must be at least 6 characters')
     .regex(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)/, 'Password must contain at least one uppercase letter, one lowercase letter, and one number'),
 
   phone: z.string().regex(/^[\+]?[1-9][\d]{0,15}$/, 'Invalid phone number format').optional(),
@@ -101,9 +101,54 @@ const userSchemas = {
   })
 };
 
+// Candidate schemas
+const candidateSchemas = {
+  register: z.object({
+    email: commonSchemas.email,
+    password: commonSchemas.password,
+    firstName: z.string().min(1).max(50).trim(),
+    lastName: z.string().min(1).max(50).trim(),
+    phone: commonSchemas.phone
+  }),
+
+  login: z.object({
+    email: commonSchemas.email,
+    password: z.string().min(1, 'Password is required')
+  }),
+
+  updateProfile: z.object({
+    firstName: z.string().min(1).max(50).trim().optional(),
+    lastName: z.string().min(1).max(50).trim().optional(),
+    phone: commonSchemas.phone,
+    skills: z.array(z.string()).optional(),
+    experience: z.array(z.object({
+      company: z.string(),
+      position: z.string(),
+      startDate: z.string(),
+      endDate: z.string().optional(),
+      description: z.string().optional()
+    })).optional(),
+    education: z.array(z.object({
+      institution: z.string(),
+      degree: z.string(),
+      field: z.string(),
+      graduationYear: z.string(),
+      gpa: z.string().optional()
+    })).optional()
+  }),
+
+  jobApplication: z.object({
+    coverLetter: z.string().max(1000).optional(),
+    expectedSalary: z.number().positive().optional(),
+    availability: z.string().optional(),
+    additionalNotes: z.string().max(500).optional()
+  })
+};
+
 module.exports = {
   commonSchemas,
   userSchemas,
+  candidateSchemas,
   validateSchema,
   validateQuery,
   userRoleSchema

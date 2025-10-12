@@ -230,6 +230,76 @@ const seedData = async () => {
     const jobResults = await database.insertMany('job_postings', jobPostings);
     console.log(`✅ Created ${jobResults.insertedCount} job postings`);
 
+    // Create sample candidates
+    console.log('👤 Creating sample candidates...');
+    const candidates = [
+      {
+        email: 'john.doe@example.com',
+        password: await bcrypt.hash('candidate123', 12),
+        firstName: 'John',
+        lastName: 'Doe',
+        phone: '+1234567890',
+        status: 'ACTIVE',
+        profileComplete: true,
+        resumeUploaded: true,
+        skills: ['JavaScript', 'React', 'Node.js', 'MongoDB'],
+        experience: [
+          {
+            company: 'Tech Corp',
+            position: 'Frontend Developer',
+            startDate: '2022-01-01',
+            endDate: '2023-12-31',
+            description: 'Developed responsive web applications using React and JavaScript'
+          }
+        ],
+        education: [
+          {
+            institution: 'University of Technology',
+            degree: 'Bachelor of Science',
+            field: 'Computer Science',
+            graduationYear: '2021',
+            gpa: '3.8'
+          }
+        ],
+        createdAt: new Date(),
+        updatedAt: new Date()
+      },
+      {
+        email: 'jane.smith@example.com',
+        password: await bcrypt.hash('candidate123', 12),
+        firstName: 'Jane',
+        lastName: 'Smith',
+        phone: '+1234567891',
+        status: 'ACTIVE',
+        profileComplete: true,
+        resumeUploaded: false,
+        skills: ['Python', 'Django', 'PostgreSQL', 'AWS'],
+        experience: [
+          {
+            company: 'Data Solutions Inc',
+            position: 'Backend Developer',
+            startDate: '2021-06-01',
+            endDate: '2023-11-30',
+            description: 'Built scalable backend services using Python and Django'
+          }
+        ],
+        education: [
+          {
+            institution: 'State University',
+            degree: 'Master of Science',
+            field: 'Software Engineering',
+            graduationYear: '2021',
+            gpa: '3.9'
+          }
+        ],
+        createdAt: new Date(),
+        updatedAt: new Date()
+      }
+    ];
+
+    const candidateResults = await database.insertMany('candidates', candidates);
+    console.log(`✅ Created ${candidateResults.insertedCount} candidates`);
+
     console.log('🎉 Database seeding completed successfully!');
     console.log('\n📋 Sample Login Credentials:');
     console.log('Admin: admin@fwcit.com / admin123');
@@ -237,6 +307,9 @@ const seedData = async () => {
     console.log('Manager: manager@fwcit.com / manager123');
     console.log('Employee: employee@fwcit.com / employee123');
     console.log('Candidate: candidate@fwcit.com / candidate123');
+    console.log('\n📋 Sample Candidate Credentials:');
+    console.log('John Doe: john.doe@example.com / candidate123');
+    console.log('Jane Smith: jane.smith@example.com / candidate123');
 
   } catch (error) {
     console.error('❌ Error seeding database:', error);

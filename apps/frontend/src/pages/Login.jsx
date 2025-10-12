@@ -4,6 +4,7 @@ import { useForm } from 'react-hook-form'
 import toast from 'react-hot-toast'
 import { motion } from 'framer-motion'
 import { useAuth } from '../contexts/AuthContext'
+import { useCandidateAuth } from '../contexts/CandidateAuthContext'
 import LoadingSpinner from '../components/LoadingSpinner'
 import BackButton from '../components/UI/BackButton'
 import PageTransition from '../components/PageTransition'
@@ -12,6 +13,7 @@ const Login = () => {
   const [loading, setLoading] = useState(false)
   const navigate = useNavigate()
   const { login } = useAuth()
+  const { login: candidateLogin } = useCandidateAuth()
   
   const {
     register,
@@ -30,6 +32,20 @@ const Login = () => {
     setLoading(true)
     try {
       console.log('Attempting login with:', data)
+      
+      // Check if this is a candidate login
+      if (data.email === 'john.doe@example.com' || data.email === 'jane.smith@example.com') {
+        // Handle candidate login directly
+        const result = await candidateLogin(data.email, data.password)
+        if (result.success) {
+          toast.success('Candidate login successful!')
+          navigate('/candidate-portal/dashboard')
+        } else {
+          toast.error(result.error || 'Candidate login failed')
+        }
+        return
+      }
+      
       const response = await login(data)
       console.log('Login successful:', response)
       toast.success('Login successful!')
@@ -337,6 +353,33 @@ const Login = () => {
                         <div className="text-right">
                           <p className="text-slate-300 text-xs font-mono">employee@fwcit.com</p>
                           <p className="text-slate-400 text-xs font-mono">employee123</p>
+                        </div>
+                      </div>
+                     </div>
+                  </motion.div>
+
+                  {/* Candidate */}
+                  <motion.div 
+                    className="group relative overflow-hidden rounded-lg bg-slate-700/40 border border-slate-600/40 hover:border-cyan-500/50 transition-all duration-200 cursor-pointer"
+                    onClick={() => handleCredentialClick('john.doe@example.com', 'Candidate123')}
+                    whileHover={{ scale: 1.01 }}
+                    whileTap={{ scale: 0.99 }}
+                  >
+                    <div className="absolute inset-0 bg-gradient-to-r from-cyan-500/5 to-blue-500/5 opacity-0 group-hover:opacity-100 transition-opacity duration-200"></div>
+                    <div className="relative p-2.5">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center space-x-2">
+                          <div className="h-5 w-5 bg-gradient-to-r from-cyan-500 to-blue-500 rounded flex items-center justify-center">
+                            <span className="text-white font-bold text-xs">C</span>
+                          </div>
+                          <div>
+                            <h4 className="text-white font-medium text-xs">Candidate</h4>
+                            <p className="text-slate-400 text-xs">Job portal</p>
+                          </div>
+                        </div>
+                        <div className="text-right">
+                          <p className="text-slate-300 text-xs font-mono">john.doe@example.com</p>
+                          <p className="text-slate-400 text-xs font-mono">Candidate123</p>
                         </div>
                       </div>
                      </div>

@@ -51,6 +51,33 @@ const ROLE_PERMISSIONS = {
   ]
 };
 
+// Candidate authentication middleware
+const authenticateCandidate = async (req, res, next) => {
+  try {
+    const token = req.cookies.token || req.headers.authorization?.split(' ')[1];
+
+    if (!token) {
+      return res.status(401).json({ message: 'Access token required' });
+    }
+
+    const decoded = jwt.verify(token, process.env.JWT_SECRET || 'fwc-hrms-super-secret-jwt-key-2024');
+    
+    // Get candidate from database
+    const candidate = await database.findOne('candidates', { _id: new ObjectId(decoded.candidateId) });
+    
+    if (!candidate || candidate.status !== 'ACTIVE') {
+      return res.status(401).json({ message: 'Invalid or inactive candidate' });
+    }
+
+    req.candidateId = candidate._id.toString();
+    req.candidate = candidate;
+    next();
+  } catch (error) {
+    console.error('Candidate token verification error:', error);
+    return res.status(401).json({ message: 'Invalid token' });
+  }
+};
+
 // Enhanced token verification with permissions
 const verifyToken = async (req, res, next) => {
   try {
@@ -267,6 +294,7 @@ module.exports = {
   checkResourceAccess,
   optionalAuth,
   createRateLimit,
+  authenticateCandidate,
   ROLE_HIERARCHY,
   ROLE_PERMISSIONS
 };
