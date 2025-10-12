@@ -229,7 +229,7 @@ export const aiAPI = {
     api.post('/ai/payroll/insights'),
   
   // Recruitment Insights
-  getRecruitmentInsights: (period) => 
+  getRecruitmentInsights: (period = '30d') => 
     api.get(`/ai/recruitment/insights?period=${period}`),
   analyzeHiringTrends: (departmentId) => 
     api.post('/ai/recruitment/trends', { departmentId }),

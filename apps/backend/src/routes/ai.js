@@ -12,15 +12,41 @@ router.use(verifyToken);
 
 // Get AI services status
 router.get('/services/status', asyncHandler(async (req, res) => {
-  res.json({
-    services: {
-      resumeAnalysis: { status: 'active', version: '1.0' },
-      interviewBot: { status: 'active', version: '1.0' },
-      performancePrediction: { status: 'active', version: '1.0' },
-      retentionAnalysis: { status: 'active', version: '1.0' }
-    },
-    lastUpdated: new Date()
-  });
+  try {
+    // Check ML service health
+    const mlServiceUrl = process.env.ML_SERVICE_URL || 'http://localhost:8000';
+    const response = await fetch(`${mlServiceUrl}/health`);
+    
+    if (response.ok) {
+      const mlHealth = await response.json();
+      res.json({
+        available: true,
+        services: {
+          resumeAnalysis: { status: 'active', version: '1.0' },
+          interviewBot: { status: 'active', version: '1.0' },
+          performancePrediction: { status: 'active', version: '1.0' },
+          retentionAnalysis: { status: 'active', version: '1.0' }
+        },
+        lastUpdated: new Date(),
+        mlService: mlHealth
+      });
+    } else {
+      throw new Error('ML service not responding');
+    }
+  } catch (error) {
+    console.error('AI Services Status Error:', error);
+    res.json({
+      available: false,
+      services: {
+        resumeAnalysis: { status: 'inactive', version: '1.0' },
+        interviewBot: { status: 'inactive', version: '1.0' },
+        performancePrediction: { status: 'inactive', version: '1.0' },
+        retentionAnalysis: { status: 'inactive', version: '1.0' }
+      },
+      lastUpdated: new Date(),
+      error: 'AI services temporarily unavailable'
+    });
+  }
 }));
 
 // Analyze resume
@@ -221,6 +247,145 @@ router.get('/insights/hr', checkRole('ADMIN', 'HR'), asyncHandler(async (req, re
 
   res.json({
     insights
+  });
+}));
+
+// Get recruitment insights
+router.get('/recruitment/insights', checkRole('ADMIN', 'HR'), asyncHandler(async (req, res) => {
+  const { period = '30d' } = req.query;
+  
+  // Mock recruitment insights
+  const insights = {
+    period,
+    metrics: {
+      totalApplications: Math.floor(Math.random() * 200) + 50,
+      interviewsScheduled: Math.floor(Math.random() * 50) + 10,
+      offersExtended: Math.floor(Math.random() * 20) + 5,
+      hiresCompleted: Math.floor(Math.random() * 15) + 3,
+      averageTimeToHire: Math.floor(Math.random() * 30) + 15,
+      candidateQualityScore: Math.floor(Math.random() * 30) + 70
+    },
+    trends: {
+      applicationTrend: 'increasing',
+      interviewConversionRate: Math.floor(Math.random() * 20) + 60,
+      offerAcceptanceRate: Math.floor(Math.random() * 20) + 70,
+      timeToHireTrend: 'decreasing'
+    },
+    topSources: [
+      { source: 'LinkedIn', applications: Math.floor(Math.random() * 100) + 50, conversion: Math.floor(Math.random() * 20) + 60 },
+      { source: 'Company Website', applications: Math.floor(Math.random() * 80) + 30, conversion: Math.floor(Math.random() * 20) + 70 },
+      { source: 'Job Boards', applications: Math.floor(Math.random() * 60) + 20, conversion: Math.floor(Math.random() * 20) + 50 },
+      { source: 'Referrals', applications: Math.floor(Math.random() * 40) + 10, conversion: Math.floor(Math.random() * 20) + 80 }
+    ],
+    predictions: {
+      nextMonthApplications: Math.floor(Math.random() * 100) + 50,
+      hiringVelocity: Math.floor(Math.random() * 20) + 80,
+      skillGaps: ['React', 'Python', 'Data Analysis', 'Leadership']
+    },
+    recommendations: [
+      'Optimize job descriptions for better visibility',
+      'Implement automated screening processes',
+      'Enhance employer branding on social media',
+      'Develop referral incentive programs',
+      'Improve candidate experience during interviews'
+    ],
+    generatedAt: new Date()
+  };
+
+  res.json({
+    message: 'Recruitment insights retrieved successfully',
+    insights
+  });
+}));
+
+// Analyze hiring trends
+router.post('/recruitment/trends', checkRole('ADMIN', 'HR'), [
+  body('departmentId').optional().isMongoId().withMessage('Invalid department ID')
+], asyncHandler(async (req, res) => {
+  const errors = validationResult(req);
+  if (!errors.isEmpty()) {
+    return res.status(400).json({ 
+      message: 'Validation errors',
+      errors: errors.array()
+    });
+  }
+
+  const { departmentId } = req.body;
+
+  // Mock hiring trends analysis
+  const trends = {
+    departmentId,
+    analysis: {
+      hiringVelocity: Math.floor(Math.random() * 30) + 70,
+      candidateQuality: Math.floor(Math.random() * 30) + 70,
+      timeToFill: Math.floor(Math.random() * 20) + 20,
+      costPerHire: Math.floor(Math.random() * 5000) + 5000
+    },
+    trends: {
+      applications: 'increasing',
+      interviews: 'stable',
+      offers: 'increasing',
+      hires: 'stable'
+    },
+    insights: [
+      'Hiring velocity has improved by 15% this quarter',
+      'Candidate quality scores are above industry average',
+      'Time to fill has decreased by 20%',
+      'Cost per hire is within budget targets'
+    ],
+    generatedAt: new Date()
+  };
+
+  res.json({
+    message: 'Hiring trends analyzed successfully',
+    trends
+  });
+}));
+
+// Predict hiring needs
+router.post('/recruitment/predict', checkRole('ADMIN', 'HR'), [
+  body('departmentId').optional().isMongoId().withMessage('Invalid department ID')
+], asyncHandler(async (req, res) => {
+  const errors = validationResult(req);
+  if (!errors.isEmpty()) {
+    return res.status(400).json({ 
+      message: 'Validation errors',
+      errors: errors.array()
+    });
+  }
+
+  const { departmentId } = req.body;
+
+  // Mock hiring needs prediction
+  const predictions = {
+    departmentId,
+    predictions: {
+      nextQuarter: {
+        positionsNeeded: Math.floor(Math.random() * 10) + 5,
+        skillRequirements: ['JavaScript', 'React', 'Node.js', 'MongoDB'],
+        urgencyLevel: 'medium',
+        estimatedCost: Math.floor(Math.random() * 100000) + 50000
+      },
+      nextSixMonths: {
+        positionsNeeded: Math.floor(Math.random() * 20) + 10,
+        skillRequirements: ['Python', 'Machine Learning', 'Data Science', 'Leadership'],
+        urgencyLevel: 'high',
+        estimatedCost: Math.floor(Math.random() * 200000) + 100000
+      }
+    },
+    factors: [
+      'Projected business growth',
+      'Current team capacity',
+      'Historical hiring patterns',
+      'Market demand for skills'
+    ],
+    confidence: Math.floor(Math.random() * 20) + 80,
+    generatedAt: new Date()
+  };
+
+  res.json({
+    message: 'Hiring needs predicted successfully',
+    predictions
   });
 }));
 
