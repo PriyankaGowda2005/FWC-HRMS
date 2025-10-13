@@ -174,110 +174,49 @@ if (resumeProcessingQueue) {
   });
 }
 
-// Email Notifications Worker
+// Email Notifications Worker using Resend
 if (emailNotificationsQueue) {
   emailNotificationsQueue.process('send-email', async (job) => {
-  const { type, to, data } = job.data;
-  
-  try {
-    console.log(`Sending ${type} email to ${to}`);
-    
-    const nodemailer = require('nodemailer');
-    
-    // SMTP configuration
-    const transporter = nodemailer.createTransporter({
-      host: process.env.SMTP_HOST || 'smtp.gmail.com',
-      port: process.env.SMTP_PORT || 587,
-      secure: false,
-      auth: {
-        user: process.env.SMTP_USER,
-        pass: process.env.SMTP_PASS,
-      },
-    });
+    const { type, to, data } = job.data;
 
-    let subject, htmlContent;
-    
-    switch (type) {
-      case 'application_received':
-        subject = 'Application Received - FWC HRMS';
-        htmlContent = `
-          <h2>Application Received</h2>
-          <p>Dear ${data.candidateName},</p>
-          <p>Thank you for your interest in the ${data.jobTitle} position.</p>
-          <p>We have received your application and our team will review it shortly.</p>
-          <p>You will hear from us within 5 business days.</p>
-          <p>Best regards,<br>FWC HR Team</p>
-        `;
-        break;
-        
-      case 'application_rejected':
-        subject = 'Application Update - FWC HRMS';
-        htmlContent = `
-          <h2>Application Status Update</h2>
-          <p>Dear ${data.candidateName},</p>
-          <p>Thank you for applying for the ${data.jobTitle} position.</p>
-          <p>After careful consideration, we have decided to move forward with other candidates at this time.</p>
-          ${data.reason ? `<p>Reason: ${data.reason}</p>` : ''}
-          <p>We encourage you to apply for other positions that match your experience.</p>
-          <p>Best regards,<br>FWC HR Team</p>
-        `;
-        break;
-        
-      case 'interview_scheduled':
-        subject = 'Interview Scheduled - FWC HRMS';
-        htmlContent = `
-          <h2>Interview Scheduled</h2>
-          <p>Dear ${data.candidateName},</p>
-          <p>We are pleased to invite you for an interview for the ${data.jobTitle} position.</p>
-          <p><strong>Interview Details:</strong></p>
-          <ul>
-            <li>Date: ${new Date(data.scheduledAt).toLocaleDateString()}</li>
-            <li>Time: ${new Date(data.scheduledAt).toLocaleTimeString()}</li>
-            <li>Type: ${data.type}</li>
-            ${data.location ? `<li>Location: ${data.location}</li>` : ''}
-            ${data.meetingLink ? `<li>Meeting Link: <a href="${data.meetingLink}">${data.meetingLink}</a></li>` : ''}
-          </ul>
-          <p>Please confirm your attendance by replying to this email.</p>
-          <p>Best regards,<br>FWC HR Team</p>
-        `;
-        break;
-        
-      case 'leave_approved':
-        subject = 'Leave Request Approved - FWC HRMS';
-        htmlContent = `
-          <h2>Leave Request Approved</h2>
-          <p>Dear ${data.employeeName},</p>
-          <p>Your leave request has been approved.</p>
-          <p><strong>Leave Details:</strong></p>
-          <ul>
-            <li>Type: ${data.leaveType}</li>
-            <li>Start Date: ${new Date(data.startDate).toLocaleDateString()}</li>
-            <li>End Date: ${new Date(data.endDate).toLocaleDateString()}</li>
-            <li>Days: ${data.daysRequested}</li>
-          </ul>
-          <p>Please ensure your work coverage is arranged before your leave period.</p>
-          <p>Best regards,<br>FWC HR Team</p>
-        `;
-        break;
-        
-      default:
-        throw new Error(`Unknown email type: ${type}`);
+    try {
+      console.log(`Sending ${type} email to ${to}`);
+
+      // Use the centralized email sender
+      const sendEmail = require('./jobHandlers/emailSender');
+
+      const result = await sendEmail({
+        type,
+        to,
+        data
+      });
+
+      console.log(`Email sent successfully to ${to}: ${result.messageId}`);
+      return { success: true, type, to, messageId: result.messageId };
+
+    } catch (error) {
+      console.error(`Failed to send email to ${to}:`, error);
+      throw error;
     }
+  });
 
-    await transporter.sendMail({
-      from: process.env.SMTP_FROM || 'noreply@fwchrms.com',
-      to,
-      subject,
-      html: htmlContent,
-    });
-    
-    console.log(`Email sent successfully to ${to}`);
-    return { success: true, type, to };
-    
-  } catch (error) {
-    console.error(`Failed to send email to ${to}:`, error);
-    throw error;
-  }
+  // Interview Transcript Processing Worker
+  emailNotificationsQueue.process('process-interview-transcript', async (job) => {
+    try {
+      console.log(`Processing interview transcript: ${job.data.transcriptId}`);
+
+      // Use the transcript processor
+      const processTranscript = require('./jobHandlers/transcriptProcessor');
+
+      const result = await processTranscript(job);
+
+      console.log(`Transcript processed successfully: ${job.data.transcriptId}`);
+      return result;
+
+    } catch (error) {
+      console.error(`Failed to process transcript ${job.data.transcriptId}:`, error);
+      throw error;
+    }
   });
 }
 

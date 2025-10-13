@@ -111,7 +111,7 @@ export const CandidateAuthProvider = ({ children }) => {
     delete api.defaults.headers.common['Authorization']
     setCandidate(null)
     setError(null)
-    navigate('/candidate-portal/login')
+    navigate('/login')
   }
 
   const updateProfile = async (profileData) => {

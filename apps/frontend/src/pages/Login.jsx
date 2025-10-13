@@ -280,7 +280,7 @@ const Login = () => {
                   {/* HR */}
                   <motion.div 
                     className="group relative overflow-hidden rounded-lg bg-slate-700/40 border border-slate-600/40 hover:border-green-500/50 transition-all duration-200 cursor-pointer"
-                    onClick={() => handleCredentialClick('hr@fwcit.com', 'hr1234')}
+                    onClick={() => handleCredentialClick('hr@fwchrms.com', 'HR@2024!')}
                     whileHover={{ scale: 1.01 }}
                     whileTap={{ scale: 0.99 }}
                   >
@@ -297,8 +297,8 @@ const Login = () => {
                           </div>
                         </div>
                         <div className="text-right">
-                          <p className="text-slate-300 text-xs font-mono">hr@fwcit.com</p>
-                          <p className="text-slate-400 text-xs font-mono">hr1234</p>
+                          <p className="text-slate-300 text-xs font-mono">hr@fwchrms.com</p>
+                          <p className="text-slate-400 text-xs font-mono">HR@2024!</p>
                         </div>
                       </div>
                     </div>

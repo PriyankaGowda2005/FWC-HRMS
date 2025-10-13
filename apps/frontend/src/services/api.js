@@ -331,6 +331,195 @@ export const settingsAPI = {
     api.post(`/settings/integrations/${provider}`, data),
 }
 
+// Candidate Interview Management API
+export const candidateInterviewsAPI = {
+  // Get candidate's interviews
+  getMyInterviews: async (params = {}) => {
+    const queryParams = new URLSearchParams(params).toString();
+    const response = await api.get(`/candidate-interviews/my-interviews?${queryParams}`);
+    return response.data;
+  },
+
+  // Get interview details
+  getInterview: async (interviewId) => {
+    const response = await api.get(`/candidate-interviews/interview/${interviewId}`);
+    return response.data;
+  },
+
+  // Request interview reschedule
+  requestReschedule: async (interviewId, data) => {
+    const response = await api.post(`/candidate-interviews/interview/${interviewId}/request-reschedule`, data);
+    return response.data;
+  },
+
+  // Confirm interview attendance
+  confirmInterview: async (interviewId) => {
+    const response = await api.post(`/candidate-interviews/interview/${interviewId}/confirm`);
+    return response.data;
+  },
+
+  // Get application status
+  getApplicationStatus: async () => {
+    const response = await api.get('/candidate-interviews/application-status');
+    return response.data;
+  },
+
+  // Send interview reminder
+  sendReminder: async (interviewId) => {
+    const response = await api.post(`/candidate-interviews/interview/${interviewId}/reminder`);
+    return response.data;
+  }
+};
+
+// Interview Transcript Processing API
+export const interviewTranscriptsAPI = {
+  // Start interview recording
+  startRecording: async (data) => {
+    const response = await api.post('/interview-transcripts/start-recording', data);
+    return response.data;
+  },
+
+  // Update transcript (real-time)
+  updateTranscript: async (transcriptId, data) => {
+    const response = await api.post(`/interview-transcripts/update-transcript`, {
+      transcriptId,
+      ...data
+    });
+    return response.data;
+  },
+
+  // End interview recording
+  endRecording: async (transcriptId, data) => {
+    const response = await api.post(`/interview-transcripts/end-recording`, {
+      transcriptId,
+      ...data
+    });
+    return response.data;
+  },
+
+  // Get transcript analysis results
+  getTranscript: async (transcriptId) => {
+    const response = await api.get(`/interview-transcripts/transcript/${transcriptId}`);
+    return response.data;
+  },
+
+  // Get all transcripts for a user
+  getMyTranscripts: async (params = {}) => {
+    const queryParams = new URLSearchParams(params).toString();
+    const response = await api.get(`/interview-transcripts/my-transcripts?${queryParams}`);
+    return response.data;
+  },
+
+  // Submit manual scores
+  submitScores: async (transcriptId, data) => {
+    const response = await api.post('/interview-transcripts/submit-scores', {
+      transcriptId,
+      ...data
+    });
+    return response.data;
+  },
+
+  // Get interview analytics
+  getAnalytics: async (timeframe = '30d') => {
+    const response = await api.get(`/interview-transcripts/analytics?timeframe=${timeframe}`);
+    return response.data;
+  }
+};
+
+// Candidate to Employee Conversion API
+export const candidateConversionAPI = {
+  // Convert candidate to employee
+  convertCandidate: async (data) => {
+    const response = await api.post('/candidate-conversion/convert', data);
+    return response.data;
+  },
+
+  // Get candidates ready for conversion
+  getCandidatesReady: async () => {
+    const response = await api.get('/candidate-conversion/candidates-ready');
+    return response.data;
+  },
+
+  // Get conversion history
+  getConversionHistory: async (params = {}) => {
+    const queryParams = new URLSearchParams(params).toString();
+    const response = await api.get(`/candidate-conversion/conversion-history?${queryParams}`);
+    return response.data;
+  },
+
+  // Get onboarding status
+  getOnboardingStatus: async (employeeId) => {
+    const response = await api.get(`/candidate-conversion/onboarding/${employeeId}`);
+    return response.data;
+  },
+
+  // Update onboarding task status
+  updateOnboardingTask: async (employeeId, taskId, data) => {
+    const response = await api.put(`/candidate-conversion/onboarding/${employeeId}/task/${taskId}`, data);
+    return response.data;
+  }
+};
+
+// Resume Screening API
+export const resumeScreeningAPI = {
+  // Screen a candidate's resume for a job posting
+  screenResume: (data) => api.post('/resume-screening/screen', data),
+  
+  // Get all screenings for a job posting
+  getScreenings: (jobPostingId) => api.get(`/resume-screening/screenings/${jobPostingId}`),
+  
+  // Get screening details
+  getScreening: (screeningId) => api.get(`/resume-screening/screening/${screeningId}`),
+  
+  // Update screening status (approve/reject)
+  updateScreeningStatus: (screeningId, data) => api.put(`/resume-screening/screening/${screeningId}/status`, data)
+}
+
+// Job Attachments API
+export const jobAttachmentsAPI = {
+  // Attach screened candidate to job posting
+  attachCandidate: (data) => api.post('/job-attachments/attach', data),
+  
+  // Get all attachments for a job posting
+  getJobAttachments: (jobPostingId, params = {}) => api.get(`/job-attachments/job/${jobPostingId}`, { params }),
+  
+  // Get all attachments for a candidate
+  getCandidateAttachments: (candidateId) => api.get(`/job-attachments/candidate/${candidateId}`),
+  
+  // Get attachment details
+  getAttachment: (attachmentId) => api.get(`/job-attachments/${attachmentId}`),
+  
+  // Update attachment status
+  updateAttachmentStatus: (attachmentId, data) => api.put(`/job-attachments/${attachmentId}/status`, data),
+  
+  // Remove attachment
+  removeAttachment: (attachmentId) => api.delete(`/job-attachments/${attachmentId}`)
+}
+
+// Interviews API
+export const interviewsAPI = {
+  // Schedule interview
+  scheduleInterview: (data) => api.post('/interviews/schedule', data),
+  
+  // Get interviews for a manager
+  getManagerInterviews: (managerId, params = {}) => api.get(`/interviews/manager/${managerId}`, { params }),
+  
+  // Get interviews for a job posting
+  getJobInterviews: (jobPostingId) => api.get(`/interviews/job/${jobPostingId}`),
+  
+  // Get interview details
+  getInterview: (interviewId) => api.get(`/interviews/${interviewId}`),
+  
+  // Update interview status
+  updateInterviewStatus: (interviewId, data) => api.put(`/interviews/${interviewId}/status`, data),
+  
+  // Reschedule interview
+  rescheduleInterview: (interviewId, data) => api.put(`/interviews/${interviewId}/reschedule`, data),
+  
+  // Cancel interview
+  cancelInterview: (interviewId, data) => api.put(`/interviews/${interviewId}/cancel`, data)
+}
+
 // Test API endpoints
 export const testAPI = {
   getUsers: () => api.get('/users'),

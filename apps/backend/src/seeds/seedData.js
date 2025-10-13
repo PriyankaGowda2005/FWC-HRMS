@@ -73,9 +73,9 @@ const seedData = async () => {
         updatedAt: new Date()
       },
       {
-        email: 'hr@fwcit.com',
+        email: 'hr@fwchrms.com',
         username: 'hr_manager',
-        password: await bcrypt.hash('hr1234', 12),
+        password: await bcrypt.hash('HR@2024!', 12),
         role: 'HR',
         isActive: true,
         createdAt: new Date(),
@@ -303,7 +303,7 @@ const seedData = async () => {
     console.log('🎉 Database seeding completed successfully!');
     console.log('\n📋 Sample Login Credentials:');
     console.log('Admin: admin@fwcit.com / admin123');
-    console.log('HR: hr@fwcit.com / hr1234');
+    console.log('HR: hr@fwchrms.com / HR@2024!');
     console.log('Manager: manager@fwcit.com / manager123');
     console.log('Employee: employee@fwcit.com / employee123');
     console.log('Candidate: candidate@fwcit.com / candidate123');
