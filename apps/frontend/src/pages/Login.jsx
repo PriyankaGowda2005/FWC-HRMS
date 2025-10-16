@@ -33,17 +33,18 @@ const Login = () => {
     try {
       console.log('Attempting login with:', data)
       
-      // Check if this is a candidate login
-      if (data.email === 'john.doe@example.com' || data.email === 'jane.smith@example.com') {
-        // Handle candidate login directly
-        const result = await candidateLogin(data.email, data.password)
-        if (result.success) {
+      // Try candidate login first for any email
+      try {
+        const candidateResult = await candidateLogin(data.email, data.password)
+        if (candidateResult.success) {
           toast.success('Candidate login successful!')
           navigate('/candidate-portal/dashboard')
-        } else {
-          toast.error(result.error || 'Candidate login failed')
+          return
         }
-        return
+        // If candidate login fails, continue to regular user login
+      } catch (error) {
+        // Candidate login failed, continue to regular user login
+        console.log('Candidate login failed, trying regular login')
       }
       
       const response = await login(data)
@@ -361,7 +362,7 @@ const Login = () => {
                   {/* Candidate */}
                   <motion.div 
                     className="group relative overflow-hidden rounded-lg bg-slate-700/40 border border-slate-600/40 hover:border-cyan-500/50 transition-all duration-200 cursor-pointer"
-                    onClick={() => handleCredentialClick('john.doe@example.com', 'Candidate123')}
+                    onClick={() => handleCredentialClick('vishnu.h.s007@gmail.com', 'Alchem@1996')}
                     whileHover={{ scale: 1.01 }}
                     whileTap={{ scale: 0.99 }}
                   >
@@ -378,8 +379,8 @@ const Login = () => {
                           </div>
                         </div>
                         <div className="text-right">
-                          <p className="text-slate-300 text-xs font-mono">john.doe@example.com</p>
-                          <p className="text-slate-400 text-xs font-mono">Candidate123</p>
+                          <p className="text-slate-300 text-xs font-mono">vishnu.h.s007@gmail.com</p>
+                          <p className="text-slate-400 text-xs font-mono">Alchem@1996</p>
                         </div>
                       </div>
                      </div>

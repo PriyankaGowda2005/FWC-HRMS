@@ -40,6 +40,7 @@ import LeaveManagement from './pages/LeaveManagement'
 import PayrollManagement from './pages/PayrollManagement'
 import PerformanceManagement from './pages/PerformanceManagement'
 import RecruitmentManagement from './pages/RecruitmentManagement'
+import Recruitment from './pages/Recruitment'
 import DepartmentManagement from './pages/DepartmentManagement'
 import ReportsAnalytics from './pages/ReportsAnalytics'
 import Settings from './pages/Settings'
@@ -193,7 +194,7 @@ function App() {
                     <Layout />
                   </ProtectedRoute>
                 }>
-                  <Route index element={<RecruitmentManagement />} />
+                  <Route index element={<Recruitment />} />
                 </Route>
 
                 <Route path="/departments" element={

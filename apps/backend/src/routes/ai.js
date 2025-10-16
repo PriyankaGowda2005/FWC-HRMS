@@ -63,6 +63,9 @@ router.post('/resume/analyze', checkRole('ADMIN', 'HR'), [
   }
 
   const { filePath, jobRequirements } = req.body;
+  
+  // For now, use mock data since we don't have actual file processing
+  // In production, this would process the actual resume file
 
   // Mock resume analysis
   const analysis = {

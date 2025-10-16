@@ -32,6 +32,12 @@ const JobAttachmentModal = ({ candidate, jobPosting, screening, onClose, onSucce
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    
+    if (!jobPosting) {
+      toast.error('Please select a job posting first');
+      return;
+    }
+    
     setIsProcessing(true);
     
     try {
@@ -67,7 +73,7 @@ const JobAttachmentModal = ({ candidate, jobPosting, screening, onClose, onSucce
           <div className="bg-gray-50 p-4 rounded-lg">
             <h3 className="font-semibold text-gray-900 mb-2">Candidate Information</h3>
             <div className="text-sm space-y-1">
-              <p><span className="text-gray-600">Name:</span> {candidate.name}</p>
+              <p><span className="text-gray-600">Name:</span> {candidate?.firstName} {candidate?.lastName}</p>
               <p><span className="text-gray-600">Email:</span> {candidate.email}</p>
               <p><span className="text-gray-600">Phone:</span> {candidate.phone || 'Not provided'}</p>
             </div>
@@ -75,8 +81,8 @@ const JobAttachmentModal = ({ candidate, jobPosting, screening, onClose, onSucce
           <div className="bg-blue-50 p-4 rounded-lg">
             <h3 className="font-semibold text-gray-900 mb-2">Job Posting</h3>
             <div className="text-sm space-y-1">
-              <p><span className="text-gray-600">Position:</span> {jobPosting.title}</p>
-              <p><span className="text-gray-600">Department:</span> {jobPosting.department}</p>
+              <p><span className="text-gray-600">Position:</span> {jobPosting?.title || 'No job selected'}</p>
+              <p><span className="text-gray-600">Department:</span> {jobPosting?.department || 'N/A'}</p>
             </div>
           </div>
         </div>

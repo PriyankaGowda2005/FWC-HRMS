@@ -28,7 +28,7 @@ const Modal = ({
   return (
     <AnimatePresence>
       {isOpen && (
-        <Dialog as="div" className="relative z-50" onClose={onClose}>
+        <Dialog as="div" className="relative z-50" open={isOpen} onClose={onClose}>
           {/* Backdrop */}
           <motion.div
             className="fixed inset-0 bg-black/50 backdrop-blur-sm"

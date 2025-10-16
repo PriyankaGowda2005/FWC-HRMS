@@ -62,7 +62,7 @@ const ResumeScreeningResultsModal = ({ screening, onClose, onStatusUpdate, onAtt
           <div className="bg-gray-50 p-4 rounded-lg">
             <h3 className="font-semibold text-gray-900 mb-2">Candidate</h3>
             <div className="text-sm space-y-1">
-              <p><span className="text-gray-600">Name:</span> {screening.candidate?.name}</p>
+              <p><span className="text-gray-600">Name:</span> {screening?.candidate?.firstName} {screening?.candidate?.lastName}</p>
               <p><span className="text-gray-600">Email:</span> {screening.candidate?.email}</p>
               <p><span className="text-gray-600">Phone:</span> {screening.candidate?.phone || 'Not provided'}</p>
             </div>

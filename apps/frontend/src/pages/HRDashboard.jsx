@@ -7,6 +7,7 @@ import LoadingSpinner from '../components/LoadingSpinner'
 import AIInsights from '../components/AIInsights'
 import AIServicesStatus from '../components/AIServicesStatus'
 import PerformanceMonitor from '../components/PerformanceMonitor'
+import RecentCandidatesSection from '../components/RecentCandidatesSection'
 
 const HRDashboard = () => {
   const { user } = useAuth()
@@ -262,6 +263,9 @@ const HRDashboard = () => {
 
       {/* AI Services Status */}
       <AIServicesStatus className="mb-6" />
+
+      {/* Recent Candidates Section */}
+      <RecentCandidatesSection />
 
       {/* Main Content Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">

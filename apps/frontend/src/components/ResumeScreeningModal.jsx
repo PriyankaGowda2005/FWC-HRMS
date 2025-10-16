@@ -1,16 +1,31 @@
 import React, { useState } from 'react';
-import { useMutation, useQueryClient } from 'react-query';
+import { useMutation, useQueryClient, useQuery } from 'react-query';
 import toast from 'react-hot-toast';
-import { resumeScreeningAPI } from '../services/api';
+import { resumeScreeningAPI, jobPostingAPI } from '../services/api';
 import Modal from './UI/Modal';
 import Button from './UI/Button';
 import Icon from './UI/Icon';
 import LoadingSpinner from './LoadingSpinner';
 
-const ResumeScreeningModal = ({ candidate, jobPosting, onClose, onSuccess }) => {
+const ResumeScreeningModal = ({ candidate, jobPosting, isOpen, onClose, onSuccess }) => {
   const queryClient = useQueryClient();
   const [screeningNotes, setScreeningNotes] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
+  const [selectedJobId, setSelectedJobId] = useState(jobPosting?._id || '');
+
+  // Fetch job postings for selection
+  const { data: jobPostingsData, isLoading: jobPostingsLoading } = useQuery(
+    'job-postings',
+    () => jobPostingAPI.getAll(),
+    {
+      retry: 1,
+      onError: (error) => {
+        console.error('Job postings API error:', error)
+      }
+    }
+  );
+
+  const jobPostings = jobPostingsData?.data?.jobPostings || jobPostingsData?.jobPostings || [];
 
   const screenResumeMutation = useMutation(
     (data) => resumeScreeningAPI.screenResume(data),
@@ -31,12 +46,18 @@ const ResumeScreeningModal = ({ candidate, jobPosting, onClose, onSuccess }) => 
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    
+    if (!selectedJobId) {
+      toast.error('Please select a job posting first');
+      return;
+    }
+    
     setIsProcessing(true);
     
     try {
       await screenResumeMutation.mutateAsync({
         candidateId: candidate._id,
-        jobPostingId: jobPosting._id,
+        jobPostingId: selectedJobId,
         screeningNotes
       });
     } finally {
@@ -45,7 +66,7 @@ const ResumeScreeningModal = ({ candidate, jobPosting, onClose, onSuccess }) => 
   };
 
   return (
-    <Modal onClose={onClose} title="Screen Resume">
+    <Modal isOpen={isOpen} onClose={onClose} title="Screen Resume">
       <div className="space-y-6">
         {/* Candidate Info */}
         <div className="bg-gray-50 p-4 rounded-lg">
@@ -53,7 +74,7 @@ const ResumeScreeningModal = ({ candidate, jobPosting, onClose, onSuccess }) => 
           <div className="grid grid-cols-2 gap-4 text-sm">
             <div>
               <span className="text-gray-600">Name:</span>
-              <p className="font-medium">{candidate.name}</p>
+              <p className="font-medium">{candidate?.firstName} {candidate?.lastName}</p>
             </div>
             <div>
               <span className="text-gray-600">Email:</span>
@@ -76,14 +97,24 @@ const ResumeScreeningModal = ({ candidate, jobPosting, onClose, onSuccess }) => 
         <div className="bg-blue-50 p-4 rounded-lg">
           <h3 className="font-semibold text-gray-900 mb-2">Job Posting</h3>
           <div className="text-sm">
-            <div className="mb-1">
-              <span className="text-gray-600">Position:</span>
-              <p className="font-medium">{jobPosting.title}</p>
-            </div>
-            <div>
-              <span className="text-gray-600">Department:</span>
-              <p className="font-medium">{jobPosting.department}</p>
-            </div>
+            {selectedJobId ? (
+              <>
+                <div className="mb-1">
+                  <span className="text-gray-600">Position:</span>
+                  <p className="font-medium">
+                    {jobPostings.find(job => job._id === selectedJobId)?.title || 'Loading...'}
+                  </p>
+                </div>
+                <div>
+                  <span className="text-gray-600">Department:</span>
+                  <p className="font-medium">
+                    {jobPostings.find(job => job._id === selectedJobId)?.department || 'Loading...'}
+                  </p>
+                </div>
+              </>
+            ) : (
+              <p className="text-gray-500">Please select a job posting below</p>
+            )}
           </div>
         </div>
 
@@ -103,6 +134,26 @@ const ResumeScreeningModal = ({ candidate, jobPosting, onClose, onSuccess }) => 
 
         {/* Screening Form */}
         <form onSubmit={handleSubmit} className="space-y-4">
+          <div>
+            <label htmlFor="jobPosting" className="block text-sm font-medium text-gray-700 mb-2">
+              Select Job Posting *
+            </label>
+            <select
+              id="jobPosting"
+              value={selectedJobId}
+              onChange={(e) => setSelectedJobId(e.target.value)}
+              className="input-field"
+              required
+            >
+              <option value="">Choose a job posting...</option>
+              {jobPostings.map((job) => (
+                <option key={job._id} value={job._id}>
+                  {job.title} - {job.department}
+                </option>
+              ))}
+            </select>
+          </div>
+
           <div>
             <label htmlFor="screeningNotes" className="block text-sm font-medium text-gray-700 mb-2">
               Screening Notes (Optional)
