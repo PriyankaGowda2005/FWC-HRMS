@@ -1,7 +1,9 @@
-import React from 'react'
+import React, { useState } from 'react'
 import { motion } from 'framer-motion'
+import { Link } from 'react-router-dom'
 import Card from './UI/Card'
 import Icon from './UI/Icon'
+import DemoVideoModal from './DemoVideoModal'
 import { staggerContainer, itemSlideUp, cardHoverVariants, cardAccentVariants } from './motionVariants'
 
 /**
@@ -131,6 +133,8 @@ const FeatureItem = ({ icon, title, description, delay = 0, color = 'blue' }) =>
  * Advanced feature showcase with professional styling and animations
  */
 const FeatureGrid = () => {
+  const [isVideoModalOpen, setIsVideoModalOpen] = useState(false)
+  
   const features = [
     {
       icon: 'users',
@@ -260,27 +264,36 @@ const FeatureGrid = () => {
                 and create better employee experiences with measurable results.
               </p>
               <div className="flex flex-col sm:flex-row gap-6 justify-center pt-4">
-                <motion.button
-                  whileHover={{ scale: 1.05, y: -2 }}
-                  whileTap={{ scale: 0.95 }}
-                  className="px-10 py-4 bg-gradient-to-r from-blue-600 to-purple-600 text-white font-bold text-lg rounded-xl shadow-xl hover:shadow-2xl transition-all duration-300"
-                >
-                  <Icon name="star" size="md" className="mr-2" />
-                  Explore All Features
-                </motion.button>
+                <Link to="/what-we-do">
+                  <motion.button
+                    whileHover={{ scale: 1.05, y: -2 }}
+                    whileTap={{ scale: 0.95 }}
+                    className="px-10 py-4 bg-gradient-to-r from-blue-600 to-purple-600 text-white font-bold text-lg rounded-xl shadow-xl hover:shadow-2xl transition-all duration-300"
+                  >
+                    <Icon name="star" size="md" className="mr-2" />
+                    Explore All Features
+                  </motion.button>
+                </Link>
                 <motion.button
                   whileHover={{ scale: 1.05, y: -2 }}
                   whileTap={{ scale: 0.95 }}
                   className="px-10 py-4 border-2 border-blue-500 text-blue-600 font-bold text-lg rounded-xl hover:bg-blue-500 hover:text-white transition-all duration-300"
+                  onClick={() => setIsVideoModalOpen(true)}
                 >
                   <Icon name="play" size="md" className="mr-2" />
-                  Schedule Demo
+                  Watch Demo
                 </motion.button>
               </div>
             </motion.div>
           </div>
         </motion.div>
       </div>
+
+      {/* Demo Video Modal */}
+      <DemoVideoModal 
+        isOpen={isVideoModalOpen} 
+        onClose={() => setIsVideoModalOpen(false)} 
+      />
     </section>
   )
 }

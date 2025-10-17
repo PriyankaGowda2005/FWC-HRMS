@@ -1,7 +1,9 @@
 import React, { useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
+import { Link } from 'react-router-dom'
 import Card from './UI/Card'
 import Icon from './UI/Icon'
+import DemoVideoModal from './DemoVideoModal'
 import { staggerContainer, itemScaleIn } from './motionVariants'
 
 /**
@@ -162,6 +164,7 @@ const FilterChip = ({ label, isActive, onClick, delay = 0 }) => {
  */
 const IndustryGrid = () => {
   const [activeFilter, setActiveFilter] = useState('all')
+  const [isVideoModalOpen, setIsVideoModalOpen] = useState(false)
 
   const industries = [
     {
@@ -412,27 +415,36 @@ const IndustryGrid = () => {
                 transition={{ delay: 1.2, duration: 0.8 }}
                 className="flex flex-col sm:flex-row gap-6 justify-center"
               >
-                <motion.button
-                  whileHover={{ scale: 1.05, y: -3 }}
-                  whileTap={{ scale: 0.95 }}
-                  className="px-12 py-5 bg-gradient-to-r from-blue-600 to-purple-600 text-white font-semibold rounded-2xl shadow-xl hover:shadow-2xl transition-all duration-300 flex items-center justify-center"
-                >
-                  <Icon name="phone" size="sm" className="mr-2" />
-                  Contact Our Experts
-                </motion.button>
+                <Link to="/contact">
+                  <motion.button
+                    whileHover={{ scale: 1.05, y: -3 }}
+                    whileTap={{ scale: 0.95 }}
+                    className="px-12 py-5 bg-gradient-to-r from-blue-600 to-purple-600 text-white font-semibold rounded-2xl shadow-xl hover:shadow-2xl transition-all duration-300 flex items-center justify-center"
+                  >
+                    <Icon name="phone" size="sm" className="mr-2" />
+                    Contact Our Experts
+                  </motion.button>
+                </Link>
                 <motion.button
                   whileHover={{ scale: 1.05, y: -3 }}
                   whileTap={{ scale: 0.95 }}
                   className="px-12 py-5 border-2 border-gray-300 text-gray-700 font-semibold rounded-2xl hover:border-blue-500 hover:text-blue-600 transition-all duration-300 flex items-center justify-center"
+                  onClick={() => setIsVideoModalOpen(true)}
                 >
                   <Icon name="eye" size="sm" className="mr-2" />
-                  View All Solutions
+                  Watch Demo
                 </motion.button>
               </motion.div>
             </div>
           </div>
         </motion.div>
       </div>
+
+      {/* Demo Video Modal */}
+      <DemoVideoModal 
+        isOpen={isVideoModalOpen} 
+        onClose={() => setIsVideoModalOpen(false)} 
+      />
     </section>
   )
 }

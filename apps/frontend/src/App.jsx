@@ -1,7 +1,6 @@
 import React from 'react'
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom'
 import { QueryClient, QueryClientProvider } from 'react-query'
-import { ReactQueryDevtools } from 'react-query/devtools'
 import { AuthProvider } from './contexts/AuthContext'
 import { NavigationProvider } from './contexts/NavigationContext'
 import { CandidateAuthProvider } from './contexts/CandidateAuthContext'
@@ -16,11 +15,29 @@ import ScrollToTop from './components/ScrollToTop'
 import Home from './pages/Home'
 import Login from './pages/Login'
 import WhoWeServe from './pages/WhoWeServe'
+import WhoWeServeSimple from './pages/WhoWeServeSimple'
 import WhatWeDo from './pages/WhatWeDo'
 import WhoWeAre from './pages/WhoWeAre'
 import WhyChooseUs from './pages/WhyChooseUs'
 import Careers from './pages/Careers'
 import Contact from './pages/Contact'
+import Features from './pages/Features'
+import Pricing from './pages/Pricing'
+import Integrations from './pages/Integrations'
+import API from './pages/API'
+import Security from './pages/Security'
+import Roadmap from './pages/Roadmap'
+import About from './pages/About'
+import Press from './pages/Press'
+import Blog from './pages/Blog'
+import Partners from './pages/Partners'
+import HelpCenter from './pages/HelpCenter'
+import Documentation from './pages/Documentation'
+import Support from './pages/Support'
+import StyleGuide from './pages/StyleGuide'
+import Privacy from './pages/Privacy'
+import NavigationTest from './pages/NavigationTest'
+import DebugPage from './pages/DebugPage'
 import CandidateRegister from './pages/CandidateRegister'
 import CandidateDashboard from './pages/CandidateDashboard'
 import CandidateResumeUpload from './pages/CandidateResumeUpload'
@@ -67,12 +84,37 @@ function App() {
               <Routes>
                 {/* Public routes */}
                 <Route path="/" element={<Home />} />
-                <Route path="/who-we-serve" element={<WhoWeServe />} />
+                <Route path="/who-we-serve" element={<WhoWeServeSimple />} />
                 <Route path="/what-we-do" element={<WhatWeDo />} />
                 <Route path="/who-we-are" element={<WhoWeAre />} />
                 <Route path="/why-choose-us" element={<WhyChooseUs />} />
                 <Route path="/careers" element={<Careers />} />
                 <Route path="/contact" element={<Contact />} />
+                
+                {/* Footer link routes - Product */}
+                <Route path="/features" element={<Features />} />
+                <Route path="/pricing" element={<Pricing />} />
+                <Route path="/integrations" element={<Integrations />} />
+                <Route path="/api" element={<API />} />
+                <Route path="/security" element={<Security />} />
+                <Route path="/roadmap" element={<Roadmap />} />
+                
+                {/* Footer link routes - Company */}
+                <Route path="/about" element={<About />} />
+                <Route path="/press" element={<Press />} />
+                <Route path="/blog" element={<Blog />} />
+                <Route path="/partners" element={<Partners />} />
+                
+                {/* Footer link routes - Resources */}
+                <Route path="/help-center" element={<HelpCenter />} />
+                <Route path="/documentation" element={<Documentation />} />
+                <Route path="/support" element={<Support />} />
+                <Route path="/style-guide" element={<StyleGuide />} />
+                
+                {/* Footer link routes - Legal */}
+                <Route path="/privacy" element={<Privacy />} />
+                <Route path="/navigation-test" element={<NavigationTest />} />
+                <Route path="/debug" element={<DebugPage />} />
                 
                 <Route path="/login" element={
                   <CandidateAuthProvider>
@@ -228,7 +270,6 @@ function App() {
           </NavigationProvider>
         </Router>
       </AuthProvider>
-      <ReactQueryDevtools initialIsOpen={false} />
     </QueryClientProvider>
   )
 }
