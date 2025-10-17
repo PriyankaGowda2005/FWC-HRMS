@@ -1,7 +1,9 @@
 import React, { useState, useEffect } from 'react'
 import { motion, useMotionValue, useTransform } from 'framer-motion'
+import { Link } from 'react-router-dom'
 import Button from './UI/Button'
 import Icon from './UI/Icon'
+import DemoVideoModal from './DemoVideoModal'
 import { heroTitleVariants, heroSubtitleVariants, heroButtonsVariants, heroCardsVariants } from './motionVariants'
 
 /**
@@ -10,6 +12,7 @@ import { heroTitleVariants, heroSubtitleVariants, heroButtonsVariants, heroCards
  */
 const Hero = () => {
   const [mousePosition, setMousePosition] = useState({ x: 0, y: 0 })
+  const [isVideoModalOpen, setIsVideoModalOpen] = useState(false)
   const mouseX = useMotionValue(0)
   const mouseY = useMotionValue(0)
 
@@ -95,7 +98,7 @@ const Hero = () => {
         ))}
       </div>
 
-      <div className="relative max-w-7xl mx-auto px-6 lg:px-8 pt-20 pb-16">
+      <div className="relative max-w-7xl mx-auto px-6 lg:px-8 pt-32 pb-16">
         <div className="grid lg:grid-cols-2 gap-12 items-center min-h-[80vh]">
           {/* Left Content */}
           <div className="space-y-10">
@@ -116,13 +119,13 @@ const Hero = () => {
               animate="animate"
               className="space-y-6"
             >
-              <h1 className="text-5xl lg:text-6xl xl:text-7xl font-bold text-gray-900 leading-[1.1] tracking-tight">
+              <h1 className="text-3xl lg:text-4xl xl:text-5xl font-bold text-gray-900 leading-[1.1] tracking-tight">
                 We Engineer Your Success for the{' '}
                 <span className="bg-gradient-to-r from-blue-600 via-purple-600 to-cyan-600 bg-clip-text text-transparent">
                   Digital Future
                 </span>
               </h1>
-              <p className="text-xl lg:text-2xl text-gray-600 max-w-2xl leading-relaxed">
+              <p className="text-lg lg:text-xl text-gray-600 max-w-2xl leading-relaxed">
                 Transform your HR operations with our comprehensive Human Resource Management System. 
                 Streamline processes, boost productivity, and empower your workforce with cutting-edge technology.
               </p>
@@ -147,7 +150,7 @@ const Hero = () => {
                 size="xl" 
                 className="border-2 border-gray-300 hover:border-blue-500 hover:bg-blue-50 text-gray-700 hover:text-blue-700" 
                 icon={<Icon name="play" size="lg" />} 
-                onClick={() => window.location.href = '/contact'}
+                onClick={() => setIsVideoModalOpen(true)}
               >
                 Watch Demo
               </Button>
@@ -444,6 +447,12 @@ const Hero = () => {
           </div>
         </motion.div>
       </motion.div>
+
+      {/* Demo Video Modal */}
+      <DemoVideoModal 
+        isOpen={isVideoModalOpen} 
+        onClose={() => setIsVideoModalOpen(false)} 
+      />
     </section>
   )
 }

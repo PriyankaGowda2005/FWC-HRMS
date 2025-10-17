@@ -87,12 +87,19 @@ const WhatWeDo = () => {
   ]
 
   return (
-    <div className="min-h-screen bg-white">
+    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-indigo-900 relative overflow-hidden">
+      {/* Animated Background Elements */}
+      <div className="absolute inset-0 overflow-hidden">
+        <div className="absolute -top-40 -right-40 w-80 h-80 bg-gradient-to-br from-blue-500/20 to-purple-500/20 rounded-full blur-3xl animate-pulse"></div>
+        <div className="absolute -bottom-40 -left-40 w-80 h-80 bg-gradient-to-br from-purple-500/20 to-pink-500/20 rounded-full blur-3xl animate-pulse delay-1000"></div>
+        <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-96 h-96 bg-gradient-to-br from-cyan-500/10 to-blue-500/10 rounded-full blur-3xl animate-pulse delay-500"></div>
+      </div>
+      
       <NavBar />
       
-      <main className="pt-20">
+      <main className="relative pt-32">
         {/* Hero Section */}
-        <section className="py-20 bg-gradient-to-br from-primary-50 to-accent-50">
+        <section className="py-20 relative">
           <div className="max-w-7xl mx-auto px-6 lg:px-8">
             <motion.div
               initial={{ opacity: 0, y: 20 }}
@@ -100,10 +107,13 @@ const WhatWeDo = () => {
               transition={{ duration: 0.6 }}
               className="text-center"
             >
-              <h1 className="text-display font-bold text-gray-900 mb-6">
-                What We <span className="gradient-text">Do</span>
+              <div className="inline-block bg-gradient-to-r from-blue-500 to-purple-600 text-white px-8 py-3 rounded-full text-sm font-semibold mb-8 shadow-2xl hover:shadow-blue-500/25 transition-all duration-300 hover:scale-105">
+                What We Do
+              </div>
+              <h1 className="text-5xl sm:text-6xl lg:text-7xl font-bold text-white mb-8 font-heading leading-tight">
+                What We <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-400 via-purple-400 to-pink-400">Do</span>
               </h1>
-              <p className="text-body-lg text-gray-600 max-w-3xl mx-auto">
+              <p className="text-xl text-gray-300 max-w-4xl mx-auto leading-relaxed mb-12">
                 We provide comprehensive Human Resource Management solutions that streamline operations, 
                 boost productivity, and create exceptional employee experiences through cutting-edge technology.
               </p>
@@ -112,7 +122,7 @@ const WhatWeDo = () => {
         </section>
 
         {/* Core Features Section */}
-        <section className="py-20">
+        <section className="py-20 relative">
           <div className="max-w-7xl mx-auto px-6 lg:px-8">
             <motion.div
               initial={{ opacity: 0, y: 20 }}
@@ -121,10 +131,10 @@ const WhatWeDo = () => {
               transition={{ duration: 0.6 }}
               className="text-center mb-16"
             >
-              <h2 className="text-h2 font-bold text-gray-900 mb-4">
-                Core Platform Features
+              <h2 className="text-4xl sm:text-5xl font-bold text-white mb-6">
+                Core Platform <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-purple-400">Features</span>
               </h2>
-              <p className="text-body-lg text-gray-600 max-w-3xl mx-auto">
+              <p className="text-xl text-gray-300 max-w-3xl mx-auto">
                 Our comprehensive HRMS platform provides all the tools you need to manage your workforce 
                 effectively and efficiently.
               </p>
@@ -139,32 +149,32 @@ const WhatWeDo = () => {
             >
               {coreFeatures.map((feature, index) => (
                 <motion.div key={index} variants={itemFadeIn}>
-                  <Card variant="elevated" className="h-full">
+                  <div className="bg-white/10 backdrop-blur-lg border border-white/20 rounded-2xl p-8 h-full hover:bg-white/15 transition-all duration-300 group">
                     <div className="space-y-6">
                       <div className="flex items-center space-x-4">
-                        <div className="w-16 h-16 bg-gradient-to-br from-primary-100 to-accent-100 rounded-2xl flex items-center justify-center">
-                          <Icon name={feature.icon} size="xl" className="text-primary-600" />
+                        <div className="w-16 h-16 bg-gradient-to-br from-blue-500/20 to-purple-500/20 rounded-2xl flex items-center justify-center group-hover:scale-110 transition-transform duration-300">
+                          <Icon name={feature.icon} size="xl" className="text-blue-400" />
                         </div>
                         <div>
-                          <h3 className="text-h4 font-semibold text-gray-900">{feature.title}</h3>
+                          <h3 className="text-xl font-semibold text-white">{feature.title}</h3>
                         </div>
                       </div>
                       
-                      <p className="text-gray-600">{feature.description}</p>
+                      <p className="text-gray-300">{feature.description}</p>
                       
                       <div className="space-y-2">
-                        <h4 className="font-semibold text-gray-900 text-sm">Key Capabilities:</h4>
+                        <h4 className="font-semibold text-white text-sm">Key Capabilities:</h4>
                         <ul className="space-y-1">
                           {feature.features.map((item, idx) => (
-                            <li key={idx} className="flex items-center text-sm text-gray-600">
-                              <Icon name="check" size="sm" className="text-green-500 mr-2" />
+                            <li key={idx} className="flex items-center text-sm text-gray-300">
+                              <Icon name="check" size="sm" className="text-green-400 mr-2" />
                               {item}
                             </li>
                           ))}
                         </ul>
                       </div>
                     </div>
-                  </Card>
+                  </div>
                 </motion.div>
               ))}
             </motion.div>
@@ -172,7 +182,7 @@ const WhatWeDo = () => {
         </section>
 
         {/* Solutions Section */}
-        <section className="py-20 bg-gray-50">
+        <section className="py-20 relative">
           <div className="max-w-7xl mx-auto px-6 lg:px-8">
             <motion.div
               initial={{ opacity: 0, y: 20 }}
@@ -181,10 +191,10 @@ const WhatWeDo = () => {
               transition={{ duration: 0.6 }}
               className="text-center mb-16"
             >
-              <h2 className="text-h2 font-bold text-gray-900 mb-4">
-                Complete HR Solutions
+              <h2 className="text-4xl sm:text-5xl font-bold text-white mb-6">
+                Complete HR <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-purple-400">Solutions</span>
               </h2>
-              <p className="text-body-lg text-gray-600 max-w-3xl mx-auto">
+              <p className="text-xl text-gray-300 max-w-3xl mx-auto">
                 End-to-end HR solutions that address every aspect of workforce management 
                 from recruitment to retirement.
               </p>
@@ -199,32 +209,32 @@ const WhatWeDo = () => {
             >
               {solutions.map((solution, index) => (
                 <motion.div key={index} variants={itemFadeIn}>
-                  <Card variant="elevated" className="h-full">
+                  <div className="bg-white/10 backdrop-blur-lg border border-white/20 rounded-2xl p-8 h-full hover:bg-white/15 transition-all duration-300 group">
                     <div className="space-y-6">
                       <div className="flex items-center space-x-4">
-                        <div className="w-16 h-16 bg-gradient-to-br from-accent-100 to-primary-100 rounded-2xl flex items-center justify-center">
-                          <Icon name={solution.icon} size="xl" className="text-accent-600" />
+                        <div className="w-16 h-16 bg-gradient-to-br from-purple-500/20 to-pink-500/20 rounded-2xl flex items-center justify-center group-hover:scale-110 transition-transform duration-300">
+                          <Icon name={solution.icon} size="xl" className="text-purple-400" />
                         </div>
                         <div>
-                          <h3 className="text-h4 font-semibold text-gray-900">{solution.title}</h3>
+                          <h3 className="text-xl font-semibold text-white">{solution.title}</h3>
                         </div>
                       </div>
                       
-                      <p className="text-gray-600">{solution.description}</p>
+                      <p className="text-gray-300">{solution.description}</p>
                       
                       <div className="space-y-2">
-                        <h4 className="font-semibold text-gray-900 text-sm">Key Benefits:</h4>
+                        <h4 className="font-semibold text-white text-sm">Key Benefits:</h4>
                         <ul className="space-y-1">
                           {solution.benefits.map((benefit, idx) => (
-                            <li key={idx} className="flex items-center text-sm text-gray-600">
-                              <Icon name="check" size="sm" className="text-green-500 mr-2" />
+                            <li key={idx} className="flex items-center text-sm text-gray-300">
+                              <Icon name="check" size="sm" className="text-green-400 mr-2" />
                               {benefit}
                             </li>
                           ))}
                         </ul>
                       </div>
                     </div>
-                  </Card>
+                  </div>
                 </motion.div>
               ))}
             </motion.div>
@@ -232,7 +242,7 @@ const WhatWeDo = () => {
         </section>
 
         {/* Technology Stack Section */}
-        <section className="py-20">
+        <section className="py-20 relative">
           <div className="max-w-7xl mx-auto px-6 lg:px-8">
             <motion.div
               initial={{ opacity: 0, y: 20 }}
@@ -241,10 +251,10 @@ const WhatWeDo = () => {
               transition={{ duration: 0.6 }}
               className="text-center mb-16"
             >
-              <h2 className="text-h2 font-bold text-gray-900 mb-4">
-                Powered by Advanced Technology
+              <h2 className="text-4xl sm:text-5xl font-bold text-white mb-6">
+                Powered by Advanced <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-purple-400">Technology</span>
               </h2>
-              <p className="text-body-lg text-gray-600 max-w-3xl mx-auto">
+              <p className="text-xl text-gray-300 max-w-3xl mx-auto">
                 Built on cutting-edge technology to deliver performance, security, and scalability 
                 that your organization needs.
               </p>
@@ -259,10 +269,10 @@ const WhatWeDo = () => {
             >
               {technologies.map((tech, index) => (
                 <motion.div key={index} variants={itemFadeIn}>
-                  <Card className="text-center p-6">
-                    <h3 className="font-semibold text-gray-900 mb-2">{tech.name}</h3>
-                    <p className="text-sm text-gray-600">{tech.description}</p>
-                  </Card>
+                  <div className="bg-white/10 backdrop-blur-lg border border-white/20 rounded-2xl p-6 text-center hover:bg-white/15 transition-all duration-300 group">
+                    <h3 className="font-semibold text-white mb-2 group-hover:text-blue-400 transition-colors duration-300">{tech.name}</h3>
+                    <p className="text-sm text-gray-300">{tech.description}</p>
+                  </div>
                 </motion.div>
               ))}
             </motion.div>
@@ -270,7 +280,7 @@ const WhatWeDo = () => {
         </section>
 
         {/* CTA Section */}
-        <section className="py-20 bg-gradient-to-br from-primary-900 to-accent-500">
+        <section className="py-20 relative">
           <div className="max-w-7xl mx-auto px-6 lg:px-8">
             <motion.div
               initial={{ opacity: 0, y: 20 }}
@@ -279,10 +289,10 @@ const WhatWeDo = () => {
               transition={{ duration: 0.6 }}
               className="text-center"
             >
-              <h2 className="text-h2 font-bold text-white mb-4">
-                Ready to Experience the Future of HR?
+              <h2 className="text-4xl sm:text-5xl font-bold text-white mb-6">
+                Ready to Experience the <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-purple-400">Future of HR?</span>
               </h2>
-              <p className="text-body-lg text-white/90 mb-8 max-w-2xl mx-auto">
+              <p className="text-xl text-gray-300 mb-8 max-w-2xl mx-auto">
                 Join thousands of organizations already using our platform to transform 
                 their HR operations and create better employee experiences.
               </p>
@@ -290,7 +300,7 @@ const WhatWeDo = () => {
                 <motion.button
                   whileHover={{ scale: 1.05 }}
                   whileTap={{ scale: 0.95 }}
-                  className="px-8 py-3 bg-white text-primary-900 font-semibold rounded-lg shadow-fwc hover:shadow-fwc-lg transition-all duration-300"
+                  className="px-8 py-3 bg-gradient-to-r from-blue-500 to-purple-600 text-white font-semibold rounded-lg shadow-2xl hover:shadow-blue-500/25 transition-all duration-300"
                   onClick={() => window.location.href = '/login'}
                 >
                   Start Free Trial
@@ -298,7 +308,7 @@ const WhatWeDo = () => {
                 <motion.button
                   whileHover={{ scale: 1.05 }}
                   whileTap={{ scale: 0.95 }}
-                  className="px-8 py-3 border-2 border-white text-white font-semibold rounded-lg hover:bg-white hover:text-primary-900 transition-all duration-300"
+                  className="px-8 py-3 border-2 border-white text-white font-semibold rounded-lg hover:bg-white hover:text-slate-900 transition-all duration-300"
                   onClick={() => window.location.href = '/contact'}
                 >
                   Schedule Demo

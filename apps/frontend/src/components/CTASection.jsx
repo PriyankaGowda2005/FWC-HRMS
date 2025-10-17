@@ -1,7 +1,9 @@
-import React from 'react'
+import React, { useState } from 'react'
 import { motion } from 'framer-motion'
+import { Link } from 'react-router-dom'
 import Button from './UI/Button'
 import Icon from './UI/Icon'
+import DemoVideoModal from './DemoVideoModal'
 import { staggerContainer, itemSlideUp, gradientVariants } from './motionVariants'
 
 /**
@@ -9,6 +11,8 @@ import { staggerContainer, itemSlideUp, gradientVariants } from './motionVariant
  * Advanced call-to-action section with professional styling and animations
  */
 const CTASection = () => {
+  const [isVideoModalOpen, setIsVideoModalOpen] = useState(false)
+
   return (
     <section className="relative py-32 overflow-hidden">
       {/* Enhanced Animated Background */}
@@ -105,13 +109,13 @@ const CTASection = () => {
               Join Industry Leaders
             </motion.div>
             
-            <h2 className="text-5xl lg:text-6xl xl:text-7xl font-bold text-white leading-[1.1] tracking-tight">
+            <h2 className="text-3xl lg:text-4xl xl:text-5xl font-bold text-white leading-[1.1] tracking-tight">
               Ready to Transform Your{' '}
               <span className="bg-gradient-to-r from-yellow-300 via-orange-300 to-red-300 bg-clip-text text-transparent">
                 HR Operations?
               </span>
             </h2>
-            <p className="text-xl lg:text-2xl text-white/90 max-w-4xl mx-auto leading-relaxed">
+            <p className="text-lg lg:text-xl text-white/90 max-w-4xl mx-auto leading-relaxed">
               Join thousands of organizations already using our platform to streamline 
               HR processes, boost productivity, and create exceptional employee experiences. 
               Start your journey today with a free trial.
@@ -136,7 +140,7 @@ const CTASection = () => {
               whileHover={{ scale: 1.05, y: -3 }}
               whileTap={{ scale: 0.95 }}
               className="px-12 py-5 border-2 border-white text-white font-bold text-xl rounded-2xl hover:bg-white hover:text-gray-900 transition-all duration-300 flex items-center space-x-3"
-              onClick={() => window.location.href = '/contact'}
+              onClick={() => setIsVideoModalOpen(true)}
             >
               <Icon name="play" size="lg" />
               <span>Watch Demo</span>
@@ -209,6 +213,12 @@ const CTASection = () => {
           <path d="M0,0V46.29c47.79,22.2,103.59,32.17,158,28,70.36-5.37,136.33-33.31,206.8-37.5C438.64,32.43,512.34,53.67,583,72.05c69.27,18,138.3,24.88,209.4,13.08,36.15-6,69.85-17.84,104.45-29.34C989.49,25,1113-14.29,1200,52.47V0Z" />
         </svg>
       </div>
+
+      {/* Demo Video Modal */}
+      <DemoVideoModal 
+        isOpen={isVideoModalOpen} 
+        onClose={() => setIsVideoModalOpen(false)} 
+      />
     </section>
   )
 }
