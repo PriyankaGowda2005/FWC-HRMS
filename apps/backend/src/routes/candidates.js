@@ -5,6 +5,7 @@ const jwt = require('jsonwebtoken');
 const multer = require('multer');
 const path = require('path');
 const fs = require('fs').promises;
+const { ObjectId } = require('mongodb');
 const database = require('../database/connection');
 const { authenticateCandidate, verifyToken } = require('../middleware/authMiddleware');
 const { candidateSchemas, validateSchema } = require('../middleware/validation');
@@ -616,6 +617,7 @@ router.get('/jobs', authenticateCandidate, async (req, res) => {
   try {
     const { page = 1, limit = 10, department, location } = req.query;
     const skip = (page - 1) * limit;
+    const candidateId = req.candidateId;
 
     let query = { status: 'PUBLISHED' };
     
@@ -633,12 +635,22 @@ router.get('/jobs', authenticateCandidate, async (req, res) => {
       sort: { postedAt: -1 }
     });
 
+    // Get candidate's applications to check which jobs they've applied for
+    const applications = await database.find('candidate_applications', { candidateId });
+    const appliedJobIds = applications.map(app => app.jobPostingId.toString());
+
+    // Add applied status to each job
+    const jobsWithAppliedStatus = jobs.map(job => ({
+      ...job,
+      applied: appliedJobIds.includes(job._id.toString())
+    }));
+
     const totalJobs = await database.count('job_postings', query);
 
     res.json({
       success: true,
       data: {
-        jobs,
+        jobs: jobsWithAppliedStatus,
         pagination: {
           currentPage: parseInt(page),
           totalPages: Math.ceil(totalJobs / limit),
@@ -666,7 +678,7 @@ router.post('/apply/:jobId', authenticateCandidate, validateSchema(candidateSche
     const candidateId = req.candidateId;
 
     // Check if job exists
-    const job = await database.findOne('job_postings', { _id: jobId });
+    const job = await database.findOne('job_postings', { _id: new ObjectId(jobId) });
     if (!job) {
       return res.status(404).json({
         success: false,
@@ -686,7 +698,7 @@ router.post('/apply/:jobId', authenticateCandidate, validateSchema(candidateSche
     // Check if already applied
     const existingApplication = await database.findOne('candidate_applications', {
       candidateId: candidateId,
-      jobPostingId: jobId
+      jobPostingId: new ObjectId(jobId)
     });
 
     if (existingApplication) {
@@ -699,7 +711,7 @@ router.post('/apply/:jobId', authenticateCandidate, validateSchema(candidateSche
     // Create application
     const application = {
       candidateId,
-      jobPostingId: jobId,
+      jobPostingId: new ObjectId(jobId),
       resumeId: candidate.resumeId,
       status: 'APPLIED',
       appliedAt: new Date(),
@@ -712,7 +724,7 @@ router.post('/apply/:jobId', authenticateCandidate, validateSchema(candidateSche
     // Update job posting application count
     await database.updateOne(
       'job_postings',
-      { _id: jobId },
+      { _id: new ObjectId(jobId) },
       { $inc: { currentApplications: 1 } }
     );
 

@@ -79,7 +79,7 @@ const authenticateCandidate = async (req, res, next) => {
       });
     }
 
-    req.candidateId = candidate._id.toString();
+    req.candidateId = candidate._id;
     req.candidate = candidate;
     next();
   } catch (error) {

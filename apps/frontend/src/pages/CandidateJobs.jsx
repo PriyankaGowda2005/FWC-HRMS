@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import { motion } from 'framer-motion'
+import toast from 'react-hot-toast'
 import { useCandidateAuth } from '../contexts/CandidateAuthContext'
 import Button from '../components/UI/Button'
 import Icon from '../components/UI/Icon'
@@ -20,6 +21,22 @@ const CandidateJobs = () => {
   useEffect(() => {
     loadJobs()
   }, [currentPage])
+
+  // Force refresh when component mounts to get latest data
+  useEffect(() => {
+    const refreshJobs = async () => {
+      try {
+        const result = await getJobs(1, 10)
+        if (result.success) {
+          setJobs(result.data.jobs)
+          setTotalPages(result.data.pagination.totalPages)
+        }
+      } catch (error) {
+        console.error('Error refreshing jobs:', error)
+      }
+    }
+    refreshJobs()
+  }, [])
 
   useEffect(() => {
     filterJobs()
@@ -60,25 +77,34 @@ const CandidateJobs = () => {
 
   const handleApply = async (jobId) => {
     if (!candidate?.resumeUploaded) {
-      alert('Please upload your resume before applying for jobs.')
+      toast.error('Please upload your resume before applying for jobs. 📄')
       return
     }
 
     setApplyingJobId(jobId)
+    
+    // Show loading toast
+    const loadingToast = toast.loading('Submitting your application... ⏳')
+    
     try {
       const result = await applyForJob(jobId)
+      
+      // Dismiss loading toast
+      toast.dismiss(loadingToast)
+      
       if (result.success) {
-        alert('Application submitted successfully!')
-        // Update job status to show applied
-        setJobs(prev => prev.map(job => 
-          job._id === jobId ? { ...job, applied: true } : job
-        ))
+        toast.success('Application submitted successfully! 🎉')
+        // Refresh jobs to get updated applied status from backend
+        await loadJobs()
       } else {
-        alert(result.error || 'Failed to apply for job')
+        toast.error(result.error || 'Failed to apply for job ❌')
       }
     } catch (error) {
+      // Dismiss loading toast
+      toast.dismiss(loadingToast)
+      
       console.error('Error applying for job:', error)
-      alert('Failed to apply for job')
+      toast.error('Failed to apply for job. Please try again. ❌')
     } finally {
       setApplyingJobId(null)
     }
@@ -104,7 +130,7 @@ const CandidateJobs = () => {
         </span>
       )
     }
-    if (job.status === 'ACTIVE') {
+    if (job.status === 'PUBLISHED' || job.status === 'ACTIVE') {
       return (
         <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
           Open
@@ -285,10 +311,15 @@ const CandidateJobs = () => {
                         <Icon name="check-circle" size="sm" className="mr-2" />
                         Applied
                       </Button>
-                    ) : job.status === 'ACTIVE' ? (
+                    ) : (job.status === 'PUBLISHED' || job.status === 'ACTIVE') ? (
                       <Button
                         variant="primary"
-                        onClick={() => handleApply(job._id)}
+                        type="button"
+                        onClick={(e) => {
+                          e.preventDefault()
+                          e.stopPropagation()
+                          handleApply(job._id)
+                        }}
                         disabled={applyingJobId === job._id || !candidate?.resumeUploaded}
                       >
                         {applyingJobId === job._id ? (

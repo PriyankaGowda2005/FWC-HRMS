@@ -21,7 +21,7 @@ try {
 // Get candidate's interviews
 router.get('/my-interviews', authenticateCandidate, async (req, res) => {
   try {
-    const candidateId = req.candidate.candidateId;
+    const candidateId = req.candidateId;
     const { status, sortBy = 'scheduledAt', sortOrder = 'asc' } = req.query;
 
     // Build filter
@@ -80,7 +80,7 @@ router.get('/my-interviews', authenticateCandidate, async (req, res) => {
 router.get('/interview/:interviewId', authenticateCandidate, async (req, res) => {
   try {
     const { interviewId } = req.params;
-    const candidateId = req.candidate.candidateId;
+    const candidateId = req.candidateId;
 
     const interview = await database.findOne('interviews', { 
       _id: interviewId,
@@ -131,7 +131,7 @@ router.get('/interview/:interviewId', authenticateCandidate, async (req, res) =>
 router.post('/interview/:interviewId/request-reschedule', authenticateCandidate, async (req, res) => {
   try {
     const { interviewId } = req.params;
-    const candidateId = req.candidate.candidateId;
+    const candidateId = req.candidateId;
     const { reason, preferredTimes } = req.body;
 
     if (!reason) {
@@ -228,7 +228,7 @@ router.post('/interview/:interviewId/request-reschedule', authenticateCandidate,
 router.post('/interview/:interviewId/confirm', authenticateCandidate, async (req, res) => {
   try {
     const { interviewId } = req.params;
-    const candidateId = req.candidate.candidateId;
+    const candidateId = req.candidateId;
 
     const interview = await database.findOne('interviews', { 
       _id: interviewId,
@@ -279,7 +279,7 @@ router.post('/interview/:interviewId/confirm', authenticateCandidate, async (req
 // Get candidate's application status
 router.get('/application-status', authenticateCandidate, async (req, res) => {
   try {
-    const candidateId = req.candidate.candidateId;
+    const candidateId = req.candidateId;
 
     // Get all applications for this candidate
     const applications = await database.find(
@@ -334,7 +334,7 @@ router.get('/application-status', authenticateCandidate, async (req, res) => {
 router.post('/interview/:interviewId/reminder', authenticateCandidate, async (req, res) => {
   try {
     const { interviewId } = req.params;
-    const candidateId = req.candidate.candidateId;
+    const candidateId = req.candidateId;
 
     const interview = await database.findOne('interviews', { 
       _id: interviewId,

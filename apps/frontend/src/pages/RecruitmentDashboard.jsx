@@ -8,12 +8,12 @@ import LoadingSpinner from '../components/LoadingSpinner'
 import CandidateInvitationModal from '../components/CandidateInvitationModal'
 import ResumeScreeningModal from '../components/ResumeScreeningModal'
 import ResumeScreeningResultsModal from '../components/ResumeScreeningResultsModal'
-import ResumeAnalysisModal from '../components/ResumeAnalysisModal'
 import JobAttachmentModal from '../components/JobAttachmentModal'
 import JobAttachmentsTab from '../components/JobAttachmentsTab'
 import InterviewSchedulingModal from '../components/InterviewSchedulingModal'
 import InterviewManagement from '../components/InterviewManagement'
 import RecentCandidatesSection from '../components/RecentCandidatesSection'
+import CreateJobModal from '../components/CreateJobModal'
 import { JobPostingsTab, CandidatesTab, AIInterviewsTab, AnalyticsTab } from '../components/RecruitmentTabs'
 import { 
   BriefcaseIcon,
@@ -51,7 +51,6 @@ const RecruitmentDashboard = () => {
   const [selectedJob, setSelectedJob] = useState(null)
   const [showCreateJob, setShowCreateJob] = useState(false)
   const [showAIInterview, setShowAIInterview] = useState(false)
-  const [showResumeAnalysis, setShowResumeAnalysis] = useState(false)
   const [showInviteCandidate, setShowInviteCandidate] = useState(false)
   const [showResumeScreening, setShowResumeScreening] = useState(false)
   const [showScreeningResults, setShowScreeningResults] = useState(false)
@@ -198,11 +197,6 @@ const RecruitmentDashboard = () => {
     })
   }
 
-  const handleAnalyzeResume = (candidate) => {
-    setSelectedCandidate(candidate)
-    setShowResumeAnalysis(true)
-  }
-
   const handleScreenResume = (candidate) => {
     setSelectedCandidate(candidate)
     setShowResumeScreening(true)
@@ -225,8 +219,12 @@ const RecruitmentDashboard = () => {
   // Data extraction - Fixed double-nested data structure
   const jobPostings = jobPostingsData?.data?.jobPostings || jobPostingsData?.jobPostings || []
   const candidates = candidatesData?.data?.data?.candidates || candidatesData?.data?.candidates || []
-  const departmentList = departments?.data || departments || []
+  const departmentList = departments?.data?.departments || departments?.departments || departments || []
   const insights = aiInsights?.insights || {}
+
+  // Debug logging for departments
+  console.log('Departments data:', departments)
+  console.log('Department list:', departmentList)
 
 
   // Calculate stats
@@ -382,7 +380,6 @@ const RecruitmentDashboard = () => {
                 <CandidatesTab
                   candidates={candidates}
                   onStartAIInterview={handleStartAIInterview}
-                  onAnalyzeResume={handleAnalyzeResume}
                   selectedJob={selectedJob}
                   onInviteCandidate={() => setShowInviteCandidate(true)}
                   onScreenResume={handleScreenResume}
@@ -449,6 +446,16 @@ const RecruitmentDashboard = () => {
       </div>
 
       {/* Modals */}
+      <CreateJobModal
+        isOpen={showCreateJob}
+        onClose={() => setShowCreateJob(false)}
+        onSuccess={(data) => {
+          console.log('Job created:', data)
+          toast.success('Job posting created successfully!')
+        }}
+        departments={departmentList}
+      />
+
       <CandidateInvitationModal
         isOpen={showInviteCandidate}
         onClose={() => setShowInviteCandidate(false)}
@@ -469,20 +476,6 @@ const RecruitmentDashboard = () => {
             console.log('Screening resume:', data)
             setShowResumeScreening(false)
             toast.success('Resume screening completed successfully!')
-          }}
-        />
-      )}
-
-      {selectedCandidate && (
-        <ResumeAnalysisModal
-          isOpen={showResumeAnalysis}
-          onClose={() => setShowResumeAnalysis(false)}
-          candidate={selectedCandidate}
-          jobPosting={selectedJob}
-          onSuccess={(data) => {
-            console.log('Resume analysis completed:', data)
-            setShowResumeAnalysis(false)
-            toast.success('Resume analysis completed successfully!')
           }}
         />
       )}

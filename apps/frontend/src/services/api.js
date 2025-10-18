@@ -175,6 +175,8 @@ export const jobPostingAPI = {
     api.get(`/job-postings?${new URLSearchParams({ status, departmentId, urgency, page, limit }).toString()}`),
   getPublic: ({ employmentType, location, department, remote, page, limit, search } = {}) =>
     api.get(`/job-postings/public?${new URLSearchParams({ employmentType, location, department, remote, page, limit, search }).toString()}`),
+  getForScreening: ({ status, department, page, limit } = {}) =>
+    api.get(`/job-postings/public?${new URLSearchParams({ status, department, page, limit }).toString()}`),
   getById: (id) => api.get(`/job-postings/${id}`),
   getPublicById: (id) => api.get(`/job-postings/public/${id}`),
   create: (data) => api.post('/job-postings', data),

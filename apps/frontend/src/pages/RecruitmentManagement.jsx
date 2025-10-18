@@ -929,7 +929,7 @@ const JobPostingsTab = ({ jobPostings, onSelectJob, selectedJob, onUpdateJob, on
 }
 
 // Candidates Tab Component
-const CandidatesTab = ({ candidates, onStartAIInterview, onAnalyzeResume, selectedJob, onInviteCandidate, onScreenResume }) => {
+const CandidatesTab = ({ candidates, onStartAIInterview, selectedJob, onInviteCandidate, onScreenResume }) => {
   const [filterStatus, setFilterStatus] = useState('all')
   const [searchTerm, setSearchTerm] = useState('')
 
@@ -1157,34 +1157,19 @@ const CandidatesTab = ({ candidates, onStartAIInterview, onAnalyzeResume, select
 
               {/* Actions */}
               <div className="flex flex-col space-y-2">
-                <div className="flex space-x-2">
-                  <button
-                    onClick={() => onScreenResume(candidate)}
-                    className={`flex-1 px-3 py-2 text-sm rounded-lg transition-colors flex items-center justify-center space-x-1 ${
-                      candidate.resumeUploaded 
-                        ? 'bg-green-600 text-white hover:bg-green-700' 
-                        : 'bg-gray-300 text-gray-500 cursor-not-allowed'
-                    }`}
-                    disabled={!candidate.resumeUploaded}
-                    title={candidate.resumeUploaded ? 'Screen candidate resume' : 'Resume not uploaded'}
-                  >
-                    <DocumentTextIcon className="w-4 h-4" />
-                    <span>Screen</span>
-                  </button>
-                  <button
-                    onClick={() => onAnalyzeResume(candidate)}
-                    className={`flex-1 px-3 py-2 text-sm rounded-lg transition-colors flex items-center justify-center space-x-1 ${
-                      candidate.resumeUploaded 
-                        ? 'bg-blue-600 text-white hover:bg-blue-700' 
-                        : 'bg-gray-300 text-gray-500 cursor-not-allowed'
-                    }`}
-                    disabled={!candidate.resumeUploaded}
-                    title={candidate.resumeUploaded ? 'Analyze resume with AI' : 'Resume not uploaded'}
-                  >
-                    <CpuChipIcon className="w-4 h-4" />
-                    <span>Analyze</span>
-                  </button>
-                </div>
+                <button
+                  onClick={() => onScreenResume(candidate)}
+                  className={`w-full px-3 py-2 text-sm rounded-lg transition-colors flex items-center justify-center space-x-2 ${
+                    candidate.resumeUploaded 
+                      ? 'bg-gradient-to-r from-blue-600 to-purple-600 text-white hover:from-blue-700 hover:to-purple-700' 
+                      : 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                  }`}
+                  disabled={!candidate.resumeUploaded}
+                  title={candidate.resumeUploaded ? 'Screen and analyze resume with AI' : 'Resume not uploaded'}
+                >
+                  <CpuChipIcon className="w-4 h-4" />
+                  <span>Screen Resume</span>
+                </button>
                 <button
                   onClick={() => onStartAIInterview(candidate)}
                   className="w-full px-3 py-2 text-sm bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors flex items-center justify-center space-x-1"

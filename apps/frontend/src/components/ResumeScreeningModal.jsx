@@ -14,18 +14,23 @@ const ResumeScreeningModal = ({ candidate, jobPosting, isOpen, onClose, onSucces
   const [selectedJobId, setSelectedJobId] = useState(jobPosting?._id || '');
 
   // Fetch job postings for selection
-  const { data: jobPostingsData, isLoading: jobPostingsLoading } = useQuery(
-    'job-postings',
-    () => jobPostingAPI.getAll(),
+  const { data: jobPostingsData, isLoading: jobPostingsLoading, error: jobPostingsError } = useQuery(
+    'job-postings-screening',
+    () => jobPostingAPI.getForScreening({ status: 'PUBLISHED' }),
     {
       retry: 1,
+      enabled: isOpen, // Only fetch when modal is open
       onError: (error) => {
         console.error('Job postings API error:', error)
+        console.error('Error details:', error.response?.data)
+      },
+      onSuccess: (data) => {
+        console.log('Job postings fetched successfully:', data)
       }
     }
   );
 
-  const jobPostings = jobPostingsData?.data?.jobPostings || jobPostingsData?.jobPostings || [];
+  const jobPostings = jobPostingsData?.data?.jobPostings || [];
 
   const screenResumeMutation = useMutation(
     (data) => resumeScreeningAPI.screenResume(data),
@@ -144,14 +149,30 @@ const ResumeScreeningModal = ({ candidate, jobPosting, isOpen, onClose, onSucces
               onChange={(e) => setSelectedJobId(e.target.value)}
               className="input-field"
               required
+              disabled={jobPostingsLoading}
             >
-              <option value="">Choose a job posting...</option>
+              <option value="">
+                {jobPostingsLoading ? 'Loading job postings...' : 
+                 jobPostingsError ? 'Error loading job postings' :
+                 jobPostings.length === 0 ? 'No job postings available' :
+                 'Choose a job posting...'}
+              </option>
               {jobPostings.map((job) => (
                 <option key={job._id} value={job._id}>
                   {job.title} - {job.department}
                 </option>
               ))}
             </select>
+            {jobPostingsError && (
+              <p className="text-red-500 text-sm mt-1">
+                Error: {jobPostingsError.message || 'Failed to load job postings'}
+              </p>
+            )}
+            {!jobPostingsLoading && !jobPostingsError && jobPostings.length === 0 && (
+              <p className="text-yellow-600 text-sm mt-1">
+                No published job postings found. Please publish some jobs first.
+              </p>
+            )}
           </div>
 
           <div>
