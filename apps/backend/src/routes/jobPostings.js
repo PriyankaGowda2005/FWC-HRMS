@@ -24,6 +24,13 @@ router.get('/public', verifyToken, checkRole('ADMIN', 'HR', 'MANAGER'), asyncHan
 
   const total = await database.count('job_postings', query);
 
+  // Disable caching for job postings
+  res.set({
+    'Cache-Control': 'no-cache, no-store, must-revalidate',
+    'Pragma': 'no-cache',
+    'Expires': '0'
+  });
+
   res.json({
     success: true,
     data: {
@@ -57,6 +64,13 @@ router.get('/', checkRole('ADMIN', 'HR', 'MANAGER'), asyncHandler(async (req, re
   });
 
   const total = await database.count('job_postings', query);
+
+  // Disable caching for job postings
+  res.set({
+    'Cache-Control': 'no-cache, no-store, must-revalidate',
+    'Pragma': 'no-cache',
+    'Expires': '0'
+  });
 
   res.json({
     jobPostings,

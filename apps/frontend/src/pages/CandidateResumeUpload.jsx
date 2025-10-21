@@ -16,6 +16,7 @@ const CandidateResumeUpload = () => {
   const [showPreview, setShowPreview] = useState(false)
   const fileInputRef = useRef(null)
 
+
   // Reset validation error when file changes
   useEffect(() => {
     if (uploadedFile) {
@@ -271,7 +272,7 @@ const CandidateResumeUpload = () => {
             onClick={() => !uploadStatus && fileInputRef.current?.click()}
           >
             {/* Background Pattern */}
-            <div className="absolute inset-0 opacity-5">
+            <div className="absolute inset-0 opacity-5 pointer-events-none">
               <div className="absolute top-4 left-4 w-8 h-8 border-2 border-gray-300 rounded"></div>
               <div className="absolute top-8 right-8 w-6 h-6 border-2 border-gray-300 rounded"></div>
               <div className="absolute bottom-8 left-8 w-4 h-4 border-2 border-gray-300 rounded"></div>

@@ -62,14 +62,22 @@ const RecruitmentDashboard = () => {
   const [interviewSession, setInterviewSession] = useState(null)
 
   // Fetch job postings
-  const { data: jobPostingsData, isLoading: jobsLoading, error: jobsError } = useQuery(
+  const { data: jobPostingsData, isLoading: jobsLoading, error: jobsError, refetch: refetchJobs } = useQuery(
     'job-postings',
-    () => jobPostingAPI.getAll(),
+    () => jobPostingAPI.getAll({ _t: Date.now() }), // Add timestamp to bust cache
     { 
       retry: 1,
       refetchInterval: 60000,
+      staleTime: 0, // Always consider data stale
+      cacheTime: 0, // Don't cache the data
+      refetchOnWindowFocus: true, // Refetch when window gains focus
       onError: (error) => {
         console.error('Job postings API error:', error)
+        console.error('Error details:', error.response?.data)
+        console.error('Error status:', error.response?.status)
+      },
+      onSuccess: (data) => {
+        console.log('Job postings fetched successfully:', data)
       }
     }
   )
@@ -150,15 +158,17 @@ const RecruitmentDashboard = () => {
     }
   })
 
-  const startInterviewMutation = useMutation({
-    mutationFn: aiAPI.startInterview,
-    onSuccess: (data) => {
-      setInterviewSession(data)
-      setShowAIInterview(true)
-      toast.success('AI Interview session started')
+  // Schedule AI interview (no attachment)
+  const scheduleAIMutation = useMutation({
+    mutationFn: (payload) => interviewsAPI.scheduleAIInterview(payload),
+    onSuccess: () => {
+      toast.success('AI interview scheduled')
+      setShowAIInterview(false)
+      queryClient.invalidateQueries('candidates')
+      queryClient.invalidateQueries(['manager-interviews', user.userId])
     },
     onError: (error) => {
-      toast.error('Failed to start AI interview')
+      toast.error(error.response?.data?.message || 'Failed to schedule AI interview')
     }
   })
 
@@ -191,10 +201,7 @@ const RecruitmentDashboard = () => {
 
   const handleStartAIInterview = (candidate) => {
     setSelectedCandidate(candidate)
-    startInterviewMutation.mutate({
-      candidateId: candidate.id,
-      jobRole: candidate.jobPosting?.title || 'General Position'
-    })
+    setShowAIInterview(true)
   }
 
   const handleScreenResume = (candidate) => {
@@ -216,15 +223,28 @@ const RecruitmentDashboard = () => {
   const isLoading = jobsLoading || candidatesLoading || departmentsLoading
   const hasErrors = jobsError || candidatesError
 
-  // Data extraction - Fixed double-nested data structure
-  const jobPostings = jobPostingsData?.data?.jobPostings || jobPostingsData?.jobPostings || []
+  // Show error messages
+  if (jobsError) {
+    console.error('Job postings error:', jobsError)
+  }
+
+  // Data extraction - Fixed data structure (axios wraps response in 'data')
+  const jobPostings = jobPostingsData?.data?.jobPostings || []
   const candidates = candidatesData?.data?.data?.candidates || candidatesData?.data?.candidates || []
   const departmentList = departments?.data?.departments || departments?.departments || departments || []
   const insights = aiInsights?.insights || {}
 
-  // Debug logging for departments
+  // Debug logging
+  console.log('Job postings data:', jobPostingsData)
+  console.log('Job postings:', jobPostings)
   console.log('Departments data:', departments)
   console.log('Department list:', departmentList)
+  
+  // Authentication debug
+  const token = localStorage.getItem('token')
+  const candidateToken = localStorage.getItem('candidateToken')
+  console.log('Auth tokens:', { token: !!token, candidateToken: !!candidateToken })
+  console.log('User from context:', user)
 
 
   // Calculate stats
@@ -345,6 +365,8 @@ const RecruitmentDashboard = () => {
         </div>
       </div>
 
+      {/* Debug Panel removed */}
+
       {/* Tab Content */}
       <div className="px-6 pb-6">
         <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
@@ -358,13 +380,64 @@ const RecruitmentDashboard = () => {
                 transition={{ duration: 0.2 }}
                 className="p-6"
               >
-                <JobPostingsTab
-                  jobPostings={jobPostings}
-                  onCreateJob={() => setShowCreateJob(true)}
-                  onUpdateJob={handleUpdateJob}
-                  onDeleteJob={handleDeleteJob}
-                  departments={departmentList}
-                />
+                {jobsError ? (
+                  <div className="text-center py-8">
+                    <div className="text-red-600 mb-4">
+                      <h3 className="text-lg font-semibold">Error Loading Job Postings</h3>
+                      <p className="text-sm">{jobsError.message || 'Failed to load job postings'}</p>
+                      <p className="text-xs mt-2">Status: {jobsError.response?.status}</p>
+                    </div>
+                    <button 
+                      onClick={() => window.location.reload()} 
+                      className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+                    >
+                      Retry
+                    </button>
+                  </div>
+                ) : jobsLoading ? (
+                  <div className="text-center py-8">
+                    <div className="text-blue-600 mb-4">
+                      <h3 className="text-lg font-semibold">Loading Job Postings...</h3>
+                      <p className="text-sm">Please wait while we fetch the data</p>
+                    </div>
+                  </div>
+                ) : !token ? (
+                  <div className="text-center py-8">
+                    <div className="text-yellow-600 mb-4">
+                      <h3 className="text-lg font-semibold">Authentication Required</h3>
+                      <p className="text-sm">Please log in as an HR user to view job postings</p>
+                      <p className="text-xs mt-2">Current user: {user?.email || 'Not logged in'}</p>
+                    </div>
+                    <button 
+                      onClick={() => window.location.href = '/login'} 
+                      className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+                    >
+                      Go to Login
+                    </button>
+                  </div>
+                ) : jobPostings.length === 0 ? (
+                  <div className="text-center py-8">
+                    <div className="text-gray-600 mb-4">
+                      <h3 className="text-lg font-semibold">No Job Postings Found</h3>
+                      <p className="text-sm">The data might be cached. Try refreshing.</p>
+                    </div>
+                    <button 
+                      onClick={() => refetchJobs()} 
+                      className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+                      disabled={jobsLoading}
+                    >
+                      {jobsLoading ? 'Refreshing...' : 'Refresh Data'}
+                    </button>
+                  </div>
+                ) : (
+                  <JobPostingsTab
+                    jobPostings={jobPostings}
+                    onCreateJob={() => setShowCreateJob(true)}
+                    onUpdateJob={handleUpdateJob}
+                    onDeleteJob={handleDeleteJob}
+                    departments={departmentList}
+                  />
+                )}
               </motion.div>
             )}
 
@@ -518,6 +591,81 @@ const RecruitmentDashboard = () => {
             toast.success('Interview scheduled successfully!')
           }}
         />
+      )}
+
+      {/* Simple AI Interview Scheduling Modal */}
+      {showAIInterview && selectedCandidate && (
+        <div className="fixed inset-0 bg-black/30 flex items-center justify-center z-50">
+          <div className="bg-white rounded-xl shadow-lg w-full max-w-md p-6">
+            <h3 className="text-lg font-semibold mb-4">Schedule AI Interview</h3>
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm text-gray-700 mb-1">Candidate</label>
+                <div className="text-sm text-gray-900">
+                  {selectedCandidate.firstName || selectedCandidate.name} {selectedCandidate.lastName || ''}
+                </div>
+              </div>
+              <div>
+                <label className="block text-sm text-gray-700 mb-1">Job Posting</label>
+                <select
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  value={selectedJob?._id || ''}
+                  onChange={(e) => {
+                    const jp = (jobPostings || []).find(j => j._id === e.target.value)
+                    setSelectedJob(jp || null)
+                  }}
+                >
+                  <option value="">Select job...</option>
+                  {jobPostings.map(j => (
+                    <option key={j._id} value={j._id}>{j.title} - {j.department}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm text-gray-700 mb-1">Date & Time</label>
+                <input
+                  type="datetime-local"
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  id="aiInterviewDatetime"
+                />
+              </div>
+              <div>
+                <label className="block text-sm text-gray-700 mb-1">Meeting Link (optional)</label>
+                <input
+                  type="url"
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  id="aiInterviewLink"
+                  placeholder="https://..."
+                />
+              </div>
+            </div>
+            <div className="mt-6 flex justify-end space-x-3">
+              <button
+                className="px-4 py-2 rounded-lg border border-gray-300 text-gray-700"
+                onClick={() => setShowAIInterview(false)}
+              >
+                Cancel
+              </button>
+              <button
+                className="px-4 py-2 rounded-lg bg-blue-600 text-white disabled:opacity-50"
+                disabled={!selectedJob?._id || scheduleAIMutation.isLoading}
+                onClick={() => {
+                  const when = (document.getElementById('aiInterviewDatetime') || {}).value
+                  const link = (document.getElementById('aiInterviewLink') || {}).value
+                  scheduleAIMutation.mutate({
+                    candidateId: selectedCandidate._id || selectedCandidate.id,
+                    jobPostingId: selectedJob?._id,
+                    scheduledAt: when,
+                    meetingLink: link,
+                    interviewers: [user.userId]
+                  })
+                }}
+              >
+                {scheduleAIMutation.isLoading ? 'Scheduling...' : 'Schedule'}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   )

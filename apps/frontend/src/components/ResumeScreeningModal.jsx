@@ -30,7 +30,14 @@ const ResumeScreeningModal = ({ candidate, jobPosting, isOpen, onClose, onSucces
     }
   );
 
-  const jobPostings = jobPostingsData?.data?.jobPostings || [];
+  // Support both response shapes:
+  // - { success, data: { jobPostings: [...] } }
+  // - { jobPostings: [...] }
+  const jobPostings =
+    jobPostingsData?.data?.data?.jobPostings ||
+    jobPostingsData?.data?.jobPostings ||
+    jobPostingsData?.jobPostings ||
+    [];
 
   const screenResumeMutation = useMutation(
     (data) => resumeScreeningAPI.screenResume(data),
