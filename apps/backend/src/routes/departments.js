@@ -2,22 +2,39 @@ const express = require('express');
 const { body, validationResult } = require('express-validator');
 const { ObjectId } = require('mongodb');
 const database = require('../database/connection');
-const { verifyToken, checkRole } = require('../middleware/authMiddleware');
+const { authenticate, requireRole } = require('../middleware/authMiddleware');
 const { asyncHandler } = require('../middleware/errorHandler');
 
 const router = express.Router();
 
 // Apply auth middleware to all routes
-router.use(verifyToken);
+router.use(authenticate);
 
-// Get all departments
-router.get('/', checkRole('ADMIN', 'HR', 'MANAGER'), asyncHandler(async (req, res) => {
+// Get all departments with employee counts
+router.get('/', requireRole('ADMIN', 'HR', 'MANAGER'), asyncHandler(async (req, res) => {
   const departments = await database.find('departments', { isActive: true });
-  res.json({ departments });
+  
+  // Get employee counts for each department
+  const departmentsWithCounts = await Promise.all(
+    departments.map(async (dept) => {
+      const employeeCount = await database.count('employees', { 
+        departmentId: dept._id.toString(),
+        isActive: true 
+      });
+      
+      return {
+        ...dept,
+        employeeCount,
+        id: dept._id.toString()
+      };
+    })
+  );
+  
+  res.json({ departments: departmentsWithCounts });
 }));
 
 // Get department by ID
-router.get('/:id', checkRole('ADMIN', 'HR', 'MANAGER'), asyncHandler(async (req, res) => {
+router.get('/:id', requireRole('ADMIN', 'HR', 'MANAGER'), asyncHandler(async (req, res) => {
   const { id } = req.params;
   
   if (!ObjectId.isValid(id)) {
@@ -34,7 +51,7 @@ router.get('/:id', checkRole('ADMIN', 'HR', 'MANAGER'), asyncHandler(async (req,
 }));
 
 // Create department
-router.post('/', checkRole('ADMIN', 'HR'), [
+router.post('/', requireRole('ADMIN', 'HR'), [
   body('name').notEmpty().withMessage('Department name required'),
   body('description').optional().isString(),
   body('costCenter').optional().isString(),
@@ -77,7 +94,7 @@ router.post('/', checkRole('ADMIN', 'HR'), [
 }));
 
 // Update department
-router.put('/:id', checkRole('ADMIN', 'HR'), [
+router.put('/:id', requireRole('ADMIN', 'HR'), [
   body('name').optional().notEmpty(),
   body('description').optional().isString(),
   body('costCenter').optional().isString(),
@@ -119,8 +136,36 @@ router.put('/:id', checkRole('ADMIN', 'HR'), [
   });
 }));
 
+// Get department analytics
+router.get('/analytics', requireRole('ADMIN', 'HR', 'MANAGER'), asyncHandler(async (req, res) => {
+  const departments = await database.find('departments', { isActive: true });
+  const employees = await database.find('employees', { isActive: true });
+  
+  // Calculate analytics
+  const analytics = {
+    totalDepartments: departments.length,
+    activeDepartments: departments.filter(dept => dept.isActive).length,
+    totalEmployees: employees.length,
+    totalBudget: departments.reduce((sum, dept) => sum + (dept.budget || 0), 0),
+    averageEmployeesPerDept: departments.length > 0 ? 
+      (employees.length / departments.length).toFixed(1) : 0,
+    largestDepartment: departments.length > 0 ? 
+      departments.reduce((max, dept) => (dept.budget || 0) > (max.budget || 0) ? dept : max) : null,
+    departmentBreakdown: departments.map(dept => ({
+      id: dept._id.toString(),
+      name: dept.name,
+      employeeCount: employees.filter(emp => emp.departmentId === dept._id.toString()).length,
+      budget: dept.budget || 0,
+      budgetPercentage: departments.reduce((sum, d) => sum + (d.budget || 0), 0) > 0 ? 
+        ((dept.budget || 0) / departments.reduce((sum, d) => sum + (d.budget || 0), 0) * 100).toFixed(1) : 0
+    }))
+  };
+  
+  res.json({ analytics });
+}));
+
 // Delete department (soft delete)
-router.delete('/:id', checkRole('ADMIN'), asyncHandler(async (req, res) => {
+router.delete('/:id', requireRole('ADMIN'), asyncHandler(async (req, res) => {
   const { id } = req.params;
   
   if (!ObjectId.isValid(id)) {

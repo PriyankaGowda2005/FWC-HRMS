@@ -2,16 +2,16 @@ const express = require('express');
 const { body, validationResult, param } = require('express-validator');
 const { ObjectId } = require('mongodb');
 const database = require('../database/connection');
-const { verifyToken, checkRole } = require('../middleware/authMiddleware');
+const { authenticate, requireRole } = require('../middleware/authMiddleware');
 const { asyncHandler } = require('../middleware/errorHandler');
 
 const router = express.Router();
 
 // Apply auth middleware to all routes
-router.use(verifyToken);
+router.use(authenticate);
 
 // Get payroll records
-router.get('/', checkRole('ADMIN', 'HR'), asyncHandler(async (req, res) => {
+router.get('/', requireRole('ADMIN', 'HR'), asyncHandler(async (req, res) => {
   const { month, employeeId } = req.query;
   const page = parseInt(req.query.page) || 1;
   const limit = parseInt(req.query.limit) || 10;
@@ -46,7 +46,7 @@ router.get('/my-payroll', asyncHandler(async (req, res) => {
   const skip = (page - 1) * limit;
 
   // Get employee by user ID
-  const employee = await database.findOne('employees', { userId: new ObjectId(req.user.userId) });
+  const employee = await database.findOne('employees', { userId: new ObjectId(req.user.id) });
   if (!employee) {
     return res.status(404).json({ message: 'Employee not found' });
   }
@@ -91,7 +91,7 @@ router.get('/my-payroll', asyncHandler(async (req, res) => {
 }));
 
 // Generate payroll
-router.post('/generate', checkRole('ADMIN', 'HR'), [
+router.post('/generate', requireRole('ADMIN', 'HR'), [
   body('month').isNumeric().withMessage('Month must be a number'),
   body('year').isNumeric().withMessage('Year must be a number')
 ], asyncHandler(async (req, res) => {
@@ -150,7 +150,7 @@ router.post('/generate', checkRole('ADMIN', 'HR'), [
 }));
 
 // Process payroll
-router.post('/process', checkRole('ADMIN', 'HR'), [
+router.post('/process', requireRole('ADMIN', 'HR'), [
   body('month').isNumeric().withMessage('Month must be a number'),
   body('year').isNumeric().withMessage('Year must be a number')
 ], asyncHandler(async (req, res) => {
@@ -186,7 +186,7 @@ router.post('/process', checkRole('ADMIN', 'HR'), [
 }));
 
 // Update payroll record
-router.put('/:id', checkRole('ADMIN', 'HR'), asyncHandler(async (req, res) => {
+router.put('/:id', requireRole('ADMIN', 'HR'), asyncHandler(async (req, res) => {
   const { id } = req.params;
   
   if (!ObjectId.isValid(id)) {
@@ -215,7 +215,7 @@ router.put('/:id', checkRole('ADMIN', 'HR'), asyncHandler(async (req, res) => {
 }));
 
 // Mark payroll as paid
-router.put('/:id/mark-paid', checkRole('ADMIN', 'HR'), asyncHandler(async (req, res) => {
+router.put('/:id/mark-paid', requireRole('ADMIN', 'HR'), asyncHandler(async (req, res) => {
   const { id } = req.params;
   
   if (!ObjectId.isValid(id)) {

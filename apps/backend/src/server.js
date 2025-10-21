@@ -7,6 +7,7 @@ const authRoutes = require('./routes/auth');
 const employeeRoutes = require('./routes/employees');
 const { errorHandler } = require('./middleware/errorHandler');
 const database = require('./database/connection');
+const socketService = require('./services/socketService');
 require('dotenv').config();
 
 const app = express();
@@ -19,11 +20,11 @@ app.use(cookieParser());
 // Rate limiting (disabled in development)
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: process.env.NODE_ENV === 'development' ? 10000 : 100, // Much higher limit in development
+  max: process.env.NODE_ENV === 'development' ? 100000 : 100, // Much higher limit in development
   message: 'Too many requests from this IP, please try again later.',
   skip: (req) => {
     // Skip rate limiting for health checks and in development
-    return req.path === '/health' || req.path === '/api/health' || process.env.NODE_ENV === 'development';
+    return req.path === '/health' || req.path === '/api/health' || process.env.NODE_ENV === 'development' || req.path.startsWith('/api/');
   }
 });
 app.use(limiter);
@@ -109,6 +110,7 @@ app.use('/api/interview-transcripts', require('./routes/interviewTranscripts'));
 app.use('/api/candidate-conversion', require('./routes/candidateConversion'));
 app.use('/api/performance-reviews', require('./routes/performanceReviews'));
 app.use('/api/reports', require('./routes/reports'));
+app.use('/api/settings', require('./routes/settings'));
 app.use('/api/ai', require('./routes/ai'));
 app.use('/api/files/:folder/:filename', require('./middleware/fileUpload').serveFile);
 
@@ -136,6 +138,9 @@ const startServer = async () => {
       console.log(`🔐 Auth endpoints: http://localhost:${PORT}/api/auth`);
       console.log(`📊 Database: Connected to MongoDB Atlas`);
     });
+
+    // Initialize Socket.IO
+    socketService.initialize(server);
 
     // Handle server errors
     server.on('error', (error) => {

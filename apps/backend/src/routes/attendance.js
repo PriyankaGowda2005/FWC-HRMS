@@ -1,270 +1,439 @@
 const express = require('express');
-const { body, validationResult, param } = require('express-validator');
+const { body, validationResult } = require('express-validator');
 const { ObjectId } = require('mongodb');
 const database = require('../database/connection');
-const { verifyToken, checkRole } = require('../middleware/authMiddleware');
 const { asyncHandler } = require('../middleware/errorHandler');
+const { authenticate, authorize, requireManagerAccess, auditLog, requireRole } = require('../middleware/authMiddleware');
+const socketService = require('../services/socketService');
 
 const router = express.Router();
 
-// Apply auth middleware to all routes
-router.use(verifyToken);
+// Clock in/out endpoint
+router.post('/clock', [
+  authenticate,
+  authorize('attendance:clock'),
+  body('type').isIn(['in', 'out', 'break']).withMessage('Type must be in, out, or break'),
+  body('location').optional().isString().withMessage('Location must be a string'),
+  body('deviceId').optional().isString().withMessage('Device ID must be a string')
+], asyncHandler(async (req, res) => {
+  const errors = validationResult(req);
+  if (!errors.isEmpty()) {
+    return res.status(400).json({ 
+      message: 'Validation errors',
+      errors: errors.array()
+    });
+  }
 
-// Get attendance records
-router.get('/', asyncHandler(async (req, res) => {
-  const { date, employeeId } = req.query;
-  const page = parseInt(req.query.page) || 1;
-  const limit = parseInt(req.query.limit) || 10;
-  const skip = (page - 1) * limit;
+  const { type, location, deviceId } = req.body;
+  const employeeId = req.user.id;
 
-  let query = {};
-  if (date) query.date = date;
-  if (employeeId) query.employeeId = employeeId;
+  // Check if employee exists
+  const employee = await database.findOne('employees', { userId: employeeId });
+  if (!employee) {
+    return res.status(404).json({ message: 'Employee profile not found' });
+  }
 
-  const attendance = await database.find('attendance', query, {
-    skip,
-    limit,
-    sort: { date: -1 }
+  // Check for duplicate clock events within 1 minute
+  const oneMinuteAgo = new Date(Date.now() - 60 * 1000);
+  const recentClock = await database.findOne('attendance_logs', {
+    employeeId: employeeId,
+    type: type.toUpperCase(),
+    timestamp: { $gte: oneMinuteAgo }
   });
 
-  const total = await database.count('attendance', query);
+  if (recentClock) {
+    return res.status(400).json({ 
+      message: 'Duplicate clock event detected. Please wait before clocking again.' 
+    });
+  }
+
+  // Create attendance log
+  const attendanceLog = {
+    employeeId: employeeId,
+    type: type.toUpperCase(),
+    timestamp: new Date(),
+    location: location || 'Office',
+    deviceId: deviceId || 'WEB',
+    source: 'web',
+    createdAt: new Date()
+  };
+
+  const result = await database.insertOne('attendance_logs', attendanceLog);
+
+  // Update daily attendance summary
+  await updateAttendanceSummary(employeeId, new Date());
+
+  // Calculate total hours for today
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const tomorrow = new Date(today);
+  tomorrow.setDate(tomorrow.getDate() + 1);
+
+  const todayLogs = await database.find('attendance_logs', {
+    employeeId: employeeId,
+    timestamp: { $gte: today, $lt: tomorrow }
+  });
+
+  const totalHours = calculateTotalHours(todayLogs);
+
+  // Emit real-time event
+  const notification = {
+    type: 'attendance:clocked',
+    data: {
+      employeeId: employeeId,
+      employeeName: `${employee.firstName} ${employee.lastName}`,
+      type: type.toUpperCase(),
+      timestamp: attendanceLog.timestamp,
+      location: attendanceLog.location,
+      totalHoursToday: totalHours
+    }
+  };
+
+  // Broadcast to managers, HR, and admin
+  socketService.broadcastToRole('MANAGER', 'notification', notification);
+  socketService.broadcastToRole('HR', 'notification', notification);
+  socketService.broadcastToRole('ADMIN', 'notification', notification);
+
+  // Send confirmation to user
+  socketService.sendToUser(employeeId, 'attendance:clocked', {
+    success: true,
+    type: type.toUpperCase(),
+    timestamp: attendanceLog.timestamp,
+    totalHoursToday: totalHours
+  });
 
   res.json({
-    attendanceRecords: attendance,
-    pagination: {
-      page,
-      limit,
-      total,
-      pages: Math.ceil(total / limit)
+    success: true,
+    message: `Successfully clocked ${type}`,
+    data: {
+      id: result.insertedId,
+      type: type.toUpperCase(),
+      timestamp: attendanceLog.timestamp,
+      totalHoursToday: totalHours
     }
   });
 }));
 
-// Get my attendance
-router.get('/my-attendance', asyncHandler(async (req, res) => {
-  const { startDate, endDate, page = 1, limit = 10, status } = req.query;
-  const skip = (page - 1) * limit;
+// Get attendance records
+router.get('/', [
+  authenticate,
+  authorize('attendance:read')
+], asyncHandler(async (req, res) => {
+  const { employeeId, date, startDate, endDate, page = 1, limit = 50 } = req.query;
+  const userId = req.user.id;
 
-  // Get employee by user ID
-  const employee = await database.findOne('employees', { userId: new ObjectId(req.user.userId) });
-  if (!employee) {
-    return res.status(404).json({ message: 'Employee not found' });
+  let query = {};
+  let dateQuery = {};
+
+  // Build query based on user role
+  if (req.user.role === 'EMPLOYEE') {
+    query.userId = userId;
+  } else if (employeeId && employeeId !== 'undefined') {
+    // Check if user has access to this employee
+    if (req.user.role === 'MANAGER') {
+      const employee = await database.findOne('employees', { 
+        _id: new ObjectId(employeeId),
+        managerId: req.user.employee?._id
+      });
+      if (!employee) {
+        return res.status(403).json({ message: 'Access denied to this employee data' });
+      }
+    }
+    query.employeeId = employeeId;
   }
 
-  let query = { employeeId: employee._id.toString() };
-  if (startDate) query.date = { $gte: startDate };
-  if (endDate) query.date = { ...query.date, $lte: endDate };
-  if (status) query.status = status;
+  // Date filtering
+  if (date) {
+    const targetDate = new Date(date);
+    const nextDay = new Date(targetDate);
+    nextDay.setDate(nextDay.getDate() + 1);
+    dateQuery.timestamp = { $gte: targetDate, $lt: nextDay };
+  } else if (startDate && endDate) {
+    dateQuery.timestamp = { 
+      $gte: new Date(startDate), 
+      $lte: new Date(endDate) 
+    };
+  }
 
-  const attendance = await database.find('attendance', query, {
-    skip,
-    limit,
+  const finalQuery = { ...query, ...dateQuery };
+
+  const skip = (parseInt(page) - 1) * parseInt(limit);
+  const attendanceLogs = await database.find('attendance', finalQuery, {
+    skip: skip,
+    limit: parseInt(limit),
     sort: { date: -1 }
   });
 
-  // Calculate summary
-  const totalHours = attendance.reduce((sum, record) => sum + (record.hoursWorked || 0), 0);
-  const presentDays = attendance.filter(record => record.status === 'PRESENT').length;
-  const totalDays = attendance.length;
+  const total = await database.count('attendance', finalQuery);
+
+  res.json({
+    success: true,
+    attendanceRecords: attendanceLogs,
+    pagination: {
+      page: parseInt(page),
+      limit: parseInt(limit),
+      total,
+      pages: Math.ceil(total / parseInt(limit))
+    }
+  });
+}));
+
+// Get attendance summary
+router.get('/summary', [
+  authenticate,
+  authorize('attendance:read')
+], asyncHandler(async (req, res) => {
+  const { employeeId, startDate, endDate } = req.query;
+  const userId = req.user.id;
+
+  let query = {};
+
+  if (req.user.role === 'EMPLOYEE') {
+    query.employeeId = userId;
+  } else if (employeeId) {
+    // Check access permissions
+    if (req.user.role === 'MANAGER') {
+      const employee = await database.findOne('employees', { 
+        _id: new ObjectId(employeeId),
+        managerId: req.user.employee?._id
+      });
+      if (!employee) {
+        return res.status(403).json({ message: 'Access denied to this employee data' });
+      }
+    }
+    query.employeeId = employeeId;
+  }
+
+  // Date filtering
+  if (startDate && endDate) {
+    query.date = { 
+      $gte: new Date(startDate), 
+      $lte: new Date(endDate) 
+    };
+  }
+
+  const summaries = await database.find('attendance_summaries', query, {
+    sort: { date: -1 }
+  });
+
+  // Calculate statistics
+  const stats = {
+    totalDays: summaries.length,
+    presentDays: summaries.filter(s => s.status === 'PRESENT').length,
+    absentDays: summaries.filter(s => s.status === 'ABSENT').length,
+    lateDays: summaries.filter(s => s.status === 'LATE').length,
+    totalHours: summaries.reduce((sum, s) => sum + (s.totalHours || 0), 0),
+    averageHours: summaries.length > 0 ? 
+      summaries.reduce((sum, s) => sum + (s.totalHours || 0), 0) / summaries.length : 0
+  };
+
+  res.json({
+    success: true,
+    data: summaries,
+    stats
+  });
+}));
+
+// Get my attendance (for employees)
+router.get('/my-attendance', [
+  authenticate,
+  authorize('attendance:read')
+], asyncHandler(async (req, res) => {
+  const { startDate, endDate, page = 1, limit = 30 } = req.query;
+  const userId = req.user.id;
+
+  let query = { userId: userId };
+
+  // Date filtering
+  if (startDate && endDate) {
+    query.date = { 
+      $gte: new Date(startDate), 
+      $lte: new Date(endDate) 
+    };
+  }
+
+  const skip = (parseInt(page) - 1) * parseInt(limit);
+  const summaries = await database.find('attendance', query, {
+    skip: skip,
+    limit: parseInt(limit),
+    sort: { date: -1 }
+  });
 
   const total = await database.count('attendance', query);
 
   res.json({
-    attendanceRecords: attendance,
+    success: true,
+    attendanceRecords: summaries,
     summary: {
-      totalHours: totalHours.toFixed(1),
-      presentDays,
-      totalDays,
-      attendanceRate: totalDays > 0 ? Math.round((presentDays / totalDays) * 100) : 0
+      totalHours: summaries.reduce((sum, record) => sum + (record.hoursWorked || 0), 0),
+      daysPresent: summaries.filter(record => record.status === 'PRESENT').length,
+      daysLate: summaries.filter(record => record.status === 'LATE').length,
+      daysAbsent: summaries.filter(record => record.status === 'ABSENT').length
     },
     pagination: {
       page: parseInt(page),
       limit: parseInt(limit),
       total,
-      pages: Math.ceil(total / limit)
+      pages: Math.ceil(total / parseInt(limit))
     }
   });
 }));
 
-// Clock in
-router.post('/clock-in', asyncHandler(async (req, res) => {
-  const { notes, workFromHome } = req.body;
+// Get team attendance (for managers)
+router.get('/team', [
+  authenticate,
+  requireRole('MANAGER', 'HR', 'ADMIN'),
+  authorize('attendance:read')
+], asyncHandler(async (req, res) => {
+  const { managerId, timeRange = '7d' } = req.query;
+  const userId = req.user.id;
 
-  // Get employee by user ID
-  const employee = await database.findOne('employees', { userId: new ObjectId(req.user.userId) });
-  if (!employee) {
-    return res.status(404).json({ message: 'Employee not found' });
+  let managerEmployeeId = managerId;
+
+  // If not admin/HR, use current user's employee ID
+  if (req.user.role === 'MANAGER') {
+    const managerEmployee = await database.findOne('employees', { userId: userId });
+    if (!managerEmployee) {
+      return res.status(404).json({ message: 'Manager profile not found' });
+    }
+    managerEmployeeId = managerEmployee._id;
   }
 
-  const today = new Date().toISOString().split('T')[0];
-  
-  // Check if already clocked in today
-  const existingRecord = await database.findOne('attendance', {
-    employeeId: employee._id.toString(),
-    date: today
+  // Get team members
+  const teamMembers = await database.find('employees', { 
+    managerId: new ObjectId(managerEmployeeId) 
   });
 
-  if (existingRecord && existingRecord.clockIn) {
-    return res.status(400).json({ message: 'Already clocked in today' });
-  }
+  const teamMemberIds = teamMembers.map(member => member.userId);
 
-  const clockInTime = new Date();
+  // Calculate date range
+  const endDate = new Date();
+  const startDate = new Date();
   
-  if (existingRecord) {
-    // Update existing record
-    await database.updateOne('attendance', 
-      { _id: existingRecord._id },
-      { 
-        $set: { 
-          clockIn: clockInTime,
-          notes: notes || '',
-          workFromHome: workFromHome || false,
-          status: 'PRESENT',
-          updatedAt: new Date()
-        }
-      }
-    );
-  } else {
-    // Create new record
-    await database.insertOne('attendance', {
-      employeeId: employee._id.toString(),
-      date: today,
-      clockIn: clockInTime,
-      notes: notes || '',
-      workFromHome: workFromHome || false,
-      status: 'PRESENT',
-      createdAt: new Date(),
-      updatedAt: new Date()
-    });
+  switch (timeRange) {
+    case '1d':
+      startDate.setDate(startDate.getDate() - 1);
+      break;
+    case '7d':
+      startDate.setDate(startDate.getDate() - 7);
+      break;
+    case '30d':
+      startDate.setDate(startDate.getDate() - 30);
+      break;
+    default:
+      startDate.setDate(startDate.getDate() - 7);
   }
 
-  res.json({ message: 'Clocked in successfully', clockInTime });
+  // Get attendance summaries for team
+  const summaries = await database.find('attendance_summaries', {
+    employeeId: { $in: teamMemberIds },
+    date: { $gte: startDate, $lte: endDate }
+  });
+
+  // Group by employee
+  const teamAttendance = teamMembers.map(member => {
+    const memberSummaries = summaries.filter(s => s.employeeId.equals(member.userId));
+    const stats = {
+      totalDays: memberSummaries.length,
+      presentDays: memberSummaries.filter(s => s.status === 'PRESENT').length,
+      absentDays: memberSummaries.filter(s => s.status === 'ABSENT').length,
+      lateDays: memberSummaries.filter(s => s.status === 'LATE').length,
+      totalHours: memberSummaries.reduce((sum, s) => sum + (s.totalHours || 0), 0)
+    };
+
+    return {
+      employee: {
+        id: member._id,
+        firstName: member.firstName,
+        lastName: member.lastName,
+        employeeCode: member.employeeCode,
+        designation: member.designation
+      },
+      attendance: memberSummaries,
+      stats
+    };
+  });
+
+  res.json({
+    success: true,
+    data: teamAttendance,
+    timeRange,
+    startDate,
+    endDate
+  });
 }));
 
-// Clock out
-router.post('/clock-out', asyncHandler(async (req, res) => {
-  const { notes } = req.body;
+// Helper function to update attendance summary
+async function updateAttendanceSummary(employeeId, date) {
+  const startOfDay = new Date(date);
+  startOfDay.setHours(0, 0, 0, 0);
+  const endOfDay = new Date(date);
+  endOfDay.setHours(23, 59, 59, 999);
 
-  // Get employee by user ID
-  const employee = await database.findOne('employees', { userId: new ObjectId(req.user.userId) });
-  if (!employee) {
-    return res.status(404).json({ message: 'Employee not found' });
-  }
-
-  const today = new Date().toISOString().split('T')[0];
-  
-  // Find today's record
-  const record = await database.findOne('attendance', {
-    employeeId: employee._id.toString(),
-    date: today
+  const logs = await database.find('attendance_logs', {
+    employeeId: employeeId,
+    timestamp: { $gte: startOfDay, $lte: endOfDay }
   });
 
-  if (!record || !record.clockIn) {
-    return res.status(400).json({ message: 'No clock-in record found for today' });
-  }
+  const totalHours = calculateTotalHours(logs);
+  const status = determineAttendanceStatus(logs, totalHours);
 
-  if (record.clockOut) {
-    return res.status(400).json({ message: 'Already clocked out today' });
-  }
+  const summary = {
+    employeeId: employeeId,
+    date: startOfDay,
+    totalHours: totalHours,
+    status: status,
+    createdAt: new Date(),
+    updatedAt: new Date()
+  };
 
-  const clockOutTime = new Date();
-  const hoursWorked = (clockOutTime - record.clockIn) / (1000 * 60 * 60);
-
-  await database.updateOne('attendance', 
-    { _id: record._id },
-    { 
-      $set: { 
-        clockOut: clockOutTime,
-        hoursWorked: Math.round(hoursWorked * 10) / 10,
-        updatedAt: new Date()
-      }
-    }
+  // Upsert the summary
+  await database.updateOne(
+    'attendance_summaries',
+    { employeeId: employeeId, date: startOfDay },
+    { $set: summary },
+    { upsert: true }
   );
+}
 
-  res.json({ 
-    message: 'Clocked out successfully', 
-    clockOutTime,
-    hoursWorked: Math.round(hoursWorked * 10) / 10
-  });
-}));
+// Helper function to calculate total hours
+function calculateTotalHours(logs) {
+  const sortedLogs = logs.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
+  let totalHours = 0;
+  let clockInTime = null;
 
-// Get team attendance
-router.get('/team', checkRole('ADMIN', 'HR', 'MANAGER'), asyncHandler(async (req, res) => {
-  const { managerId, timeRange } = req.query;
-
-  // For now, return all attendance records
-  // In a real system, you'd filter by team members
-  const attendance = await database.find('attendance', {}, {
-    sort: { date: -1 },
-    limit: 50
-  });
-
-  // Calculate team stats
-  const totalRecords = attendance.length;
-  const presentRecords = attendance.filter(record => record.status === 'PRESENT').length;
-  const attendanceRate = totalRecords > 0 ? Math.round((presentRecords / totalRecords) * 100) : 0;
-
-  res.json({
-    attendanceRecords: attendance,
-    stats: {
-      attendanceRate,
-      totalRecords,
-      presentRecords
+  for (const log of sortedLogs) {
+    if (log.type === 'IN') {
+      clockInTime = new Date(log.timestamp);
+    } else if (log.type === 'OUT' && clockInTime) {
+      const hours = (new Date(log.timestamp) - clockInTime) / (1000 * 60 * 60);
+      totalHours += hours;
+      clockInTime = null;
     }
-  });
-}));
-
-// Get employee attendance
-router.get('/employee', checkRole('ADMIN', 'HR', 'MANAGER'), asyncHandler(async (req, res) => {
-  const { employeeId, period } = req.query;
-
-  if (!employeeId) {
-    return res.status(400).json({ message: 'Employee ID is required' });
   }
 
-  let query = { employeeId };
+  return Math.round(totalHours * 100) / 100; // Round to 2 decimal places
+}
+
+// Helper function to determine attendance status
+function determineAttendanceStatus(logs, totalHours) {
+  if (logs.length === 0) return 'ABSENT';
   
-  // Add period filter if provided
-  if (period) {
-    const now = new Date();
-    let startDate;
-    
-    switch (period) {
-      case 'week':
-        startDate = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
-        break;
-      case 'month':
-        startDate = new Date(now.getFullYear(), now.getMonth(), 1);
-        break;
-      case 'quarter':
-        startDate = new Date(now.getFullYear(), Math.floor(now.getMonth() / 3) * 3, 1);
-        break;
-      default:
-        startDate = new Date(now.getFullYear(), 0, 1); // Year start
-    }
-    
-    query.date = { $gte: startDate.toISOString().split('T')[0] };
-  }
-
-  const attendance = await database.find('attendance', query, {
-    sort: { date: -1 },
-    limit: 100
-  });
-
-  // Calculate summary
-  const totalHours = attendance.reduce((sum, record) => sum + (record.hoursWorked || 0), 0);
-  const presentDays = attendance.filter(record => record.status === 'PRESENT').length;
-  const totalDays = attendance.length;
-
-  res.json({
-    attendanceRecords: attendance,
-    summary: {
-      totalHours: totalHours.toFixed(1),
-      presentDays,
-      totalDays,
-      attendanceRate: totalDays > 0 ? Math.round((presentDays / totalDays) * 100) : 0
-    }
-  });
-}));
+  const hasClockIn = logs.some(log => log.type === 'IN');
+  const hasClockOut = logs.some(log => log.type === 'OUT');
+  
+  if (!hasClockIn) return 'ABSENT';
+  if (hasClockIn && !hasClockOut) return 'PRESENT'; // Still at work
+  
+  // Check if late (assuming 9 AM start time)
+  const clockInLog = logs.find(log => log.type === 'IN');
+  const clockInTime = new Date(clockInLog.timestamp);
+  const expectedStartTime = new Date(clockInTime);
+  expectedStartTime.setHours(9, 0, 0, 0);
+  
+  if (clockInTime > expectedStartTime) return 'LATE';
+  
+  return 'PRESENT';
+}
 
 module.exports = router;

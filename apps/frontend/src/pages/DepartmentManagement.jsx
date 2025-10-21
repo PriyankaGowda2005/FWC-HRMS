@@ -68,13 +68,13 @@ const DepartmentManagement = () => {
     }
   )
 
-  // Fetch employees for department analytics
-  const { data: employeesData, isLoading: employeesLoading } = useQuery(
-    'employees',
-    () => employeeAPI.getAll(),
+  // Fetch department analytics
+  const { data: analyticsData, isLoading: analyticsLoading } = useQuery(
+    'department-analytics',
+    () => departmentAPI.getDepartmentAnalytics(),
     { 
       retry: 3,
-      refetchInterval: 300000 // Refetch every 5 minutes
+      refetchInterval: 60000 // Refetch every minute
     }
   )
 
@@ -128,22 +128,16 @@ const DepartmentManagement = () => {
 
   // Update real-time status
   useEffect(() => {
-    if (departmentsData && employeesData) {
-      const departments = departmentsData?.departments || []
-      const stats = {
-        totalDepartments: departments.length,
-        activeDepartments: departments.filter(dept => dept.isActive).length,
-        totalEmployees: departments.reduce((sum, dept) => sum + (dept.employeeCount || 0), 0)
-      }
-      
+    if (analyticsData) {
+      const analytics = analyticsData.analytics
       setRealTimeStatus(prev => ({
         ...prev,
-        totalDepartments: stats.totalDepartments,
-        activeDepartments: stats.activeDepartments,
-        totalEmployees: stats.totalEmployees
+        totalDepartments: analytics.totalDepartments,
+        activeDepartments: analytics.activeDepartments,
+        totalEmployees: analytics.totalEmployees
       }))
     }
-  }, [departmentsData, employeesData])
+  }, [analyticsData])
 
   // Handlers
   const handleCreateDepartment = (formData) => {
@@ -207,16 +201,16 @@ const DepartmentManagement = () => {
 
   // Data extraction with fallbacks
   const departments = departmentsData?.departments || []
-  const employees = employeesData?.employees || []
+  const analytics = analyticsData?.analytics || {}
 
-  // Calculate stats
+  // Use analytics data if available, otherwise calculate from departments
   const stats = {
-    totalDepartments: departments.length,
-    activeDepartments: departments.filter(dept => dept.isActive).length,
-    totalEmployees: departments.reduce((sum, dept) => sum + (dept.employeeCount || 0), 0),
-    averageEmployeesPerDept: departments.length > 0 ? 
-      (departments.reduce((sum, dept) => sum + (dept.employeeCount || 0), 0) / departments.length).toFixed(1) : 0,
-    totalBudget: departments.reduce((sum, dept) => sum + (dept.budget || 0), 0)
+    totalDepartments: analytics.totalDepartments || departments.length,
+    activeDepartments: analytics.activeDepartments || departments.filter(dept => dept.isActive).length,
+    totalEmployees: analytics.totalEmployees || departments.reduce((sum, dept) => sum + (dept.employeeCount || 0), 0),
+    averageEmployeesPerDept: analytics.averageEmployeesPerDept || (departments.length > 0 ? 
+      (departments.reduce((sum, dept) => sum + (dept.employeeCount || 0), 0) / departments.length).toFixed(1) : 0),
+    totalBudget: analytics.totalBudget || departments.reduce((sum, dept) => sum + (dept.budget || 0), 0)
   }
 
   return (
@@ -375,17 +369,11 @@ const DepartmentManagement = () => {
             <div className="bg-blue-50 rounded-lg p-4">
               <p className="text-sm text-blue-600 font-medium">Largest Department</p>
               <p className="text-lg font-bold text-blue-900 mt-2">
-                {departments.length > 0 ? 
-                  departments.reduce((max, dept) => 
-                    (dept.employeeCount || 0) > (max.employeeCount || 0) ? dept : max
-                  ).name : 'N/A'
-                }
+                {analytics.largestDepartment?.name || 'N/A'}
               </p>
               <p className="text-xs text-blue-700 mt-1">
-                {departments.length > 0 ? 
-                  `${departments.reduce((max, dept) => 
-                    (dept.employeeCount || 0) > (max.employeeCount || 0) ? dept : max
-                  ).employeeCount || 0} employees`
+                {analytics.largestDepartment ? 
+                  `${analytics.largestDepartment.employeeCount || 0} employees`
                   : 'No data'
                 }
               </p>

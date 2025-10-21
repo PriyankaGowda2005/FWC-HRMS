@@ -1,143 +1,22 @@
 const express = require('express');
-const { body, validationResult, param } = require('express-validator');
+const { body, validationResult } = require('express-validator');
 const { ObjectId } = require('mongodb');
 const database = require('../database/connection');
-const { verifyToken, checkRole } = require('../middleware/authMiddleware');
 const { asyncHandler } = require('../middleware/errorHandler');
+const { authenticate, authorize, requireManagerAccess, auditLog, requireRole } = require('../middleware/authMiddleware');
+const socketService = require('../services/socketService');
 
 const router = express.Router();
 
-// Apply auth middleware to all routes
-router.use(verifyToken);
-
-// Get leave requests
-router.get('/', asyncHandler(async (req, res) => {
-  const { employeeId, status } = req.query;
-  const page = parseInt(req.query.page) || 1;
-  const limit = parseInt(req.query.limit) || 10;
-  const skip = (page - 1) * limit;
-
-  let query = {};
-  if (employeeId) query.employeeId = employeeId;
-  if (status) query.status = status;
-
-  const leaveRequests = await database.find('leave_requests', query, {
-    skip,
-    limit,
-    sort: { createdAt: -1 }
-  });
-
-  const total = await database.count('leave_requests', query);
-
-  res.json({
-    leaveRequests,
-    pagination: {
-      page,
-      limit,
-      total,
-      pages: Math.ceil(total / limit)
-    }
-  });
-}));
-
-// Get my leave requests
-router.get('/my-leaves', asyncHandler(async (req, res) => {
-  const { year, status, page = 1, limit = 10 } = req.query;
-  const skip = (page - 1) * limit;
-
-  // Get employee by user ID
-  const employee = await database.findOne('employees', { userId: new ObjectId(req.user.userId) });
-  if (!employee) {
-    return res.status(404).json({ message: 'Employee not found' });
-  }
-
-  let query = { employeeId: employee._id.toString() };
-  if (year) {
-    const startDate = new Date(`${year}-01-01`);
-    const endDate = new Date(`${year}-12-31`);
-    query.startDate = { $gte: startDate, $lte: endDate };
-  }
-  if (status) query.status = status;
-
-  const leaveRequests = await database.find('leave_requests', query, {
-    skip,
-    limit,
-    sort: { createdAt: -1 }
-  });
-
-  // Calculate leave balance (mock data)
-  const leaveBalance = {
-    VACATION: 20,
-    SICK: 10,
-    PERSONAL: 5,
-    MATERNITY: 90,
-    PATERNITY: 30
-  };
-
-  const total = await database.count('leave_requests', query);
-
-  res.json({
-    leaveRequests,
-    leaveBalance,
-    pagination: {
-      page: parseInt(page),
-      limit: parseInt(limit),
-      total,
-      pages: Math.ceil(total / limit)
-    }
-  });
-}));
-
-// Get pending leave requests
-router.get('/pending', checkRole('ADMIN', 'HR', 'MANAGER'), asyncHandler(async (req, res) => {
-  const { departmentId, page = 1, limit = 10 } = req.query;
-  const skip = (page - 1) * limit;
-
-  let query = { status: 'PENDING' };
-  if (departmentId) {
-    // Get employees in this department
-    const employees = await database.find('employees', { department: departmentId });
-    const employeeIds = employees.map(emp => emp._id.toString());
-    query.employeeId = { $in: employeeIds };
-  }
-
-  const leaveRequests = await database.find('leave_requests', query, {
-    skip,
-    limit,
-    sort: { createdAt: -1 }
-  });
-
-  // Get employee details for each request
-  const requestsWithEmployees = await Promise.all(
-    leaveRequests.map(async (request) => {
-      const employee = await database.findOne('employees', { _id: new ObjectId(request.employeeId) });
-      return {
-        ...request,
-        employee: employee ? {
-          firstName: employee.firstName,
-          lastName: employee.lastName,
-          position: employee.position,
-          department: employee.department
-        } : null
-      };
-    })
-  );
-
-  const total = await database.count('leave_requests', query);
-
-  res.json({
-    leaveRequests: requestsWithEmployees,
-    pagination: {
-      page: parseInt(page),
-      limit: parseInt(limit),
-      total,
-      pages: Math.ceil(total / limit)
-    }
-  });
-}));
-
-// Create leave request
-router.post('/', asyncHandler(async (req, res) => {
+// Apply for leave
+router.post('/', [
+  authenticate,
+  authorize('leaves:write'),
+  body('leaveTypeId').notEmpty().withMessage('Leave type is required'),
+  body('startDate').isISO8601().withMessage('Valid start date is required'),
+  body('endDate').isISO8601().withMessage('Valid end date is required'),
+  body('reason').notEmpty().withMessage('Reason is required')
+], asyncHandler(async (req, res) => {
   const errors = validationResult(req);
   if (!errors.isEmpty()) {
     return res.status(400).json({ 
@@ -146,334 +25,646 @@ router.post('/', asyncHandler(async (req, res) => {
     });
   }
 
-  const { leaveType, startDate, endDate, reason, workCoverage, isEmergency } = req.body;
+  const { leaveTypeId, startDate, endDate, reason, notes } = req.body;
+  const employeeId = req.user.id;
 
-  // Get employee by user ID
-  const employee = await database.findOne('employees', { userId: new ObjectId(req.user.userId) });
-  if (!employee) {
-    return res.status(404).json({ message: 'Employee not found' });
-  }
-
-  // Calculate days requested
+  // Validate dates
   const start = new Date(startDate);
   const end = new Date(endDate);
-  const daysRequested = Math.ceil((end - start) / (1000 * 60 * 60 * 24)) + 1;
+  
+  if (start >= end) {
+    return res.status(400).json({ message: 'End date must be after start date' });
+  }
 
+  if (start < new Date()) {
+    return res.status(400).json({ message: 'Cannot apply for leave in the past' });
+  }
+
+  // Check if employee exists
+  const employee = await database.findOne('employees', { userId: employeeId });
+  if (!employee) {
+    return res.status(404).json({ message: 'Employee profile not found' });
+  }
+
+  // Check leave type exists
+  const leaveType = await database.findOne('leave_types', { _id: new ObjectId(leaveTypeId) });
+  if (!leaveType) {
+    return res.status(404).json({ message: 'Leave type not found' });
+  }
+
+  // Check for overlapping leave requests
+  const overlappingLeave = await database.findOne('leave_requests', {
+    employeeId: employeeId,
+    status: { $in: ['APPLIED', 'APPROVED'] },
+    $or: [
+      {
+        startDate: { $lte: end },
+        endDate: { $gte: start }
+      }
+    ]
+  });
+
+  if (overlappingLeave) {
+    return res.status(400).json({ 
+      message: 'You already have a leave request for this period' 
+    });
+  }
+
+  // Calculate leave days
+  const leaveDays = calculateLeaveDays(start, end);
+
+  // Check leave balance
+  const leaveBalance = await getLeaveBalance(employeeId, leaveTypeId);
+  if (leaveDays > leaveBalance.remaining) {
+    return res.status(400).json({ 
+      message: `Insufficient leave balance. Available: ${leaveBalance.remaining} days, Requested: ${leaveDays} days` 
+    });
+  }
+
+  // Create leave request
   const leaveRequest = {
-    employeeId: employee._id.toString(),
-    leaveType,
+    employeeId: employeeId,
+    leaveTypeId: leaveTypeId,
     startDate: start,
     endDate: end,
-    daysRequested,
-    reason: reason || '',
-    workCoverage: workCoverage || '',
-    isEmergency: isEmergency || false,
-    status: 'PENDING',
-    requestedAt: new Date(),
+    leaveDays: leaveDays,
+    status: 'APPLIED',
+    appliedAt: new Date(),
+    reason: reason,
+    notes: notes || '',
     createdAt: new Date(),
     updatedAt: new Date()
   };
 
   const result = await database.insertOne('leave_requests', leaveRequest);
 
-  res.status(201).json({
+  // Get employee's manager for notification
+  const manager = employee.managerId ? 
+    await database.findOne('employees', { _id: employee.managerId }) : null;
+
+  // Create notification for managers/HR
+  const notification = {
+    type: 'leave:applied',
+    data: {
+      leaveRequestId: result.insertedId,
+      employeeId: employeeId,
+      employeeName: `${employee.firstName} ${employee.lastName}`,
+      leaveType: leaveType.name,
+      startDate: start,
+      endDate: end,
+      leaveDays: leaveDays,
+      reason: reason
+    }
+  };
+
+  // Send notifications
+  if (manager) {
+    socketService.sendToUser(manager.userId, 'notification', notification);
+  }
+  socketService.broadcastToRole('HR', 'notification', notification);
+  socketService.broadcastToRole('ADMIN', 'notification', notification);
+
+  // Send confirmation to employee
+  socketService.sendToUser(employeeId, 'leave:applied', {
+    success: true,
+    leaveRequestId: result.insertedId,
+    message: 'Leave request submitted successfully'
+  });
+
+  res.json({
+    success: true,
     message: 'Leave request submitted successfully',
-    leaveRequest: {
+    data: {
       id: result.insertedId,
       ...leaveRequest
     }
   });
 }));
 
-// Approve/Reject leave request
-router.put('/:id/approve', checkRole('ADMIN', 'HR', 'MANAGER'), asyncHandler(async (req, res) => {
+// Get leave requests
+router.get('/', [
+  authenticate,
+  authorize('leaves:read')
+], asyncHandler(async (req, res) => {
+  const { employeeId, status, page = 1, limit = 20 } = req.query;
+  const userId = req.user.id;
+
+  let query = {};
+
+  // Build query based on user role
+  if (req.user.role === 'EMPLOYEE') {
+    query.userId = userId;
+  } else if (employeeId && employeeId !== 'undefined') {
+    // Check access permissions for managers
+    if (req.user.role === 'MANAGER') {
+      const employee = await database.findOne('employees', { 
+        _id: new ObjectId(employeeId),
+        managerId: req.user.employee?._id
+      });
+      if (!employee) {
+        return res.status(403).json({ message: 'Access denied to this employee data' });
+      }
+    }
+    query.employeeId = employeeId;
+  }
+
+  // Status filtering
+  if (status) {
+    query.status = status.toUpperCase();
+  }
+
+  const skip = (parseInt(page) - 1) * parseInt(limit);
+  const leaveRequests = await database.find('leave_requests', query, {
+    skip: skip,
+    limit: parseInt(limit),
+    sort: { appliedAt: -1 }
+  });
+
+  // Populate leave type and employee data
+  const populatedRequests = await Promise.all(
+    leaveRequests.map(async (request) => {
+      const leaveType = await database.findOne('leave_types', { _id: request.leaveTypeId });
+      const employee = await database.findOne('employees', { userId: request.employeeId });
+      
+      return {
+        ...request,
+        leaveType: leaveType,
+        employee: employee ? {
+          firstName: employee.firstName,
+          lastName: employee.lastName,
+          employeeCode: employee.employeeCode,
+          designation: employee.designation
+        } : null
+      };
+    })
+  );
+
+  const total = await database.count('leave_requests', query);
+
+  res.json({
+    success: true,
+    leaveRequests: populatedRequests,
+    pagination: {
+      page: parseInt(page),
+      limit: parseInt(limit),
+      total,
+      pages: Math.ceil(total / parseInt(limit))
+    }
+  });
+}));
+
+// Get my leaves (for employees)
+router.get('/my-leaves', [
+  authenticate,
+  authorize('leaves:read')
+], asyncHandler(async (req, res) => {
+  const { year, status, page = 1, limit = 20 } = req.query;
+  const userId = req.user.id;
+
+  let query = { userId: userId };
+
+  // Year filtering
+  if (year) {
+    const startOfYear = new Date(`${year}-01-01`);
+    const endOfYear = new Date(`${year}-12-31`);
+    query.appliedAt = { $gte: startOfYear, $lte: endOfYear };
+  }
+
+  // Status filtering
+  if (status) {
+    query.status = status.toUpperCase();
+  }
+
+  const skip = (parseInt(page) - 1) * parseInt(limit);
+  const leaveRequests = await database.find('leave_requests', query, {
+    skip: skip,
+    limit: parseInt(limit),
+    sort: { appliedAt: -1 }
+  });
+
+  // Populate leave type data
+  const populatedRequests = await Promise.all(
+    leaveRequests.map(async (request) => {
+      const leaveType = await database.findOne('leave_types', { _id: request.leaveTypeId });
+      return {
+        ...request,
+        leaveType: leaveType
+      };
+    })
+  );
+
+  const total = await database.count('leave_requests', query);
+
+  res.json({
+    success: true,
+    leaveRequests: populatedRequests,
+    pagination: {
+      page: parseInt(page),
+      limit: parseInt(limit),
+      total,
+      pages: Math.ceil(total / parseInt(limit))
+    }
+  });
+}));
+
+// Get team leave requests (for managers)
+router.get('/team/:managerId', [
+  authenticate,
+  requireRole('MANAGER', 'HR', 'ADMIN'),
+  authorize('leaves:read')
+], asyncHandler(async (req, res) => {
+  const { managerId } = req.params;
+  const { status, page = 1, limit = 20 } = req.query;
+  
+  // Use current user's ID if they're a manager
+  let targetManagerId = managerId;
+  if (req.user.role === 'MANAGER') {
+    targetManagerId = req.user.id;
+  }
+
+  // Get manager's employee record
+  const managerEmployee = await database.findOne('employees', { userId: targetManagerId });
+  if (!managerEmployee) {
+    return res.status(404).json({ message: 'Manager profile not found' });
+  }
+
+  // Get team members
+  const teamMembers = await database.find('employees', { 
+    managerId: managerEmployee._id 
+  });
+  
+  if (teamMembers.length === 0) {
+    return res.json({
+      success: true,
+      pendingRequests: [],
+      leaveRequests: [],
+      pagination: {
+        page: parseInt(page),
+        limit: parseInt(limit),
+        total: 0,
+        pages: 0
+      }
+    });
+  }
+
+  const teamMemberIds = teamMembers.map(member => member.userId);
+  
+  // Build query
+  let query = { employeeId: { $in: teamMemberIds } };
+  
+  // Status filtering
+  if (status) {
+    query.status = status.toUpperCase();
+  }
+
+  const skip = (parseInt(page) - 1) * parseInt(limit);
+  const leaveRequests = await database.find('leave_requests', query, {
+    skip: skip,
+    limit: parseInt(limit),
+    sort: { appliedAt: -1 }
+  });
+
+  // Populate data
+  const populatedRequests = await Promise.all(
+    leaveRequests.map(async (request) => {
+      const leaveType = await database.findOne('leave_types', { _id: request.leaveTypeId });
+      const employee = await database.findOne('employees', { userId: request.employeeId });
+      
+      return {
+        ...request,
+        leaveType: leaveType,
+        employee: employee ? {
+          firstName: employee.firstName,
+          lastName: employee.lastName,
+          employeeCode: employee.employeeCode,
+          designation: employee.designation,
+          departmentId: employee.departmentId
+        } : null
+      };
+    })
+  );
+
+  // Get pending requests separately
+  const pendingQuery = { 
+    employeeId: { $in: teamMemberIds },
+    status: 'APPLIED'
+  };
+  const pendingRequests = await database.find('leave_requests', pendingQuery, {
+    sort: { appliedAt: 1 }
+  });
+
+  const total = await database.count('leave_requests', query);
+
+  res.json({
+    success: true,
+    pendingRequests: pendingRequests.length,
+    leaveRequests: populatedRequests,
+    pagination: {
+      page: parseInt(page),
+      limit: parseInt(limit),
+      total,
+      pages: Math.ceil(total / parseInt(limit))
+    }
+  });
+}));
+
+// Get pending leaves (for managers/HR)
+router.get('/pending', [
+  authenticate,
+  requireRole('MANAGER', 'HR', 'ADMIN'),
+  authorize('leaves:read')
+], asyncHandler(async (req, res) => {
+  const { departmentId, page = 1, limit = 20 } = req.query;
+  const userId = req.user.id;
+
+  let query = { status: 'APPLIED' };
+
+  // Filter by department for managers
+  if (req.user.role === 'MANAGER') {
+    const managerEmployee = await database.findOne('employees', { userId: userId });
+    if (!managerEmployee) {
+      return res.status(404).json({ message: 'Manager profile not found' });
+    }
+
+    // Get team members
+    const teamMembers = await database.find('employees', { 
+      managerId: managerEmployee._id 
+    });
+    const teamMemberIds = teamMembers.map(member => member.userId);
+    
+    query.employeeId = { $in: teamMemberIds };
+  } else if (departmentId) {
+    // Filter by department for HR/Admin
+    const departmentEmployees = await database.find('employees', { 
+      departmentId: new ObjectId(departmentId) 
+    });
+    const employeeIds = departmentEmployees.map(emp => emp.userId);
+    
+    query.employeeId = { $in: employeeIds };
+  }
+
+  const skip = (parseInt(page) - 1) * parseInt(limit);
+  const leaveRequests = await database.find('leave_requests', query, {
+    skip: skip,
+    limit: parseInt(limit),
+    sort: { appliedAt: 1 } // Oldest first for approval queue
+  });
+
+  // Populate data
+  const populatedRequests = await Promise.all(
+    leaveRequests.map(async (request) => {
+      const leaveType = await database.findOne('leave_types', { _id: request.leaveTypeId });
+      const employee = await database.findOne('employees', { userId: request.employeeId });
+      
+      return {
+        ...request,
+        leaveType: leaveType,
+        employee: employee ? {
+          firstName: employee.firstName,
+          lastName: employee.lastName,
+          employeeCode: employee.employeeCode,
+          designation: employee.designation,
+          departmentId: employee.departmentId
+        } : null
+      };
+    })
+  );
+
+  const total = await database.count('leave_requests', query);
+
+  res.json({
+    success: true,
+    leaveRequests: populatedRequests,
+    pagination: {
+      page: parseInt(page),
+      limit: parseInt(limit),
+      total,
+      pages: Math.ceil(total / parseInt(limit))
+    }
+  });
+}));
+
+// Approve/Reject leave
+router.put('/:id/approve', [
+  authenticate,
+  authorize('leaves:approve'),
+  body('status').isIn(['APPROVED', 'REJECTED']).withMessage('Status must be APPROVED or REJECTED'),
+  body('note').optional().isString().withMessage('Note must be a string')
+], asyncHandler(async (req, res) => {
+  const errors = validationResult(req);
+  if (!errors.isEmpty()) {
+    return res.status(400).json({ 
+      message: 'Validation errors',
+      errors: errors.array()
+    });
+  }
+
   const { id } = req.params;
-  const { action, rejectionReason } = req.body;
+  const { status, note } = req.body;
+  const decidedBy = req.user.id;
 
-  if (!ObjectId.isValid(id)) {
-    return res.status(400).json({ message: 'Invalid leave request ID' });
+  // Get leave request
+  const leaveRequest = await database.findOne('leave_requests', { _id: new ObjectId(id) });
+  if (!leaveRequest) {
+    return res.status(404).json({ message: 'Leave request not found' });
   }
 
-  if (!['APPROVED', 'REJECTED'].includes(action)) {
-    return res.status(400).json({ message: 'Invalid action. Must be APPROVED or REJECTED' });
+  // Check if already decided
+  if (leaveRequest.status !== 'APPLIED') {
+    return res.status(400).json({ message: 'Leave request has already been decided' });
   }
 
+  // Check permissions for managers
+  if (req.user.role === 'MANAGER') {
+    const managerEmployee = await database.findOne('employees', { userId: decidedBy });
+    const employee = await database.findOne('employees', { userId: leaveRequest.employeeId });
+    
+    if (!managerEmployee || !employee || !employee.managerId.equals(managerEmployee._id)) {
+      return res.status(403).json({ message: 'Access denied. Employee not under your management' });
+    }
+  }
+
+  // Update leave request
   const updateData = {
-    status: action,
-    reviewedAt: new Date(),
-    reviewedBy: req.user.userId,
+    status: status.toUpperCase(),
+    decidedBy: decidedBy,
+    decidedAt: new Date(),
+    notes: note || '',
     updatedAt: new Date()
   };
 
-  if (action === 'REJECTED' && rejectionReason) {
-    updateData.rejectionReason = rejectionReason;
-  }
-
-  const result = await database.updateOne(
+  await database.updateOne(
     'leave_requests',
     { _id: new ObjectId(id) },
     { $set: updateData }
   );
 
-  if (result.matchedCount === 0) {
+  // Get employee and leave type for notification
+  const employee = await database.findOne('employees', { userId: leaveRequest.employeeId });
+  const leaveType = await database.findOne('leave_types', { _id: leaveRequest.leaveTypeId });
+
+  // Create notification for employee
+  const notification = {
+    type: 'leave:decision',
+    data: {
+      leaveRequestId: id,
+      status: status.toUpperCase(),
+      decidedBy: decidedBy,
+      note: note,
+      leaveType: leaveType.name,
+      startDate: leaveRequest.startDate,
+      endDate: leaveRequest.endDate,
+      leaveDays: leaveRequest.leaveDays
+    }
+  };
+
+  // Send notification to employee
+  socketService.sendToUser(leaveRequest.employeeId, 'notification', notification);
+
+  // Send confirmation to approver
+  socketService.sendToUser(decidedBy, 'leave:decided', {
+    success: true,
+    leaveRequestId: id,
+    status: status.toUpperCase(),
+    employeeName: `${employee.firstName} ${employee.lastName}`
+  });
+
+  res.json({
+    success: true,
+    message: `Leave request ${status.toLowerCase()} successfully`,
+    data: {
+      id: id,
+      status: status.toUpperCase(),
+      decidedBy: decidedBy,
+      decidedAt: updateData.decidedAt
+    }
+  });
+}));
+
+// Cancel leave request
+router.put('/:id/cancel', [
+  authenticate,
+  authorize('leaves:write')
+], asyncHandler(async (req, res) => {
+  const { id } = req.params;
+  const userId = req.user.id;
+
+  // Get leave request
+  const leaveRequest = await database.findOne('leave_requests', { _id: new ObjectId(id) });
+  if (!leaveRequest) {
     return res.status(404).json({ message: 'Leave request not found' });
   }
 
-  res.json({
-    message: `Leave request ${action.toLowerCase()} successfully`,
-    status: action
-  });
-}));
-
-// Get pending leave requests
-router.get('/pending', checkRole('ADMIN', 'HR', 'MANAGER'), asyncHandler(async (req, res) => {
-  const { departmentId, page = 1, limit = 10 } = req.query;
-  const skip = (page - 1) * limit;
-
-  let query = { status: 'PENDING' };
-  if (departmentId) {
-    // Filter by department if provided
-    const employees = await database.find('employees', { department: departmentId });
-    const employeeIds = employees.map(emp => emp._id.toString());
-    query.employeeId = { $in: employeeIds };
+  // Check ownership
+  if (leaveRequest.employeeId !== userId && !['ADMIN', 'HR'].includes(req.user.role)) {
+    return res.status(403).json({ message: 'Access denied. Can only cancel your own leave requests' });
   }
 
-  const leaveRequests = await database.find('leave_requests', query, {
-    skip,
-    limit,
-    sort: { createdAt: -1 }
-  });
+  // Check if can be cancelled
+  if (!['APPLIED', 'APPROVED'].includes(leaveRequest.status)) {
+    return res.status(400).json({ message: 'Leave request cannot be cancelled' });
+  }
 
-  // Get employee details for each request
-  const requestsWithEmployees = await Promise.all(
-    leaveRequests.map(async (request) => {
-      const employee = await database.findOne('employees', { _id: new ObjectId(request.employeeId) });
-      return {
-        ...request,
-        employee: employee ? {
-          firstName: employee.firstName,
-          lastName: employee.lastName,
-          position: employee.position,
-          department: employee.department
-        } : null
-      };
-    })
+  // Check if leave has already started
+  if (new Date() >= leaveRequest.startDate) {
+    return res.status(400).json({ message: 'Cannot cancel leave that has already started' });
+  }
+
+  // Update leave request
+  await database.updateOne(
+    'leave_requests',
+    { _id: new ObjectId(id) },
+    { 
+      $set: { 
+        status: 'CANCELLED',
+        updatedAt: new Date()
+      } 
+    }
   );
 
-  const total = await database.count('leave_requests', query);
-
   res.json({
-    leaveRequests: requestsWithEmployees,
-    pagination: {
-      page: parseInt(page),
-      limit: parseInt(limit),
-      total,
-      pages: Math.ceil(total / limit)
-    }
+    success: true,
+    message: 'Leave request cancelled successfully'
   });
 }));
 
-// Get leave balance for an employee
-router.get('/balance/:employeeId', checkRole('ADMIN', 'HR', 'MANAGER'), asyncHandler(async (req, res) => {
+// Get leave balance
+router.get('/balance/:employeeId', [
+  authenticate,
+  authorize('leaves:read')
+], asyncHandler(async (req, res) => {
   const { employeeId } = req.params;
+  const userId = req.user.id;
 
-  if (!ObjectId.isValid(employeeId)) {
-    return res.status(400).json({ message: 'Invalid employee ID' });
+  // Check access permissions
+  if (req.user.role === 'EMPLOYEE' && employeeId !== userId) {
+    return res.status(403).json({ message: 'Access denied. Can only view your own leave balance' });
   }
 
-  // Mock leave balance - in a real system, this would be calculated based on company policy
-  const leaveBalance = {
-    VACATION: 20,
-    SICK: 10,
-    PERSONAL: 5,
-    MATERNITY: 90,
-    PATERNITY: 14,
-    BEREAVEMENT: 3,
-    STUDY: 5,
-    EMERGENCY: 2
-  };
-
-  res.json({
-    leaveBalance,
-    employeeId
-  });
-}));
-
-// Get my leave requests
-router.get('/my-leaves', asyncHandler(async (req, res) => {
-  const { year, status, page = 1, limit = 10 } = req.query;
-  const skip = (page - 1) * limit;
-
-  // Get employee by user ID
-  const employee = await database.findOne('employees', { userId: new ObjectId(req.user.userId) });
-  if (!employee) {
-    return res.status(404).json({ message: 'Employee not found' });
-  }
-
-  let query = { employeeId: employee._id.toString() };
-  if (year) {
-    const startDate = new Date(`${year}-01-01`);
-    const endDate = new Date(`${year}-12-31`);
-    query.startDate = { $gte: startDate, $lte: endDate };
-  }
-  if (status) query.status = status;
-
-  const leaveRequests = await database.find('leave_requests', query, {
-    skip,
-    limit,
-    sort: { createdAt: -1 }
-  });
-
-  // Mock leave balance - in a real system, this would be calculated
-  const leaveBalance = {
-    VACATION: 20,
-    SICK: 10,
-    PERSONAL: 5,
-    MATERNITY: 90,
-    PATERNITY: 14,
-    BEREAVEMENT: 3,
-    STUDY: 5,
-    EMERGENCY: 2
-  };
-
-  const total = await database.count('leave_requests', query);
-
-  res.json({
-    leaveRequests,
-    leaveBalance,
-    pagination: {
-      page: parseInt(page),
-      limit: parseInt(limit),
-      total,
-      pages: Math.ceil(total / limit)
+  if (req.user.role === 'MANAGER') {
+    const employee = await database.findOne('employees', { 
+      _id: new ObjectId(employeeId),
+      managerId: req.user.employee?._id
+    });
+    if (!employee) {
+      return res.status(403).json({ message: 'Access denied to this employee data' });
     }
-  });
-}));
-
-// Get all leave balances (for HR/Admin)
-router.get('/balances', checkRole('ADMIN', 'HR'), asyncHandler(async (req, res) => {
-  // Get all employees
-  const employees = await database.find('employees', { isActive: true });
-  
-  // Mock leave balances for all employees
-  const leaveBalances = employees.map(employee => ({
-    employeeId: employee._id.toString(),
-    employeeName: `${employee.firstName} ${employee.lastName}`,
-    department: employee.department,
-    leaveBalance: {
-      VACATION: 20,
-      SICK: 10,
-      PERSONAL: 5,
-      MATERNITY: 90,
-      PATERNITY: 14,
-      BEREAVEMENT: 3,
-      STUDY: 5,
-      EMERGENCY: 2
-    }
-  }));
-
-  res.json({
-    leaveBalances,
-    totalEmployees: employees.length
-  });
-}));
-
-// Get team leaves (for managers)
-router.get('/team-leaves', checkRole('ADMIN', 'HR', 'MANAGER'), asyncHandler(async (req, res) => {
-  const { timeRange, managerId } = req.query;
-  
-  // Calculate date range based on timeRange
-  let startDate, endDate;
-  const now = new Date();
-  
-  switch (timeRange) {
-    case 'week':
-      startDate = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
-      endDate = now;
-      break;
-    case 'month':
-      startDate = new Date(now.getFullYear(), now.getMonth(), 1);
-      endDate = now;
-      break;
-    case 'quarter':
-      startDate = new Date(now.getFullYear(), Math.floor(now.getMonth() / 3) * 3, 1);
-      endDate = now;
-      break;
-    default:
-      startDate = new Date(now.getFullYear(), 0, 1);
-      endDate = now;
   }
 
-  // Get leave requests within the date range
-  const leaveRequests = await database.find('leave_requests', {
-    startDate: { $gte: startDate, $lte: endDate }
-  }, {
-    sort: { startDate: -1 }
-  });
-
-  // Get employee details for each request
-  const requestsWithEmployees = await Promise.all(
-    leaveRequests.map(async (request) => {
-      const employee = await database.findOne('employees', { _id: new ObjectId(request.employeeId) });
+  // Get all leave types
+  const leaveTypes = await database.find('leave_types', {});
+  
+  // Calculate balance for each leave type
+  const balances = await Promise.all(
+    leaveTypes.map(async (leaveType) => {
+      const balance = await getLeaveBalance(employeeId, leaveType._id);
       return {
-        ...request,
-        employee: employee ? {
-          firstName: employee.firstName,
-          lastName: employee.lastName,
-          position: employee.position,
-          department: employee.department
-        } : null
-      };
-    })
-  );
-
-  // Calculate team statistics
-  const stats = {
-    totalRequests: leaveRequests.length,
-    approvedRequests: leaveRequests.filter(r => r.status === 'APPROVED').length,
-    pendingRequests: leaveRequests.filter(r => r.status === 'PENDING').length,
-    rejectedRequests: leaveRequests.filter(r => r.status === 'REJECTED').length,
-    totalDays: leaveRequests.reduce((sum, r) => sum + (r.daysRequested || 0), 0)
-  };
-
-  res.json({
-    teamLeaves: requestsWithEmployees,
-    stats,
-    timeRange,
-    dateRange: { startDate, endDate }
-  });
-}));
-
-// Get team leave requests
-router.get('/team/:managerId', checkRole('ADMIN', 'HR', 'MANAGER'), asyncHandler(async (req, res) => {
-  const { managerId } = req.params;
-
-  // For now, return all leave requests
-  // In a real system, you'd filter by team members
-  const leaveRequests = await database.find('leave_requests', { status: 'PENDING' }, {
-    sort: { createdAt: -1 },
-    limit: 20
-  });
-
-  // Get employee details for each request
-  const requestsWithEmployees = await Promise.all(
-    leaveRequests.map(async (request) => {
-      const employee = await database.findOne('employees', { _id: new ObjectId(request.employeeId) });
-      return {
-        ...request,
-        employee: employee ? {
-          firstName: employee.firstName,
-          lastName: employee.lastName,
-          position: employee.position,
-          department: employee.department
-        } : null
+        leaveType: leaveType,
+        ...balance
       };
     })
   );
 
   res.json({
-    pendingRequests: requestsWithEmployees
+    success: true,
+    data: balances
   });
 }));
+
+// Helper function to calculate leave days
+function calculateLeaveDays(startDate, endDate) {
+  const start = new Date(startDate);
+  const end = new Date(endDate);
+  const diffTime = Math.abs(end - start);
+  const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1;
+  return diffDays;
+}
+
+// Helper function to get leave balance
+async function getLeaveBalance(employeeId, leaveTypeId) {
+  const leaveType = await database.findOne('leave_types', { _id: leaveTypeId });
+  if (!leaveType) return { total: 0, used: 0, remaining: 0 };
+
+  // Get current year
+  const currentYear = new Date().getFullYear();
+  const startOfYear = new Date(`${currentYear}-01-01`);
+  const endOfYear = new Date(`${currentYear}-12-31`);
+
+  // Count used days
+  const usedLeaves = await database.find('leave_requests', {
+    employeeId: employeeId,
+    leaveTypeId: leaveTypeId,
+    status: { $in: ['APPROVED', 'APPLIED'] },
+    startDate: { $gte: startOfYear, $lte: endOfYear }
+  });
+
+  const usedDays = usedLeaves.reduce((sum, leave) => sum + (leave.leaveDays || 0), 0);
+
+  return {
+    total: leaveType.daysAllowedPerYear,
+    used: usedDays,
+    remaining: Math.max(0, leaveType.daysAllowedPerYear - usedDays)
+  };
+}
 
 module.exports = router;

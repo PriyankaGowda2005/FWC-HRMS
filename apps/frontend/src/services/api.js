@@ -119,8 +119,8 @@ export const attendanceAPI = {
     api.get(`/attendance?date=${date}&employeeId=${employeeId}`),
   getMyAttendance: ({ startDate, endDate, page, limit, status } = {}) =>
     api.get(`/attendance/my-attendance?${new URLSearchParams({ startDate, endDate, page, limit, status }).toString()}`),
-  clockIn: (data) => api.post('/attendance/clock-in', data),
-  clockOut: (data) => api.post('/attendance/clock-out', data),
+  clockIn: (data) => api.post('/attendance/clock', { ...data, type: 'in' }),
+  clockOut: (data) => api.post('/attendance/clock', { ...data, type: 'out' }),
   addRecord: (data) => api.post('/attendance', data),
   updateRecord: (id, data) => api.put(`/attendance/${id}`, data),
   deleteRecord: (id) => api.delete(`/attendance/${id}`),
@@ -168,6 +168,7 @@ export const performanceAPI = {
     api.get(`/performance-reviews?${new URLSearchParams({ employeeId, status, reviewType, year, page, limit, sortBy, sortOrder }).toString()}`),
   getMyReviews: ({ year, status, page, limit } = {}) =>
     api.get(`/performance-reviews/my-reviews?${new URLSearchParams({ year, status, page, limit }).toString()}`),
+  getTeamPerformance: (managerId) => api.get(`/performance-reviews/team/${managerId}`),
   getMetrics: ({ period } = {}) => 
     api.get(`/performance-reviews/metrics?period=${period}`),
   createReview: (data) => api.post('/performance-reviews', data),
@@ -366,6 +367,7 @@ export const departmentAPI = {
   updateDepartment: (id, data) => api.put(`/departments/${id}`, data),
   deleteDepartment: (id) => api.delete(`/departments/${id}`),
   getDepartmentEmployees: (id) => api.get(`/departments/${id}/employees`),
+  getDepartmentAnalytics: () => api.get('/departments/analytics')
 }
 
 // Reports API
@@ -394,6 +396,10 @@ export const settingsAPI = {
     api.put('/settings', data),
   changePassword: (data) => 
     api.post('/settings/change-password', data),
+  getDashboardStats: () => 
+    api.get('/settings/dashboard-stats'),
+  getSystemHealth: () => 
+    api.get('/settings/system-health'),
   getIntegrations: () => 
     api.get('/settings/integrations'),
   connectIntegration: (provider, data) => 

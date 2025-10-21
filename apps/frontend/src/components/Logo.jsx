@@ -55,9 +55,9 @@ const Logo = ({
       >
         {/* FWC Logo Image */}
         <img 
-          src="/fwc_logo.avif" 
+          src="/logo.avif" 
           alt="FWC HRMS Logo" 
-          className="w-full h-full object-contain"
+          className="w-full h-full object-contain brightness-0"
           loading="lazy"
           onError={(e) => {
             // Try SVG fallback
