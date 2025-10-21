@@ -74,6 +74,13 @@ const ReportsAnalytics = () => {
           lastUpdated: new Date().toLocaleTimeString(),
           dataFreshness: 'Live'
         }))
+      },
+      onError: (error) => {
+        console.error('Report fetch error:', error)
+        setRealTimeStatus(prev => ({
+          ...prev,
+          dataFreshness: 'Error'
+        }))
       }
     }
   )

@@ -2,7 +2,7 @@
 const express = require('express');
 const router = express.Router();
 const database = require('../database/connection');
-const { verifyToken } = require('../middleware/authMiddleware');
+const { authenticate } = require('../middleware/authMiddleware');
 const Queue = require('bull');
 
 // Initialize email queue
@@ -19,7 +19,7 @@ try {
 }
 
 // Start interview recording
-router.post('/start-recording', verifyToken, async (req, res) => {
+router.post('/start-recording', authenticate, async (req, res) => {
   try {
     const { interviewId, meetingLink, participants } = req.body;
     const userId = req.user._id;
@@ -89,7 +89,7 @@ router.post('/start-recording', verifyToken, async (req, res) => {
 });
 
 // Update transcript (real-time)
-router.post('/update-transcript', verifyToken, async (req, res) => {
+router.post('/update-transcript', authenticate, async (req, res) => {
   try {
     const { transcriptId, transcript, timestamp } = req.body;
     const userId = req.user._id;
@@ -136,7 +136,7 @@ router.post('/update-transcript', verifyToken, async (req, res) => {
 });
 
 // End interview recording and trigger AI analysis
-router.post('/end-recording', verifyToken, async (req, res) => {
+router.post('/end-recording', authenticate, async (req, res) => {
   try {
     const { transcriptId, finalTranscript, duration } = req.body;
     const userId = req.user._id;
@@ -231,7 +231,7 @@ router.post('/end-recording', verifyToken, async (req, res) => {
 });
 
 // Get transcript analysis results
-router.get('/transcript/:transcriptId', verifyToken, async (req, res) => {
+router.get('/transcript/:transcriptId', authenticate, async (req, res) => {
   try {
     const { transcriptId } = req.params;
     const userId = req.user._id;
@@ -297,7 +297,7 @@ router.get('/transcript/:transcriptId', verifyToken, async (req, res) => {
 });
 
 // Get all transcripts for a user
-router.get('/my-transcripts', verifyToken, async (req, res) => {
+router.get('/my-transcripts', authenticate, async (req, res) => {
   try {
     const userId = req.user._id;
     const { status, sortBy = 'startedAt', sortOrder = 'desc' } = req.query;
@@ -368,7 +368,7 @@ router.get('/my-transcripts', verifyToken, async (req, res) => {
 });
 
 // Submit manual scores
-router.post('/submit-scores', verifyToken, async (req, res) => {
+router.post('/submit-scores', authenticate, async (req, res) => {
   try {
     const { transcriptId, manualScores, overallRating, notes } = req.body;
     const userId = req.user._id;
@@ -457,7 +457,7 @@ router.post('/submit-scores', verifyToken, async (req, res) => {
 });
 
 // Get interview analytics
-router.get('/analytics', verifyToken, async (req, res) => {
+router.get('/analytics', authenticate, async (req, res) => {
   try {
     const userId = req.user._id;
     const { timeframe = '30d' } = req.query;

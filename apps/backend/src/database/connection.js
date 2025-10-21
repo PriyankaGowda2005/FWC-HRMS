@@ -9,7 +9,7 @@ class Database {
 
   async connect() {
     try {
-      const uri = process.env.DATABASE_URL || "mongodb://localhost:27017/HRMS";
+      const uri = process.env.DATABASE_URL || "mongodb://127.0.0.1:27017/HRMS";
       
       this.client = new MongoClient(uri);
 

@@ -7,13 +7,13 @@ const path = require('path');
 const fs = require('fs').promises;
 const { ObjectId } = require('mongodb');
 const database = require('../database/connection');
-const { authenticateCandidate, verifyToken } = require('../middleware/authMiddleware');
+const { authenticate } = require('../middleware/authMiddleware');
 const { candidateSchemas, validateSchema } = require('../middleware/validation');
 const Queue = require('bull');
 const { Resend } = require('resend');
 
 // Initialize Resend for direct email sending
-const resend = new Resend(process.env.RESEND_API_KEY);
+const resend = process.env.RESEND_API_KEY ? new Resend(process.env.RESEND_API_KEY) : null;
 
 // Simple email sending function (no Redis required)
 async function sendEmailDirect(type, to, data) {
@@ -168,6 +168,11 @@ async function sendEmailDirect(type, to, data) {
     const template = templates[type];
     if (!template) {
       throw new Error(`Email template not found for type: ${type}`);
+    }
+
+    if (!resend) {
+      console.log(`Email would be sent to ${to}: ${template.subject}`);
+      return { success: true, message: 'Email service not configured' };
     }
 
     const result = await resend.emails.send({
@@ -413,7 +418,7 @@ router.post('/login', validateSchema(candidateSchemas.login), async (req, res) =
 });
 
 // Get all candidates (for HR/Admin)
-router.get('/', verifyToken, async (req, res) => {
+router.get('/', authenticate, async (req, res) => {
   try {
     const { jobPostingId, status, page = 1, limit = 10 } = req.query;
     
@@ -427,7 +432,7 @@ router.get('/', verifyToken, async (req, res) => {
 
     const userId = req.user._id;
 
-    // Verify user has permission (user is already loaded by verifyToken middleware)
+    // Verify user has permission (user is already loaded by authenticate middleware)
     const user = req.user;
 
     if (!['HR', 'ADMIN'].includes(user.role)) {
@@ -483,7 +488,7 @@ router.get('/', verifyToken, async (req, res) => {
 });
 
 // Get candidate profile
-router.get('/profile', authenticateCandidate, async (req, res) => {
+router.get('/profile', authenticate, async (req, res) => {
   try {
     const candidate = await database.findOne('candidates', { _id: req.candidateId });
     if (!candidate) {
@@ -512,7 +517,7 @@ router.get('/profile', authenticateCandidate, async (req, res) => {
 });
 
 // Update candidate profile
-router.put('/profile', authenticateCandidate, validateSchema(candidateSchemas.updateProfile), async (req, res) => {
+router.put('/profile', authenticate, validateSchema(candidateSchemas.updateProfile), async (req, res) => {
   try {
     const { firstName, lastName, phone, skills, experience, education } = req.body;
 
@@ -556,7 +561,7 @@ router.put('/profile', authenticateCandidate, validateSchema(candidateSchemas.up
 });
 
 // Upload resume
-router.post('/resume', authenticateCandidate, upload.single('resume'), async (req, res) => {
+router.post('/resume', authenticate, upload.single('resume'), async (req, res) => {
   try {
     if (!req.file) {
       return res.status(400).json({
@@ -613,7 +618,7 @@ router.post('/resume', authenticateCandidate, upload.single('resume'), async (re
 });
 
 // Get available job postings
-router.get('/jobs', authenticateCandidate, async (req, res) => {
+router.get('/jobs', authenticate, async (req, res) => {
   try {
     const { page = 1, limit = 10, department, location } = req.query;
     const skip = (page - 1) * limit;
@@ -672,7 +677,7 @@ router.get('/jobs', authenticateCandidate, async (req, res) => {
 });
 
 // Apply for a job
-router.post('/apply/:jobId', authenticateCandidate, validateSchema(candidateSchemas.jobApplication), async (req, res) => {
+router.post('/apply/:jobId', authenticate, validateSchema(candidateSchemas.jobApplication), async (req, res) => {
   try {
     const { jobId } = req.params;
     const candidateId = req.candidateId;
@@ -749,7 +754,7 @@ router.post('/apply/:jobId', authenticateCandidate, validateSchema(candidateSche
 });
 
 // Get candidate applications
-router.get('/applications', authenticateCandidate, async (req, res) => {
+router.get('/applications', authenticate, async (req, res) => {
   try {
     const { page = 1, limit = 10 } = req.query;
     const skip = (page - 1) * limit;
@@ -820,7 +825,7 @@ try {
 }
 
 // HR: Send candidate invitation email
-router.post('/invite', verifyToken, async (req, res) => {
+router.post('/invite', authenticate, async (req, res) => {
   try {
     // Check if user has HR or ADMIN role
     if (!['HR', 'ADMIN'].includes(req.user.role)) {
@@ -913,7 +918,7 @@ router.post('/invite', verifyToken, async (req, res) => {
 });
 
 // Get recent candidates for HR dashboard (HR only)
-router.get('/recent', verifyToken, async (req, res) => {
+router.get('/recent', authenticate, async (req, res) => {
   try {
     // Check if user has HR or ADMIN role
     if (!['HR', 'ADMIN'].includes(req.user.role)) {
@@ -981,7 +986,7 @@ router.get('/recent', verifyToken, async (req, res) => {
 });
 
 // Get all candidate invitations (HR only)
-router.get('/invitations', verifyToken, async (req, res) => {
+router.get('/invitations', authenticate, async (req, res) => {
   try {
     // Check if user has HR or ADMIN role
     if (!['HR', 'ADMIN'].includes(req.user.role)) {
@@ -1011,7 +1016,7 @@ router.get('/invitations', verifyToken, async (req, res) => {
 });
 
 // Proactive candidate screening (HR only)
-router.post('/screen-candidate', verifyToken, async (req, res) => {
+router.post('/screen-candidate', authenticate, async (req, res) => {
   try {
     // Check if user has HR or ADMIN role
     if (!['HR', 'ADMIN'].includes(req.user.role)) {
@@ -1127,7 +1132,7 @@ router.post('/screen-candidate', verifyToken, async (req, res) => {
 });
 
 // Invite candidate to apply for specific job (HR only)
-router.post('/invite-to-apply', verifyToken, async (req, res) => {
+router.post('/invite-to-apply', authenticate, async (req, res) => {
   try {
     // Check if user has HR or ADMIN role
     if (!['HR', 'ADMIN'].includes(req.user.role)) {

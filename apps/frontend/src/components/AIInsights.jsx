@@ -30,10 +30,12 @@ const AIInsights = ({ type = 'hr', managerId = null, className = '' }) => {
 
   useEffect(() => {
     if (aiData) {
-      setInsights(aiData.insights)
+      console.log('AI Data received:', aiData)
+      setInsights(aiData.insights || aiData)
       setLoading(false)
     }
     if (queryError) {
+      console.error('AI Query Error:', queryError)
       setError(queryError)
       setLoading(false)
     }

@@ -2,13 +2,13 @@ const express = require('express');
 const { body, validationResult, param } = require('express-validator');
 const { ObjectId } = require('mongodb');
 const database = require('../database/connection');
-const { verifyToken, checkRole } = require('../middleware/authMiddleware');
+const { authenticate, requireRole } = require('../middleware/authMiddleware');
 const { asyncHandler } = require('../middleware/errorHandler');
 
 const router = express.Router();
 
 // Public endpoint for job postings (for HR screening)
-router.get('/public', verifyToken, checkRole('ADMIN', 'HR', 'MANAGER'), asyncHandler(async (req, res) => {
+router.get('/public', authenticate, requireRole('ADMIN', 'HR', 'MANAGER'), asyncHandler(async (req, res) => {
   const { status, department, page = 1, limit = 50 } = req.query;
   const skip = (page - 1) * limit;
 
@@ -39,10 +39,10 @@ router.get('/public', verifyToken, checkRole('ADMIN', 'HR', 'MANAGER'), asyncHan
 }));
 
 // Apply auth middleware to all remaining routes
-router.use(verifyToken);
+router.use(authenticate);
 
 // Get all job postings
-router.get('/', checkRole('ADMIN', 'HR', 'MANAGER'), asyncHandler(async (req, res) => {
+router.get('/', requireRole('ADMIN', 'HR', 'MANAGER'), asyncHandler(async (req, res) => {
   const { status, department, page = 1, limit = 10 } = req.query;
   const skip = (page - 1) * limit;
 
@@ -70,7 +70,7 @@ router.get('/', checkRole('ADMIN', 'HR', 'MANAGER'), asyncHandler(async (req, re
 }));
 
 // Get job posting by ID
-router.get('/:id', checkRole('ADMIN', 'HR', 'MANAGER'), asyncHandler(async (req, res) => {
+router.get('/:id', requireRole('ADMIN', 'HR', 'MANAGER'), asyncHandler(async (req, res) => {
   const { id } = req.params;
 
   if (!ObjectId.isValid(id)) {
@@ -86,7 +86,7 @@ router.get('/:id', checkRole('ADMIN', 'HR', 'MANAGER'), asyncHandler(async (req,
 }));
 
 // Create job posting
-router.post('/', checkRole('ADMIN', 'HR'), [
+router.post('/', requireRole('ADMIN', 'HR'), [
   body('title').notEmpty().withMessage('Job title is required'),
   body('department').notEmpty().withMessage('Department is required'),
   body('description').notEmpty().withMessage('Job description is required'),
@@ -151,7 +151,7 @@ router.post('/', checkRole('ADMIN', 'HR'), [
 }));
 
 // Update job posting
-router.put('/:id', checkRole('ADMIN', 'HR'), asyncHandler(async (req, res) => {
+router.put('/:id', requireRole('ADMIN', 'HR'), asyncHandler(async (req, res) => {
   const { id } = req.params;
   const updateData = req.body;
 
@@ -178,7 +178,7 @@ router.put('/:id', checkRole('ADMIN', 'HR'), asyncHandler(async (req, res) => {
 }));
 
 // Delete job posting
-router.delete('/:id', checkRole('ADMIN', 'HR'), asyncHandler(async (req, res) => {
+router.delete('/:id', requireRole('ADMIN', 'HR'), asyncHandler(async (req, res) => {
   const { id } = req.params;
 
   if (!ObjectId.isValid(id)) {
@@ -198,7 +198,7 @@ router.delete('/:id', checkRole('ADMIN', 'HR'), asyncHandler(async (req, res) =>
 }));
 
 // Publish job posting
-router.patch('/:id/publish', checkRole('ADMIN', 'HR'), asyncHandler(async (req, res) => {
+router.patch('/:id/publish', requireRole('ADMIN', 'HR'), asyncHandler(async (req, res) => {
   const { id } = req.params;
 
   if (!ObjectId.isValid(id)) {

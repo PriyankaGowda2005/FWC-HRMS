@@ -2,7 +2,7 @@ const express = require('express');
 const { PrismaClient } = require('@prisma/client');
 const Redis = require('redis');
 const { createBullMQ } = require('bullmq');
-const { verifyToken, checkRole } = require('../middleware/authMiddleware');
+const { authenticate, requireRole } = require('../middleware/authMiddleware');
 const { asyncHandler } = require('../middleware/errorHandler');
 
 const router = express.Router();
@@ -150,8 +150,8 @@ const batchProcessMiddleware = (batchSize = 100) => {
 
 // Real-time data processing endpoints
 router.get('/analytics/dashboard', [
-  verifyToken,
-  checkRole('ADMIN', 'HR', 'MANAGER'),
+  authenticate,
+  requireRole('ADMIN', 'HR', 'MANAGER'),
   cacheMiddleware('dashboard-analytics', CACHE_TTL.PERFORMANCE_METRICS),
   paginationMiddleware(100, 500)
 ], asyncHandler(async (req, res) => {
@@ -254,8 +254,8 @@ router.get('/analytics/dashboard', [
 
 // Bulk operations for large datasets
 router.post('/employees/bulk-update', [
-  verifyToken,
-  checkRole('ADMIN', 'HR'),
+  authenticate,
+  requireRole('ADMIN', 'HR'),
   batchProcessMiddleware(100)
 ], asyncHandler(async (req, res) => {
   const { updates } = req.body;
@@ -299,8 +299,8 @@ router.post('/employees/bulk-update', [
 
 // Real-time attendance processing
 router.post('/attendance/bulk-process', [
-  verifyToken,
-  checkRole('ADMIN', 'HR'),
+  authenticate,
+  requireRole('ADMIN', 'HR'),
   batchProcessMiddleware(200)
 ], asyncHandler(async (req, res) => {
   const { attendanceData } = req.body;
@@ -328,8 +328,8 @@ router.post('/attendance/bulk-process', [
 
 // Real-time payroll processing
 router.post('/payroll/generate-bulk', [
-  verifyToken,
-  checkRole('ADMIN', 'HR'),
+  authenticate,
+  requireRole('ADMIN', 'HR'),
   batchProcessMiddleware(50)
 ], asyncHandler(async (req, res) => {
   const { 
@@ -367,8 +367,8 @@ router.post('/payroll/generate-bulk', [
 
 // System health and performance monitoring
 router.get('/system/health', [
-  verifyToken,
-  checkRole('ADMIN')
+  authenticate,
+  requireRole('ADMIN')
 ], asyncHandler(async (req, res) => {
   const startTime = Date.now();
   
@@ -432,8 +432,8 @@ router.get('/system/health', [
 
 // Performance optimization endpoints
 router.get('/employees/optimized', [
-  verifyToken,
-  checkRole('ADMIN', 'HR', 'MANAGER'),
+  authenticate,
+  requireRole('ADMIN', 'HR', 'MANAGER'),
   cacheMiddleware('employees-list', CACHE_TTL.EMPLOYEE_LIST),
   paginationMiddleware(50, 500)
 ], asyncHandler(async (req, res) => {
@@ -503,8 +503,8 @@ router.get('/employees/optimized', [
 
 // Real-time notifications system
 router.post('/notifications/broadcast', [
-  verifyToken,
-  checkRole('ADMIN', 'HR')
+  authenticate,
+  requireRole('ADMIN', 'HR')
 ], asyncHandler(async (req, res) => {
   const { 
     message, 
@@ -540,8 +540,8 @@ router.post('/notifications/broadcast', [
 
 // Cleanup and maintenance endpoints
 router.post('/system/cleanup', [
-  verifyToken,
-  checkRole('ADMIN')
+  authenticate,
+  requireRole('ADMIN')
 ], asyncHandler(async (req, res) => {
   const { cleanupType = 'all' } = req.body;
   

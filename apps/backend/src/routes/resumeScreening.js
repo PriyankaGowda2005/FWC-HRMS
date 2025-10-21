@@ -2,11 +2,11 @@
 const express = require('express');
 const router = express.Router();
 const database = require('../database/connection');
-const { verifyToken } = require('../middleware/authMiddleware');
+const { authenticate } = require('../middleware/authMiddleware');
 const fetch = require('node-fetch');
 
 // Resume screening endpoint
-router.post('/screen', verifyToken, async (req, res) => {
+router.post('/screen', authenticate, async (req, res) => {
   try {
     // Check if user has HR or ADMIN role
     if (!['HR', 'ADMIN'].includes(req.user.role)) {
@@ -145,7 +145,7 @@ router.post('/screen', verifyToken, async (req, res) => {
 });
 
 // Get screening results for a job posting
-router.get('/screenings/:jobPostingId', verifyToken, async (req, res) => {
+router.get('/screenings/:jobPostingId', authenticate, async (req, res) => {
   try {
     // Check if user has HR, ADMIN, or MANAGER role
     if (!['HR', 'ADMIN', 'MANAGER'].includes(req.user.role)) {
@@ -201,7 +201,7 @@ router.get('/screenings/:jobPostingId', verifyToken, async (req, res) => {
 });
 
 // Get screening details
-router.get('/screening/:screeningId', verifyToken, async (req, res) => {
+router.get('/screening/:screeningId', authenticate, async (req, res) => {
   try {
     const { screeningId } = req.params;
 
@@ -248,7 +248,7 @@ router.get('/screening/:screeningId', verifyToken, async (req, res) => {
 });
 
 // Update screening status (approve/reject)
-router.put('/screening/:screeningId/status', verifyToken, async (req, res) => {
+router.put('/screening/:screeningId/status', authenticate, async (req, res) => {
   try {
     // Check if user has HR or ADMIN role
     if (!['HR', 'ADMIN'].includes(req.user.role)) {

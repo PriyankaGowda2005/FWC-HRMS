@@ -2,10 +2,10 @@
 const express = require('express');
 const router = express.Router();
 const database = require('../database/connection');
-const { verifyToken } = require('../middleware/authMiddleware');
+const { authenticate } = require('../middleware/authMiddleware');
 
 // Attach screened candidate to job posting
-router.post('/attach', verifyToken, async (req, res) => {
+router.post('/attach', authenticate, async (req, res) => {
   try {
     // Check if user has HR or ADMIN role
     if (!['HR', 'ADMIN'].includes(req.user.role)) {
@@ -148,7 +148,7 @@ router.post('/attach', verifyToken, async (req, res) => {
 });
 
 // Get all attachments for a job posting
-router.get('/job/:jobPostingId', verifyToken, async (req, res) => {
+router.get('/job/:jobPostingId', authenticate, async (req, res) => {
   try {
     // Check if user has HR, ADMIN, or MANAGER role
     if (!['HR', 'ADMIN', 'MANAGER'].includes(req.user.role)) {
@@ -222,7 +222,7 @@ router.get('/job/:jobPostingId', verifyToken, async (req, res) => {
 });
 
 // Get all attachments for a candidate
-router.get('/candidate/:candidateId', verifyToken, async (req, res) => {
+router.get('/candidate/:candidateId', authenticate, async (req, res) => {
   try {
     // Check if user has HR, ADMIN, or MANAGER role
     if (!['HR', 'ADMIN', 'MANAGER'].includes(req.user.role)) {
@@ -273,7 +273,7 @@ router.get('/candidate/:candidateId', verifyToken, async (req, res) => {
 });
 
 // Update attachment status
-router.put('/:attachmentId/status', verifyToken, async (req, res) => {
+router.put('/:attachmentId/status', authenticate, async (req, res) => {
   try {
     // Check if user has HR or ADMIN role
     if (!['HR', 'ADMIN'].includes(req.user.role)) {
@@ -350,7 +350,7 @@ router.put('/:attachmentId/status', verifyToken, async (req, res) => {
 });
 
 // Remove attachment
-router.delete('/:attachmentId', verifyToken, async (req, res) => {
+router.delete('/:attachmentId', authenticate, async (req, res) => {
   try {
     // Check if user has HR or ADMIN role
     if (!['HR', 'ADMIN'].includes(req.user.role)) {
@@ -415,7 +415,7 @@ router.delete('/:attachmentId', verifyToken, async (req, res) => {
 });
 
 // Get attachment details
-router.get('/:attachmentId', verifyToken, async (req, res) => {
+router.get('/:attachmentId', authenticate, async (req, res) => {
   try {
     const { attachmentId } = req.params;
 

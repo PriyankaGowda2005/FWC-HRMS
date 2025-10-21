@@ -2,7 +2,7 @@ const express = require('express');
 const { body, validationResult, param } = require('express-validator');
 const { ObjectId } = require('mongodb');
 const database = require('../database/connection');
-const { verifyToken, checkRole } = require('../middleware/authMiddleware');
+const { authenticate, requireRole } = require('../middleware/authMiddleware');
 const { asyncHandler } = require('../middleware/errorHandler');
 const axios = require('axios');
 
@@ -11,7 +11,7 @@ const router = express.Router();
 // Debug endpoint to test ML service connection
 router.get('/debug/ml', asyncHandler(async (req, res) => {
   try {
-    const mlServiceUrl = process.env.ML_SERVICE_URL || 'http://localhost:8000';
+    const mlServiceUrl = process.env.ML_SERVICE_URL || 'http://127.0.0.1:8000';
     console.log('🔍 Debug: Checking ML service at:', mlServiceUrl);
     
     const response = await axios.get(`${mlServiceUrl}/health`, {
@@ -40,7 +40,7 @@ router.get('/debug/ml', asyncHandler(async (req, res) => {
 router.get('/services/status', asyncHandler(async (req, res) => {
   try {
     // Check ML service health
-    const mlServiceUrl = process.env.ML_SERVICE_URL || 'http://localhost:8000';
+    const mlServiceUrl = process.env.ML_SERVICE_URL || 'http://127.0.0.1:8000';
     console.log('🔍 Checking ML service at:', mlServiceUrl);
     
     const response = await axios.get(`${mlServiceUrl}/health`, {
@@ -83,10 +83,10 @@ router.get('/services/status', asyncHandler(async (req, res) => {
 }));
 
 // Apply auth middleware to all remaining routes
-router.use(verifyToken);
+router.use(authenticate);
 
 // Analyze resume
-router.post('/resume/analyze', checkRole('ADMIN', 'HR'), [
+router.post('/resume/analyze', requireRole('ADMIN', 'HR'), [
   body('filePath').notEmpty().withMessage('File path required'),
   body('jobRequirements').isArray().withMessage('Job requirements must be an array')
 ], asyncHandler(async (req, res) => {
@@ -136,7 +136,7 @@ router.post('/resume/analyze', checkRole('ADMIN', 'HR'), [
 }));
 
 // Start AI interview
-router.post('/interview/start', checkRole('ADMIN', 'HR'), [
+router.post('/interview/start', requireRole('ADMIN', 'HR'), [
   body('candidateId').notEmpty().withMessage('Candidate ID required'),
   body('jobRole').notEmpty().withMessage('Job role required')
 ], asyncHandler(async (req, res) => {
@@ -172,7 +172,7 @@ router.post('/interview/start', checkRole('ADMIN', 'HR'), [
 }));
 
 // Submit interview answer
-router.post('/interview/answer', checkRole('ADMIN', 'HR'), [
+router.post('/interview/answer', requireRole('ADMIN', 'HR'), [
   body('sessionId').notEmpty().withMessage('Session ID required'),
   body('answer').notEmpty().withMessage('Answer required'),
   body('questionId').isNumeric().withMessage('Question ID must be a number')
@@ -205,7 +205,7 @@ router.post('/interview/answer', checkRole('ADMIN', 'HR'), [
 }));
 
 // Get next interview question
-router.get('/interview/question/:sessionId', checkRole('ADMIN', 'HR'), asyncHandler(async (req, res) => {
+router.get('/interview/question/:sessionId', requireRole('ADMIN', 'HR'), asyncHandler(async (req, res) => {
   const { sessionId } = req.params;
 
   // Mock next question
@@ -227,8 +227,143 @@ router.get('/interview/question/:sessionId', checkRole('ADMIN', 'HR'), asyncHand
   });
 }));
 
+// Get AI insights for reports
+router.post('/reports/insights', [
+  authenticate,
+  requireRole('ADMIN', 'HR', 'MANAGER'),
+  body('data').isObject().withMessage('Report data is required'),
+  body('type').isIn(['attendance', 'leave', 'performance', 'payroll', 'general']).withMessage('Valid report type required')
+], asyncHandler(async (req, res) => {
+  const errors = validationResult(req);
+  if (!errors.isEmpty()) {
+    return res.status(400).json({ 
+      message: 'Validation errors',
+      errors: errors.array()
+    });
+  }
+
+  const { data, type } = req.body;
+
+  try {
+    // Generate AI insights based on report data
+    const insights = {
+      type,
+      generatedAt: new Date(),
+      summary: generateReportSummary(data, type),
+      recommendations: generateRecommendations(data, type),
+      trends: generateTrendAnalysis(data, type),
+      alerts: generateAlerts(data, type)
+    };
+
+    res.json({
+      success: true,
+      insights
+    });
+  } catch (error) {
+    console.error('AI insights generation error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to generate AI insights',
+      error: error.message
+    });
+  }
+}));
+
+// Helper functions for AI insights
+function generateReportSummary(data, type) {
+  switch (type) {
+    case 'attendance':
+      return {
+        totalRecords: data.summary?.totalAttendance || 0,
+        averageAttendance: data.summary?.averageAttendance || 0,
+        keyMetrics: {
+          presentRate: data.breakdown?.attendance?.present || 0,
+          absentRate: data.breakdown?.attendance?.absent || 0,
+          lateRate: data.breakdown?.attendance?.late || 0
+        }
+      };
+    case 'leave':
+      return {
+        totalRequests: data.summary?.totalLeaveRequests || 0,
+        approvalRate: data.summary?.leaveApprovalRate || 0,
+        keyMetrics: {
+          pending: data.breakdown?.leave?.pending || 0,
+          approved: data.breakdown?.leave?.approved || 0,
+          rejected: data.breakdown?.leave?.rejected || 0
+        }
+      };
+    default:
+      return {
+        totalRecords: data.summary?.totalEmployees || 0,
+        period: data.period?.dateRange || 'unknown'
+      };
+  }
+}
+
+function generateRecommendations(data, type) {
+  const recommendations = [];
+  
+  switch (type) {
+    case 'attendance':
+      if (data.breakdown?.attendance?.absent > data.breakdown?.attendance?.present * 0.1) {
+        recommendations.push('Consider implementing attendance improvement programs');
+      }
+      if (data.breakdown?.attendance?.late > data.breakdown?.attendance?.present * 0.05) {
+        recommendations.push('Review and optimize work schedules to reduce lateness');
+      }
+      break;
+    case 'leave':
+      if (data.breakdown?.leave?.pending > data.breakdown?.leave?.approved) {
+        recommendations.push('Streamline leave approval process to reduce pending requests');
+      }
+      break;
+  }
+  
+  if (recommendations.length === 0) {
+    recommendations.push('Overall performance metrics look good. Continue current practices.');
+  }
+  
+  return recommendations;
+}
+
+function generateTrendAnalysis(data, type) {
+  return {
+    trend: 'stable',
+    direction: 'neutral',
+    confidence: 0.75,
+    description: 'Data shows consistent patterns over the selected period'
+  };
+}
+
+function generateAlerts(data, type) {
+  const alerts = [];
+  
+  switch (type) {
+    case 'attendance':
+      if (data.summary?.averageAttendance < 0.8) {
+        alerts.push({
+          type: 'warning',
+          message: 'Low attendance rate detected',
+          severity: 'medium'
+        });
+      }
+      break;
+    case 'leave':
+      if (data.breakdown?.leave?.rejected > data.breakdown?.leave?.approved) {
+        alerts.push({
+          type: 'warning',
+          message: 'High leave rejection rate',
+          severity: 'high'
+        });
+      }
+      break;
+  }
+  
+  return alerts;
+}
+
 // Get team insights
-router.get('/insights/team/:managerId', checkRole('ADMIN', 'HR', 'MANAGER'), asyncHandler(async (req, res) => {
+router.get('/insights/team/:managerId', requireRole('ADMIN', 'HR', 'MANAGER'), asyncHandler(async (req, res) => {
   const { managerId } = req.params;
 
   // Mock team insights
@@ -262,7 +397,7 @@ router.get('/insights/team/:managerId', checkRole('ADMIN', 'HR', 'MANAGER'), asy
 }));
 
 // Get HR insights
-router.get('/insights/hr', checkRole('ADMIN', 'HR'), asyncHandler(async (req, res) => {
+router.get('/insights/hr', requireRole('ADMIN', 'HR'), asyncHandler(async (req, res) => {
   // Mock HR insights
   const insights = {
     predictions: {
@@ -290,7 +425,7 @@ router.get('/insights/hr', checkRole('ADMIN', 'HR'), asyncHandler(async (req, re
 }));
 
 // Get recruitment insights
-router.get('/recruitment/insights', checkRole('ADMIN', 'HR'), asyncHandler(async (req, res) => {
+router.get('/recruitment/insights', requireRole('ADMIN', 'HR'), asyncHandler(async (req, res) => {
   const { period = '30d' } = req.query;
   
   // Mock recruitment insights
@@ -338,7 +473,7 @@ router.get('/recruitment/insights', checkRole('ADMIN', 'HR'), asyncHandler(async
 }));
 
 // Analyze hiring trends
-router.post('/recruitment/trends', checkRole('ADMIN', 'HR'), [
+router.post('/recruitment/trends', requireRole('ADMIN', 'HR'), [
   body('departmentId').optional().isMongoId().withMessage('Invalid department ID')
 ], asyncHandler(async (req, res) => {
   const errors = validationResult(req);
@@ -382,7 +517,7 @@ router.post('/recruitment/trends', checkRole('ADMIN', 'HR'), [
 }));
 
 // Predict hiring needs
-router.post('/recruitment/predict', checkRole('ADMIN', 'HR'), [
+router.post('/recruitment/predict', requireRole('ADMIN', 'HR'), [
   body('departmentId').optional().isMongoId().withMessage('Invalid department ID')
 ], asyncHandler(async (req, res) => {
   const errors = validationResult(req);
