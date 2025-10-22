@@ -55,3 +55,4 @@ The `./docs/images/` approach is recommended as it:
 - Follows common documentation practices
 - Doesn't clutter the root directory
 - Is easily discoverable by contributors
+
