@@ -28,6 +28,23 @@ import {
   MapPinIcon,
   CalendarIcon
 } from '@heroicons/react/24/outline'
+import { 
+  LineChart, 
+  Line, 
+  AreaChart, 
+  Area, 
+  BarChart, 
+  Bar, 
+  PieChart, 
+  Pie, 
+  Cell, 
+  XAxis, 
+  YAxis, 
+  CartesianGrid, 
+  Tooltip, 
+  Legend, 
+  ResponsiveContainer 
+} from 'recharts'
 
 // Job Postings Tab Component
 export const JobPostingsTab = ({ jobPostings, onCreateJob, onUpdateJob, onDeleteJob, departments }) => {
@@ -497,6 +514,54 @@ export const AnalyticsTab = ({ jobPostings, candidates, insights }) => {
       (candidates.reduce((sum, c) => sum + (c.fitScore || 0), 0) / candidates.length).toFixed(1) : 0
   }
 
+  // Generate mock data for charts
+  const generateApplicationTrendsData = () => {
+    const last7Days = []
+    for (let i = 6; i >= 0; i--) {
+      const date = new Date()
+      date.setDate(date.getDate() - i)
+      last7Days.push({
+        date: date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
+        applications: Math.floor(Math.random() * 20) + 5,
+        interviews: Math.floor(Math.random() * 10) + 2,
+        hires: Math.floor(Math.random() * 3) + 1
+      })
+    }
+    return last7Days
+  }
+
+  const generateSkillsDemandData = () => {
+    const skills = [
+      { name: 'JavaScript', count: 45, color: '#3B82F6' },
+      { name: 'React', count: 38, color: '#10B981' },
+      { name: 'Python', count: 32, color: '#F59E0B' },
+      { name: 'Node.js', count: 28, color: '#EF4444' },
+      { name: 'SQL', count: 25, color: '#8B5CF6' },
+      { name: 'AWS', count: 22, color: '#06B6D4' },
+      { name: 'Docker', count: 18, color: '#84CC16' },
+      { name: 'TypeScript', count: 15, color: '#F97316' }
+    ]
+    return skills
+  }
+
+  const generateDepartmentData = () => {
+    const deptCounts = jobPostings.reduce((acc, job) => {
+      const dept = job.department || 'Unknown'
+      acc[dept] = (acc[dept] || 0) + 1
+      return acc
+    }, {})
+
+    return Object.entries(deptCounts).map(([name, count]) => ({
+      name,
+      count,
+      color: `hsl(${Math.random() * 360}, 70%, 50%)`
+    }))
+  }
+
+  const applicationTrendsData = generateApplicationTrendsData()
+  const skillsDemandData = generateSkillsDemandData()
+  const departmentData = generateDepartmentData()
+
   return (
     <div className="space-y-8">
       {/* Stats Cards */}
@@ -526,32 +591,110 @@ export const AnalyticsTab = ({ jobPostings, candidates, insights }) => {
         </div>
       </div>
 
-      {/* Charts and Insights */}
+      {/* Charts Section */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* Applications Over Time Chart */}
         <div className="bg-white border border-gray-200 rounded-xl p-6">
-          <h3 className="text-lg font-medium text-gray-900 mb-4">Application Trends</h3>
-          <div className="h-64 flex items-center justify-center text-gray-500">
-            <ChartBarIcon className="w-16 h-16" />
-            <p className="ml-4">Chart visualization coming soon</p>
+          <h3 className="text-lg font-medium text-gray-900 mb-4">Applications Over Time</h3>
+          <div className="h-64">
+            <ResponsiveContainer width="100%" height="100%">
+              <AreaChart data={applicationTrendsData}>
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis dataKey="date" />
+                <YAxis />
+                <Tooltip />
+                <Legend />
+                <Area 
+                  type="monotone" 
+                  dataKey="applications" 
+                  stackId="1" 
+                  stroke="#3B82F6" 
+                  fill="#3B82F6" 
+                  fillOpacity={0.6}
+                />
+                <Area 
+                  type="monotone" 
+                  dataKey="interviews" 
+                  stackId="1" 
+                  stroke="#10B981" 
+                  fill="#10B981" 
+                  fillOpacity={0.6}
+                />
+                <Area 
+                  type="monotone" 
+                  dataKey="hires" 
+                  stackId="1" 
+                  stroke="#F59E0B" 
+                  fill="#F59E0B" 
+                  fillOpacity={0.6}
+                />
+              </AreaChart>
+            </ResponsiveContainer>
           </div>
         </div>
 
+        {/* Top Skills Demand Chart */}
         <div className="bg-white border border-gray-200 rounded-xl p-6">
-          <h3 className="text-lg font-medium text-gray-900 mb-4">Top Departments</h3>
-          <div className="space-y-3">
-            {jobPostings.reduce((acc, job) => {
-              const dept = job.department || 'Unknown'
-              acc[dept] = (acc[dept] || 0) + 1
-              return acc
-            }, {})}
-            {Object.entries(jobPostings.reduce((acc, job) => {
-              const dept = job.department || 'Unknown'
-              acc[dept] = (acc[dept] || 0) + 1
-              return acc
-            }, {})).map(([dept, count]) => (
-              <div key={dept} className="flex justify-between items-center">
-                <span className="text-gray-700">{dept}</span>
-                <span className="text-sm font-medium text-blue-600">{count} jobs</span>
+          <h3 className="text-lg font-medium text-gray-900 mb-4">Top Skills Demand</h3>
+          <div className="h-64">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={skillsDemandData} layout="horizontal">
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis type="number" />
+                <YAxis dataKey="name" type="category" width={80} />
+                <Tooltip />
+                <Bar dataKey="count" fill="#3B82F6" />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
+      </div>
+
+      {/* Additional Charts */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* Department Distribution */}
+        <div className="bg-white border border-gray-200 rounded-xl p-6">
+          <h3 className="text-lg font-medium text-gray-900 mb-4">Department Distribution</h3>
+          <div className="h-64">
+            <ResponsiveContainer width="100%" height="100%">
+              <PieChart>
+                <Pie
+                  data={departmentData}
+                  cx="50%"
+                  cy="50%"
+                  labelLine={false}
+                  label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
+                  outerRadius={80}
+                  fill="#8884d8"
+                  dataKey="count"
+                >
+                  {departmentData.map((entry, index) => (
+                    <Cell key={`cell-${index}`} fill={entry.color} />
+                  ))}
+                </Pie>
+                <Tooltip />
+              </PieChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
+
+        {/* Recruitment Pipeline */}
+        <div className="bg-white border border-gray-200 rounded-xl p-6">
+          <h3 className="text-lg font-medium text-gray-900 mb-4">Recruitment Pipeline</h3>
+          <div className="space-y-4">
+            {[
+              { stage: 'Applied', count: candidates.filter(c => c.status === 'APPLIED').length, color: 'bg-blue-500' },
+              { stage: 'Screening', count: candidates.filter(c => c.status === 'SCREENING').length, color: 'bg-yellow-500' },
+              { stage: 'Interviewed', count: candidates.filter(c => c.status === 'INTERVIEWED').length, color: 'bg-purple-500' },
+              { stage: 'Offered', count: candidates.filter(c => c.status === 'OFFERED').length, color: 'bg-orange-500' },
+              { stage: 'Hired', count: candidates.filter(c => c.status === 'HIRED').length, color: 'bg-green-500' }
+            ].map((stage) => (
+              <div key={stage.stage} className="flex items-center justify-between">
+                <div className="flex items-center space-x-3">
+                  <div className={`w-3 h-3 rounded-full ${stage.color}`}></div>
+                  <span className="text-gray-700">{stage.stage}</span>
+                </div>
+                <span className="text-sm font-medium text-gray-900">{stage.count}</span>
               </div>
             ))}
           </div>

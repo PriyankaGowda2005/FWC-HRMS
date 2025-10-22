@@ -395,6 +395,12 @@ router.get('/pending', [
     query.employeeId = { $in: teamMemberIds };
   } else if (departmentId) {
     // Filter by department for HR/Admin
+    // Validate ObjectId format
+    if (!ObjectId.isValid(departmentId)) {
+      return res.status(400).json({ 
+        message: 'Invalid department ID format' 
+      });
+    }
     const departmentEmployees = await database.find('employees', { 
       departmentId: new ObjectId(departmentId) 
     });

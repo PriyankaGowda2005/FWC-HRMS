@@ -2,7 +2,7 @@
 const express = require('express');
 const router = express.Router();
 const database = require('../database/connection');
-const { authenticate } = require('../middleware/authMiddleware');
+const { authenticate, authenticateCandidate } = require('../middleware/authMiddleware');
 const Queue = require('bull');
 
 // Initialize email queue
@@ -19,7 +19,7 @@ try {
 }
 
 // Get candidate's interviews
-router.get('/my-interviews', authenticate, async (req, res) => {
+router.get('/my-interviews', authenticateCandidate, async (req, res) => {
   try {
     const candidateId = req.candidateId;
     const { status, sortBy = 'scheduledAt', sortOrder = 'asc' } = req.query;
@@ -77,7 +77,7 @@ router.get('/my-interviews', authenticate, async (req, res) => {
 });
 
 // Get interview details
-router.get('/interview/:interviewId', authenticate, async (req, res) => {
+router.get('/interview/:interviewId', authenticateCandidate, async (req, res) => {
   try {
     const { interviewId } = req.params;
     const candidateId = req.candidateId;
@@ -128,7 +128,7 @@ router.get('/interview/:interviewId', authenticate, async (req, res) => {
 });
 
 // Request interview reschedule
-router.post('/interview/:interviewId/request-reschedule', authenticate, async (req, res) => {
+router.post('/interview/:interviewId/request-reschedule', authenticateCandidate, async (req, res) => {
   try {
     const { interviewId } = req.params;
     const candidateId = req.candidateId;
@@ -225,7 +225,7 @@ router.post('/interview/:interviewId/request-reschedule', authenticate, async (r
 });
 
 // Confirm interview attendance
-router.post('/interview/:interviewId/confirm', authenticate, async (req, res) => {
+router.post('/interview/:interviewId/confirm', authenticateCandidate, async (req, res) => {
   try {
     const { interviewId } = req.params;
     const candidateId = req.candidateId;
@@ -277,7 +277,7 @@ router.post('/interview/:interviewId/confirm', authenticate, async (req, res) =>
 });
 
 // Get candidate's application status
-router.get('/application-status', authenticate, async (req, res) => {
+router.get('/application-status', authenticateCandidate, async (req, res) => {
   try {
     const candidateId = req.candidateId;
 
@@ -331,7 +331,7 @@ router.get('/application-status', authenticate, async (req, res) => {
 });
 
 // Send interview reminder request
-router.post('/interview/:interviewId/reminder', authenticate, async (req, res) => {
+router.post('/interview/:interviewId/reminder', authenticateCandidate, async (req, res) => {
   try {
     const { interviewId } = req.params;
     const candidateId = req.candidateId;

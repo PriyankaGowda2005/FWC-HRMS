@@ -2,40 +2,13 @@ import React, { useState, useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from 'react-query'
 import toast from 'react-hot-toast'
 import { employeeAPI, attendanceAPI, leaveAPI, performanceAPI } from '../services/api'
-import socketClient from '../services/socketClient'
 import LoadingSpinner from './LoadingSpinner'
 
 const TeamManagement = ({ managerId }) => {
   const queryClient = useQueryClient()
   const [selectedMember, setSelectedMember] = useState(null)
   const [activeTab, setActiveTab] = useState('overview')
-  const [isSocketConnected, setIsSocketConnected] = useState(false)
-
-  // Socket connection management
-  useEffect(() => {
-    const handleSocketConnected = () => {
-      setIsSocketConnected(true)
-    }
-
-    const handleSocketDisconnected = () => {
-      setIsSocketConnected(false)
-    }
-
-    const handleMemberUpdate = (data) => {
-      toast.info(`Team member ${data.memberName} updated`)
-      queryClient.invalidateQueries(['team-members'])
-    }
-
-    socketClient.on('socket:connected', handleSocketConnected)
-    socketClient.on('socket:disconnected', handleSocketDisconnected)
-    socketClient.on('team:member_updated', handleMemberUpdate)
-
-    return () => {
-      socketClient.off('socket:connected', handleSocketConnected)
-      socketClient.off('socket:disconnected', handleSocketDisconnected)
-      socketClient.off('team:member_updated', handleMemberUpdate)
-    }
-  }, [queryClient])
+  const [showAddMemberModal, setShowAddMemberModal] = useState(false)
 
   // Fetch team members
   const { data: teamData, isLoading: teamLoading } = useQuery(
@@ -72,18 +45,21 @@ const TeamManagement = ({ managerId }) => {
   }
 
   const handleCreatePerformanceReview = (memberId) => {
-    // This would open a performance review creation modal
-    toast.info(`Creating performance review for ${teamMembers.find(m => m.userId === memberId)?.firstName}`)
+    // Navigate to performance management or open modal
+    toast.success(`Creating performance review for ${teamMembers.find(m => m.userId === memberId)?.firstName}`)
+    // Here you would typically open a modal or navigate to performance review creation
   }
 
   const handleSendMessage = (memberId) => {
-    // This would open a messaging interface
-    toast.info(`Sending message to ${teamMembers.find(m => m.userId === memberId)?.firstName}`)
+    // Open messaging interface
+    toast.success(`Opening message interface for ${teamMembers.find(m => m.userId === memberId)?.firstName}`)
+    // Here you would typically open a messaging modal or navigate to messaging
   }
 
   const handleScheduleOneOnOne = (memberId) => {
-    // This would open a meeting scheduler
-    toast.info(`Scheduling one-on-one with ${teamMembers.find(m => m.userId === memberId)?.firstName}`)
+    // Open meeting scheduler
+    toast.success(`Scheduling one-on-one with ${teamMembers.find(m => m.userId === memberId)?.firstName}`)
+    // Here you would typically open a meeting scheduler modal
   }
 
   if (teamLoading) {
@@ -98,11 +74,20 @@ const TeamManagement = ({ managerId }) => {
           <h2 className="text-xl font-semibold text-gray-900">Team Management</h2>
           <p className="text-sm text-gray-600">Manage your team members and their performance</p>
         </div>
-        <div className="flex items-center">
-          <div className={`w-2 h-2 rounded-full mr-2 ${isSocketConnected ? 'bg-green-500' : 'bg-red-500'}`}></div>
-          <span className="text-sm text-gray-500">
-            {isSocketConnected ? 'Real-time updates' : 'Offline mode'}
-          </span>
+        <div className="flex items-center space-x-3">
+          <button
+            onClick={() => setShowAddMemberModal(true)}
+            className="flex items-center space-x-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors"
+          >
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+            </svg>
+            <span>Add Team Member</span>
+          </button>
+          <div className="flex items-center">
+            <div className="w-2 h-2 rounded-full mr-2 bg-green-500"></div>
+            <span className="text-sm text-gray-500">System Active</span>
+          </div>
         </div>
       </div>
 
@@ -389,6 +374,60 @@ const TeamManagement = ({ managerId }) => {
           )}
         </div>
       </div>
+
+      {/* Add Team Member Modal */}
+      {showAddMemberModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 w-full max-w-md">
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="text-lg font-semibold text-gray-900">Add Team Member</h3>
+              <button
+                onClick={() => setShowAddMemberModal(false)}
+                className="text-gray-400 hover:text-gray-600"
+              >
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Employee Email</label>
+                <input
+                  type="email"
+                  placeholder="employee@company.com"
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Role</label>
+                <select className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+                  <option value="">Select Role</option>
+                  <option value="EMPLOYEE">Employee</option>
+                  <option value="MANAGER">Manager</option>
+                </select>
+              </div>
+              <div className="flex justify-end space-x-3">
+                <button
+                  onClick={() => setShowAddMemberModal(false)}
+                  className="px-4 py-2 text-gray-600 hover:text-gray-800"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={() => {
+                    toast.success('Team member addition feature coming soon!')
+                    setShowAddMemberModal(false)
+                  }}
+                  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+                >
+                  Add Member
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

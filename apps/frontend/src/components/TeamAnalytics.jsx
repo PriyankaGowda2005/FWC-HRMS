@@ -2,38 +2,10 @@ import React, { useState, useEffect } from 'react'
 import { useQuery } from 'react-query'
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line, PieChart, Pie, Cell } from 'recharts'
 import { employeeAPI, attendanceAPI, leaveAPI, performanceAPI } from '../services/api'
-import socketClient from '../services/socketClient'
 import LoadingSpinner from './LoadingSpinner'
 
 const TeamAnalytics = ({ managerId, timeRange = 'month' }) => {
   const [analyticsData, setAnalyticsData] = useState(null)
-  const [isSocketConnected, setIsSocketConnected] = useState(false)
-
-  // Socket connection for real-time analytics
-  useEffect(() => {
-    const handleSocketConnected = () => {
-      setIsSocketConnected(true)
-      socketClient.requestTeamAnalytics(timeRange, managerId)
-    }
-
-    const handleSocketDisconnected = () => {
-      setIsSocketConnected(false)
-    }
-
-    const handleTeamAnalytics = (data) => {
-      setAnalyticsData(data.analytics)
-    }
-
-    socketClient.on('socket:connected', handleSocketConnected)
-    socketClient.on('socket:disconnected', handleSocketDisconnected)
-    socketClient.on('analytics:team', handleTeamAnalytics)
-
-    return () => {
-      socketClient.off('socket:connected', handleSocketConnected)
-      socketClient.off('socket:disconnected', handleSocketDisconnected)
-      socketClient.off('analytics:team', handleTeamAnalytics)
-    }
-  }, [timeRange, managerId])
 
   // Fetch team analytics data
   const { data: teamData, isLoading: teamLoading } = useQuery(
@@ -69,7 +41,7 @@ const TeamAnalytics = ({ managerId, timeRange = 'month' }) => {
     // Attendance trend data
     const attendanceTrend = teamMembers.map(member => ({
       name: `${member.firstName} ${member.lastName}`.substring(0, 10),
-      present: Math.floor(Math.random() * 20) + 15, // Mock data - replace with real data
+      present: Math.floor(Math.random() * 20) + 15, // This will be replaced with real attendance data
       absent: Math.floor(Math.random() * 5),
       late: Math.floor(Math.random() * 3)
     }))

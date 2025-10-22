@@ -29,8 +29,7 @@ const CTASection = () => {
         {/* Enhanced Overlay Pattern */}
         <div className="absolute inset-0 bg-gradient-to-br from-black/30 to-black/50" />
         
-        {/* Grid Pattern */}
-        <div className="absolute inset-0 bg-[linear-gradient(rgba(255,255,255,0.05)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.05)_1px,transparent_1px)] bg-[size:50px_50px]" />
+        {/* Grid Pattern - removed to clean up background */}
         
         {/* Enhanced Floating Elements */}
         {[...Array(8)].map((_, i) => (

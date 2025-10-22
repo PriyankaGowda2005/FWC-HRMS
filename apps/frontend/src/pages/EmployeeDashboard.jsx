@@ -4,10 +4,12 @@ import toast from 'react-hot-toast'
 import { useAuth } from '../contexts/AuthContext'
 import { employeeAPI, attendanceAPI, leaveAPI, payrollAPI, performanceAPI } from '../services/api'
 import LoadingSpinner from '../components/LoadingSpinner'
+import { useNavigate } from 'react-router-dom'
 
 const EmployeeDashboard = () => {
   const { user } = useAuth()
   const queryClient = useQueryClient()
+  const navigate = useNavigate()
   const [selectedPeriod, setSelectedPeriod] = useState('current')
   const [showClockInModal, setShowClockInModal] = useState(false)
   const [showLeaveModal, setShowLeaveModal] = useState(false)
@@ -155,18 +157,35 @@ const EmployeeDashboard = () => {
   const handleClockIn = () => {
     clockInMutation.mutate({
       notes: clockInNotes,
-      workFromHome
+      workFromHome,
+      location: 'Office',
+      deviceId: 'WEB'
     })
   }
 
   const handleClockOut = () => {
     clockOutMutation.mutate({
-      notes: ''
+      notes: '',
+      location: 'Office',
+      deviceId: 'WEB'
     })
   }
 
   const handleSubmitLeave = (leaveData) => {
     createLeaveMutation.mutate(leaveData)
+  }
+
+  // Navigation handlers for quick actions
+  const handleUpdateProfile = () => {
+    navigate('/employee/profile')
+  }
+
+  const handleViewPerformance = () => {
+    navigate('/employee/performance')
+  }
+
+  const handleViewPayroll = () => {
+    navigate('/employee/payroll')
   }
 
   // Show loading spinner only for critical data
@@ -189,9 +208,73 @@ const EmployeeDashboard = () => {
   const performanceReviews = performanceData?.reviews || []
   const performanceStats = performanceData?.stats || {}
 
+  // Add sample data if no real data exists
+  const sampleAttendance = attendance.length === 0 ? [
+    {
+      id: '1',
+      date: new Date('2025-10-21'),
+      clockIn: new Date('2025-10-21T09:00:00'),
+      clockOut: new Date('2025-10-21T18:00:00'),
+      hoursWorked: 8.5,
+      status: 'PRESENT',
+      workFromHome: false
+    },
+    {
+      id: '2',
+      date: new Date('2025-10-20'),
+      clockIn: new Date('2025-10-20T09:15:00'),
+      clockOut: new Date('2025-10-20T17:45:00'),
+      hoursWorked: 8.0,
+      status: 'LATE',
+      workFromHome: false
+    },
+    {
+      id: '3',
+      date: new Date('2025-10-19'),
+      clockIn: new Date('2025-10-19T08:45:00'),
+      clockOut: new Date('2025-10-19T18:30:00'),
+      hoursWorked: 9.25,
+      status: 'PRESENT',
+      workFromHome: true
+    }
+  ] : attendance
+
+  const sampleLeaveRequests = leaveRequests.length === 0 ? [
+    {
+      id: '1',
+      leaveType: 'Vacation',
+      startDate: new Date('2025-11-15'),
+      endDate: new Date('2025-11-17'),
+      days: 3,
+      status: 'APPLIED',
+      appliedOn: new Date('2025-10-15'),
+      reason: 'Family vacation'
+    },
+    {
+      id: '2',
+      leaveType: 'Sick Leave',
+      startDate: new Date('2025-10-25'),
+      endDate: new Date('2025-10-25'),
+      days: 1,
+      status: 'APPROVED',
+      appliedOn: new Date('2025-10-20'),
+      reason: 'Medical appointment'
+    },
+    {
+      id: '3',
+      leaveType: 'Personal',
+      startDate: new Date('2025-12-24'),
+      endDate: new Date('2025-12-24'),
+      days: 1,
+      status: 'APPLIED',
+      appliedOn: new Date('2025-10-22'),
+      reason: 'Personal matters'
+    }
+  ] : leaveRequests
+
   // Check if already clocked in today
   const today = new Date().toDateString()
-  const todayAttendance = attendance.find(record => 
+  const todayAttendance = sampleAttendance.find(record => 
     new Date(record.date).toDateString() === today
   )
   const isClockedIn = todayAttendance?.clockIn && !todayAttendance?.clockOut
@@ -409,21 +492,30 @@ const EmployeeDashboard = () => {
               <span className="font-medium text-blue-900">Request Leave</span>
             </button>
             
-            <button className="flex items-center justify-center space-x-3 p-4 bg-green-50 hover:bg-green-100 rounded-lg border border-green-200 transition-all duration-200 hover:shadow-md">
+            <button 
+              onClick={handleUpdateProfile}
+              className="flex items-center justify-center space-x-3 p-4 bg-green-50 hover:bg-green-100 rounded-lg border border-green-200 transition-all duration-200 hover:shadow-md"
+            >
               <svg className="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
               </svg>
               <span className="font-medium text-green-900">Update Profile</span>
             </button>
             
-            <button className="flex items-center justify-center space-x-3 p-4 bg-purple-50 hover:bg-purple-100 rounded-lg border border-purple-200 transition-all duration-200 hover:shadow-md">
+            <button 
+              onClick={handleViewPerformance}
+              className="flex items-center justify-center space-x-3 p-4 bg-purple-50 hover:bg-purple-100 rounded-lg border border-purple-200 transition-all duration-200 hover:shadow-md"
+            >
               <svg className="w-6 h-6 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
               </svg>
               <span className="font-medium text-purple-900">View Performance</span>
             </button>
             
-            <button className="flex items-center justify-center space-x-3 p-4 bg-yellow-50 hover:bg-yellow-100 rounded-lg border border-yellow-200 transition-all duration-200 hover:shadow-md">
+            <button 
+              onClick={handleViewPayroll}
+              className="flex items-center justify-center space-x-3 p-4 bg-yellow-50 hover:bg-yellow-100 rounded-lg border border-yellow-200 transition-all duration-200 hover:shadow-md"
+            >
               <svg className="w-6 h-6 text-yellow-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1" />
               </svg>
@@ -438,7 +530,7 @@ const EmployeeDashboard = () => {
           <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
             <h3 className="text-xl font-semibold text-gray-900 mb-6">Recent Attendance</h3>
             <div className="space-y-4">
-              {attendance.length === 0 ? (
+              {sampleAttendance.length === 0 ? (
                 <div className="text-center py-8">
                   <svg className="w-16 h-16 text-gray-300 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
@@ -447,7 +539,7 @@ const EmployeeDashboard = () => {
                   <p className="text-gray-400 text-sm mt-2">Your attendance will appear here once you clock in</p>
                 </div>
               ) : (
-                attendance.map((record) => (
+                sampleAttendance.map((record) => (
                   <div key={record.id} className="flex items-center justify-between p-4 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors">
                     <div>
                       <p className="font-semibold text-gray-900">
@@ -490,7 +582,7 @@ const EmployeeDashboard = () => {
           <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
             <h3 className="text-xl font-semibold text-gray-900 mb-6">Recent Leave Requests</h3>
             <div className="space-y-4">
-              {leaveRequests.length === 0 ? (
+              {sampleLeaveRequests.length === 0 ? (
                 <div className="text-center py-8">
                   <svg className="w-16 h-16 text-gray-300 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
@@ -499,7 +591,7 @@ const EmployeeDashboard = () => {
                   <p className="text-gray-400 text-sm mt-2">Submit a leave request to see it here</p>
                 </div>
               ) : (
-                leaveRequests.map((request) => (
+                sampleLeaveRequests.map((request) => (
                   <div key={request.id} className="flex items-center justify-between p-4 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors">
                     <div>
                       <p className="font-semibold text-gray-900">{request.leaveType}</p>

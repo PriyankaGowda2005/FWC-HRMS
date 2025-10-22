@@ -6,7 +6,14 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "lint": "eslint . --ext js,jsx --report-unused-disable-directives --max-warnings 0"
+    "lint": "eslint . --ext js,jsx --report-unused-disable-directives --max-warnings 0",
+    "test": "vitest",
+    "test:ui": "vitest --ui",
+    "test:run": "vitest run",
+    "test:coverage": "vitest run --coverage",
+    "test:watch": "vitest --watch",
+    "test:components": "vitest run --reporter=verbose src/components",
+    "test:integration": "vitest run --reporter=verbose src/tests/integration"
   },
   "dependencies": {
     "@headlessui/react": "^2.2.9",
@@ -36,6 +43,14 @@
     "eslint-plugin-react-refresh": "^0.4.4",
     "postcss": "^8.4.32",
     "tailwindcss": "^3.3.6",
-    "vite": "^5.0.0"
+    "vite": "^5.0.0",
+    "@testing-library/react": "^14.1.2",
+    "@testing-library/jest-dom": "^6.1.5",
+    "@testing-library/user-event": "^14.5.1",
+    "vitest": "^1.0.4",
+    "@vitest/ui": "^1.0.4",
+    "jsdom": "^23.0.1",
+    "msw": "^2.0.11",
+    "happy-dom": "^12.10.3"
   }
 }

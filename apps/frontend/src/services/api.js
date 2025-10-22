@@ -175,6 +175,20 @@ export const performanceAPI = {
   updateReview: (id, data) => api.put(`/performance-reviews/${id}`, data),
   submitSelfRating: (id, data) => api.post(`/performance-reviews/${id}/self-rating`, data),
   deleteReview: (id) => api.delete(`/performance-reviews/${id}`),
+  // Additional functions for compatibility
+  getPerformanceReviews: ({ employeeId, status, reviewType, year, page, limit, sortBy, sortOrder } = {}) => 
+    api.get(`/performance-reviews?${new URLSearchParams({ employeeId, status, reviewType, year, page, limit, sortBy, sortOrder }).toString()}`),
+  getPerformanceGoals: ({ employeeId } = {}) => 
+    api.get(`/performance/goals?${new URLSearchParams({ employeeId }).toString()}`),
+  getStats: ({ startDate, endDate } = {}) => 
+    api.get(`/performance/stats?${new URLSearchParams({ startDate, endDate }).toString()}`),
+  getEmployees: () => api.get('/employees'),
+  // Additional missing functions
+  createPerformanceReview: (data) => api.post('/performance-reviews', data),
+  updatePerformanceReview: (id, data) => api.put(`/performance-reviews/${id}`, data),
+  createPerformanceGoal: (data) => api.post('/performance/goals', data),
+  updateGoalStatus: (id, status) => api.put(`/performance/goals/${id}/status`, status),
+  getReport: (dateRange) => api.get(`/reports?${new URLSearchParams(dateRange).toString()}`),
 }
 
 // Job Posting API
@@ -561,6 +575,18 @@ export const jobAttachmentsAPI = {
   // Get all attachments for a candidate
   getCandidateAttachments: (candidateId) => api.get(`/job-attachments/candidate/${candidateId}`),
   
+  // Get attachments (alias for compatibility)
+  getAttachments: (jobPostingId) => api.get(`/job-attachments/job/${jobPostingId}`),
+  
+  // Create attachment
+  createAttachment: (data) => api.post('/job-attachments', data),
+  
+  // Update attachment
+  updateAttachment: (id, data) => api.put(`/job-attachments/${id}`, data),
+  
+  // Delete attachment
+  deleteAttachment: (id) => api.delete(`/job-attachments/${id}`),
+  
   // Get attachment details
   getAttachment: (attachmentId) => api.get(`/job-attachments/${attachmentId}`),
   
@@ -577,24 +603,30 @@ export const interviewsAPI = {
   scheduleInterview: (data) => api.post('/interviews/schedule', data),
   // Schedule AI interview (no attachment required)
   scheduleAIInterview: (data) => api.post('/interviews/schedule-ai', data),
-  
+
   // Get interviews for a manager
   getManagerInterviews: (managerId, params = {}) => api.get(`/interviews/manager/${managerId}`, { params }),
   
   // Get interviews for a job posting
-  getJobInterviews: (jobPostingId) => api.get(`/interviews/job/${jobPostingId}`),
+  getJobInterviews: (jobPostingId, params = {}) => api.get(`/interviews/job/${jobPostingId}`, { params }),
   
+  // Get AI interviews for a job posting
+  getAIInterviews: (jobPostingId, params = {}) => api.get(`/interviews/job/${jobPostingId}?type=AI`, { params }),
+
   // Get interview details
   getInterview: (interviewId) => api.get(`/interviews/${interviewId}`),
+  
+  // Update interview
+  updateInterview: (interviewId, data) => api.put(`/interviews/${interviewId}`, data),
+  
+  // Cancel interview
+  cancelInterview: (interviewId) => api.delete(`/interviews/${interviewId}`),
   
   // Update interview status
   updateInterviewStatus: (interviewId, data) => api.put(`/interviews/${interviewId}/status`, data),
   
   // Reschedule interview
-  rescheduleInterview: (interviewId, data) => api.put(`/interviews/${interviewId}/reschedule`, data),
-  
-  // Cancel interview
-  cancelInterview: (interviewId, data) => api.put(`/interviews/${interviewId}/cancel`, data)
+  rescheduleInterview: (interviewId, data) => api.put(`/interviews/${interviewId}/reschedule`, data)
 }
 
 // Test API endpoints

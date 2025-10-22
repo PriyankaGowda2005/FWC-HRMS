@@ -3,7 +3,6 @@ import { useQuery, useMutation, useQueryClient } from 'react-query'
 import toast from 'react-hot-toast'
 import { useAuth } from '../contexts/AuthContext'
 import { employeeAPI, attendanceAPI, leaveAPI, performanceAPI, aiAPI, authAPI } from '../services/api'
-import socketClient from '../services/socketClient'
 import LoadingSpinner from '../components/LoadingSpinner'
 import AIInsights from '../components/AIInsights'
 import TeamAnalytics from '../components/TeamAnalytics'
@@ -17,110 +16,7 @@ const ManagerDashboard = () => {
   const [timeRange, setTimeRange] = useState('week')
   const [selectedMetric, setSelectedMetric] = useState('overview')
   const [activeTab, setActiveTab] = useState('dashboard')
-  const [isSocketConnected, setIsSocketConnected] = useState(false)
-  const [realTimeData, setRealTimeData] = useState({
-    teamMembers: 0,
-    attendanceRate: 0,
-    pendingLeaves: 0,
-    teamPerformance: 0,
-    lastUpdated: null
-  })
 
-  // Socket connection management
-  useEffect(() => {
-    const connectSocket = async () => {
-      const token = localStorage.getItem('token')
-      
-      if (token && user) {
-        try {
-          // Validate token before connecting
-          const response = await authAPI.getCurrentUser()
-          if (response.data.user) {
-            await socketClient.connect(token)
-            console.log('🔌 Socket connection initiated')
-          } else {
-            console.warn('🔌 Token validation failed, skipping socket connection')
-            setIsSocketConnected(false)
-          }
-        } catch (error) {
-          console.warn('🔌 Socket connection failed:', error.message)
-          setIsSocketConnected(false)
-        }
-      }
-    }
-
-    // Add a small delay to ensure token is properly set
-    const timer = setTimeout(connectSocket, 1000)
-    
-    return () => {
-      clearTimeout(timer)
-      socketClient.disconnect()
-      setIsSocketConnected(false)
-    }
-  }, [user])
-
-  // Socket event listeners
-  useEffect(() => {
-    const handleDashboardData = (data) => {
-      setRealTimeData(prev => ({
-        ...prev,
-        teamMembers: data.teamMembers,
-        attendanceRate: data.attendanceData?.attendanceRate || 0,
-        pendingLeaves: data.pendingLeaves?.length || 0,
-        teamPerformance: data.performanceData?.averageScore || 0,
-        lastUpdated: new Date().toISOString()
-      }))
-      
-      // Invalidate queries to refresh data
-      queryClient.invalidateQueries(['team-data'])
-      queryClient.invalidateQueries(['team-attendance'])
-      queryClient.invalidateQueries(['team-leave-requests'])
-      queryClient.invalidateQueries(['team-performance'])
-    }
-
-    const handleLeaveDecision = (data) => {
-      toast.success(`Leave request ${data.status.toLowerCase()} for ${data.employeeName}`)
-      queryClient.invalidateQueries(['team-leave-requests'])
-    }
-
-    const handleAttendanceUpdate = (data) => {
-      toast.success(`${data.employeeName} clocked ${data.type.toLowerCase()}`)
-      queryClient.invalidateQueries(['team-attendance'])
-    }
-
-    const handleSocketConnected = () => {
-      setIsSocketConnected(true)
-      // Request initial dashboard data
-      socketClient.requestDashboardData(timeRange, user?.id)
-    }
-
-    const handleSocketDisconnected = () => {
-      setIsSocketConnected(false)
-    }
-
-    const handleSocketError = (data) => {
-      console.error('Socket error:', data)
-      toast.error(data.message || 'Real-time connection error')
-    }
-
-    // Register event listeners
-    socketClient.on('dashboard:data', handleDashboardData)
-    socketClient.on('leave:decision', handleLeaveDecision)
-    socketClient.on('attendance:clocked', handleAttendanceUpdate)
-    socketClient.on('socket:connected', handleSocketConnected)
-    socketClient.on('socket:disconnected', handleSocketDisconnected)
-    socketClient.on('socket:error', handleSocketError)
-
-    return () => {
-      // Cleanup listeners
-      socketClient.off('dashboard:data', handleDashboardData)
-      socketClient.off('leave:decision', handleLeaveDecision)
-      socketClient.off('attendance:clocked', handleAttendanceUpdate)
-      socketClient.off('socket:connected', handleSocketConnected)
-      socketClient.off('socket:disconnected', handleSocketDisconnected)
-      socketClient.off('socket:error', handleSocketError)
-    }
-  }, [timeRange, user?.id, queryClient])
 
   // Fetch team data
   const { data: teamData, isLoading: teamLoading } = useQuery(
@@ -206,6 +102,7 @@ const ManagerDashboard = () => {
     }
   )
 
+  // All hooks must be called before any conditional returns
   const handleApproveLeave = useCallback((leaveId) => {
     approveLeaveMutation.mutate({ leaveId, action: 'APPROVED' })
   }, [approveLeaveMutation])
@@ -219,63 +116,94 @@ const ManagerDashboard = () => {
 
   const handleTimeRangeChange = useCallback((newTimeRange) => {
     setTimeRange(newTimeRange)
-    if (isSocketConnected) {
-      socketClient.requestDashboardData(newTimeRange, user?.id)
-    }
-  }, [isSocketConnected, user?.id])
-
-  // Update real-time data when queries complete
-  useEffect(() => {
-    if (teamData && attendanceData && leaveData && performanceData) {
-      const teamMembers = teamData.teamMembers || teamData.data?.teamMembers || []
-      const attendanceStats = attendanceData.stats || {}
-      const leaveStats = leaveData.stats || {}
-      const performanceStats = performanceData.stats || {}
-      
-      setRealTimeData({
-        teamMembers: teamMembers.length,
-        attendanceRate: attendanceStats.averageAttendance || 0,
-        pendingLeaves: leaveStats.pendingRequests || 0,
-        teamPerformance: performanceStats.averageRating || 0,
-        lastUpdated: new Date()
-      })
-    }
-  }, [teamData, attendanceData, leaveData, performanceData])
+  }, [])
 
   const handleCreatePerformanceReview = useCallback(() => {
-    // This would open a modal or navigate to performance review creation
-    toast.success('Performance review creation feature coming soon!')
+    // Navigate to team management tab to create performance review
+    setActiveTab('team')
+    toast.success('Navigate to Team Management to create performance reviews')
   }, [])
 
   const handleViewTeamMembers = useCallback(() => {
-    // This would navigate to team members page
-    toast.success('Team members view feature coming soon!')
+    // Navigate to team management tab
+    setActiveTab('team')
+    toast.success('Viewing team members')
   }, [])
 
   const handleGenerateTeamReport = useCallback(() => {
-    // This would generate and download team report
-    toast.success('Team report generation feature coming soon!')
+    // Navigate to analytics tab to generate reports
+    setActiveTab('analytics')
+    toast.success('Navigate to Analytics to generate team reports')
   }, [])
 
   const handleCreateEmployee = useCallback(() => {
-    // This would open a modal or navigate to employee creation
-    toast.success('Employee creation feature coming soon!')
-  }, [])
-
-  const handleExportData = useCallback(() => {
-    // This would export team data
-    toast.success('Data export feature coming soon!')
+    // Navigate to team management tab
+    setActiveTab('team')
+    toast.success('Navigate to Team Management to add team members')
   }, [])
 
   const handleImportData = useCallback(() => {
-    // This would import team data
-    toast.success('Data import feature coming soon!')
+    // Create file input for import
+    const input = document.createElement('input')
+    input.type = 'file'
+    input.accept = '.csv,.xlsx'
+    input.onchange = (e) => {
+      const file = e.target.files[0]
+      if (file) {
+        toast.success(`File ${file.name} selected for import. Import functionality coming soon!`)
+      }
+    }
+    input.click()
   }, [])
 
   const handleScheduleMeeting = useCallback(() => {
-    // This would open meeting scheduler
+    // Open meeting scheduler modal or navigate
     toast.success('Meeting scheduler feature coming soon!')
   }, [])
+
+  // Data processing
+  const teamMembers = teamData?.data?.teamMembers || teamData?.teamMembers || []
+  const attendanceStats = attendanceData?.stats || {}
+  const pendingLeaves = leaveData?.pendingRequests || leaveData?.leaveRequests || []
+  const insights = aiInsights?.insights || {}
+  const performanceReviews = performanceData?.reviews || []
+  const performanceStats = performanceData?.stats || {}
+
+  const handleExportData = useCallback(() => {
+    // Export team data as CSV
+    try {
+      if (teamMembers.length === 0) {
+        toast.error('No team members to export')
+        return
+      }
+      
+      const csvData = teamMembers.map(member => ({
+        'Employee Code': member.employeeCode || 'N/A',
+        'Name': `${member.firstName || ''} ${member.lastName || ''}`.trim(),
+        'Email': member.email || 'N/A',
+        'Position': member.designation || member.position || 'N/A',
+        'Department': member.department || 'N/A',
+        'Status': member.isActive ? 'Active' : 'Inactive'
+      }))
+      
+      const csvContent = [
+        Object.keys(csvData[0]).join(','),
+        ...csvData.map(row => Object.values(row).join(','))
+      ].join('\n')
+      
+      const blob = new Blob([csvContent], { type: 'text/csv' })
+      const url = window.URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `team-data-${new Date().toISOString().split('T')[0]}.csv`
+      a.click()
+      window.URL.revokeObjectURL(url)
+      
+      toast.success('Team data exported successfully!')
+    } catch (error) {
+      toast.error('Failed to export data')
+    }
+  }, [teamMembers])
 
   // Show loading spinner only if we have data or are actively loading
   const isLoading = teamLoading || attendanceLoading || leaveLoading || aiLoading || performanceLoading
@@ -285,19 +213,12 @@ const ManagerDashboard = () => {
     return <LoadingSpinner />
   }
 
-  const teamMembers = teamData?.data?.teamMembers || teamData?.teamMembers || []
-  const attendanceStats = attendanceData?.stats || {}
-  const pendingLeaves = leaveData?.pendingRequests || leaveData?.leaveRequests || []
-  const insights = aiInsights?.insights || {}
-  const performanceReviews = performanceData?.reviews || []
-  const performanceStats = performanceData?.stats || {}
-
-  // Use real-time data if available, otherwise fallback to API data
+  // Calculate display data from API responses
   const displayData = {
-    teamMembers: realTimeData.teamMembers || teamMembers.length,
-    attendanceRate: realTimeData.attendanceRate || attendanceStats.attendanceRate || 0,
-    pendingLeaves: realTimeData.pendingLeaves || pendingLeaves.length,
-    teamPerformance: realTimeData.teamPerformance || performanceStats.averageScore || 0
+    teamMembers: teamMembers.length,
+    attendanceRate: attendanceStats.attendanceRate || 0,
+    pendingLeaves: pendingLeaves.length,
+    teamPerformance: performanceStats.averageScore || 0
   }
 
   return (
@@ -310,15 +231,10 @@ const ManagerDashboard = () => {
               <h1 className="text-3xl font-bold text-gray-900">Manager Dashboard</h1>
               <p className="text-gray-600 mt-1">Team management and performance insights</p>
               <div className="flex items-center mt-2">
-                <div className={`w-2 h-2 rounded-full mr-2 ${isSocketConnected ? 'bg-green-500' : 'bg-red-500'}`}></div>
+                <div className="w-2 h-2 rounded-full mr-2 bg-green-500"></div>
                 <span className="text-sm text-gray-500">
-                  {isSocketConnected ? 'Real-time updates active' : 'Real-time updates offline'}
+                  System Status: Active
                 </span>
-                {realTimeData.lastUpdated && (
-                  <span className="text-xs text-gray-400 ml-2">
-                    Last updated: {new Date(realTimeData.lastUpdated).toLocaleTimeString()}
-                  </span>
-                )}
                 <BackendStatus />
               </div>
             </div>

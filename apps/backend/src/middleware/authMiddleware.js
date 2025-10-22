@@ -45,6 +45,21 @@ const PERMISSIONS = {
   'settings:read': ['ADMIN', 'HR', 'MANAGER'],
   'settings:write': ['ADMIN', 'HR'],
   
+  // Recruitment
+  'recruitment:read': ['ADMIN', 'HR', 'MANAGER'],
+  'recruitment:write': ['ADMIN', 'HR'],
+  'recruitment:delete': ['ADMIN', 'HR'],
+  
+  // Job Postings
+  'job-postings:read': ['ADMIN', 'HR', 'MANAGER'],
+  'job-postings:write': ['ADMIN', 'HR'],
+  'job-postings:delete': ['ADMIN', 'HR'],
+  
+  // Candidates
+  'candidates:read': ['ADMIN', 'HR', 'MANAGER'],
+  'candidates:write': ['ADMIN', 'HR'],
+  'candidates:delete': ['ADMIN', 'HR'],
+  
   // Notifications
   'notifications:read': ['ADMIN', 'HR', 'MANAGER', 'EMPLOYEE'],
   'notifications:write': ['ADMIN', 'HR', 'MANAGER'],
@@ -227,6 +242,53 @@ const auditLog = (action, entity) => {
   };
 };
 
+// Candidate authentication middleware
+const authenticateCandidate = async (req, res, next) => {
+  try {
+    const token = req.cookies.token || req.headers.authorization?.replace('Bearer ', '');
+    
+    if (!token) {
+      return res.status(401).json({ message: 'Access denied. No token provided.' });
+    }
+
+    const decoded = jwt.verify(token, process.env.JWT_SECRET || 'fwc-hrms-super-secret-jwt-key-2024');
+    
+    // Check if this is a candidate token
+    if (decoded.role !== 'CANDIDATE') {
+      return res.status(401).json({ message: 'Invalid token. Candidate access required.' });
+    }
+    
+    // Get candidate from database
+    const candidate = await database.findOne('candidates', { _id: new ObjectId(decoded.candidateId) });
+    
+    if (!candidate || candidate.status !== 'ACTIVE') {
+      return res.status(401).json({ message: 'Invalid token. Candidate not found or inactive.' });
+    }
+
+    req.candidateId = candidate._id;
+    req.candidate = {
+      id: candidate._id,
+      email: candidate.email,
+      firstName: candidate.firstName,
+      lastName: candidate.lastName,
+      status: candidate.status,
+      profileComplete: candidate.profileComplete,
+      resumeUploaded: candidate.resumeUploaded
+    };
+
+    next();
+  } catch (error) {
+    if (error.name === 'TokenExpiredError') {
+      return res.status(401).json({ message: 'Token expired. Please login again.' });
+    } else if (error.name === 'JsonWebTokenError') {
+      return res.status(401).json({ message: 'Invalid token.' });
+    }
+    
+    console.error('Candidate authentication error:', error);
+    return res.status(500).json({ message: 'Internal server error during authentication.' });
+  }
+};
+
 // Optional authentication (for public endpoints)
 const optionalAuth = async (req, res, next) => {
   try {
@@ -256,6 +318,7 @@ const optionalAuth = async (req, res, next) => {
 
 module.exports = {
   authenticate,
+  authenticateCandidate,
   authorize,
   requireRole,
   requireManagerAccess,

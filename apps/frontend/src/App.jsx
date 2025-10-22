@@ -11,6 +11,7 @@ import Layout from './components/Layout'
 import CandidateLayout from './components/CandidateLayout'
 import LoadingSpinner from './components/LoadingSpinner'
 import ScrollToTop from './components/ScrollToTop'
+import SessionTimeoutWarning from './components/SessionTimeoutWarning'
 
 // Pages
 import Home from './pages/Home'
@@ -53,6 +54,8 @@ import AdminDashboard from './pages/AdminDashboard'
 import HRDashboard from './pages/HRDashboard'
 import ManagerDashboard from './pages/ManagerDashboard'
 import EmployeeDashboard from './pages/EmployeeDashboard'
+import EmployeePerformance from './pages/EmployeePerformance'
+import EmployeeManagement from './pages/EmployeeManagement'
 import AttendanceManagement from './pages/AttendanceManagement'
 import LeaveManagement from './pages/LeaveManagement'
 import PayrollManagement from './pages/PayrollManagement'
@@ -60,9 +63,13 @@ import PerformanceManagement from './pages/PerformanceManagement'
 import RecruitmentManagement from './pages/RecruitmentManagement'
 import Recruitment from './pages/Recruitment'
 import DepartmentManagement from './pages/DepartmentManagement'
-import ReportsAnalytics from './pages/ReportsAnalytics'
-import Settings from './pages/Settings'
+import ReportsManagement from './pages/ReportsManagement'
+import AddEmployee from './pages/AddEmployee'
+import CreateJobPosting from './pages/CreateJobPosting'
+import Reports from './pages/Reports'
+import SystemSettings from './pages/SystemSettings'
 import TeamManagement from './pages/TeamManagement'
+import SessionTestPage from './pages/SessionTestPage'
 
 // Create a client
 const queryClient = new QueryClient({
@@ -82,6 +89,7 @@ function App() {
           <NavigationProvider>
             <ScrollToTop />
             <div className="App">
+              <SessionTimeoutWarning />
               <Toaster 
                 position="top-right"
                 toastOptions={{
@@ -151,11 +159,7 @@ function App() {
                 <Route path="/navigation-test" element={<NavigationTest />} />
                 <Route path="/debug" element={<DebugPage />} />
                 
-                <Route path="/login" element={
-                  <CandidateAuthProvider>
-                    <Login />
-                  </CandidateAuthProvider>
-                } />
+                <Route path="/login" element={<Login />} />
                 
                 {/* Candidate Portal Routes */}
                 <Route path="/candidate-portal/register" element={
@@ -188,6 +192,16 @@ function App() {
                   </ProtectedRoute>
                 }>
                   <Route index element={<EmployeeDashboard />} />
+                </Route>
+
+                <Route path="/employee" element={
+                  <ProtectedRoute requiredRoles={['EMPLOYEE']}>
+                    <Layout />
+                  </ProtectedRoute>
+                }>
+                  <Route path="performance" element={<EmployeePerformance />} />
+                  <Route path="profile" element={<EmployeeDashboard />} />
+                  <Route path="payroll" element={<EmployeeDashboard />} />
                 </Route>
 
                 <Route path="/manager" element={
@@ -223,7 +237,7 @@ function App() {
                     <Layout />
                   </ProtectedRoute>
                 }>
-                  <Route index element={<AdminDashboard />} />
+                  <Route index element={<EmployeeManagement />} />
                 </Route>
 
                 <Route path="/team" element={
@@ -259,7 +273,7 @@ function App() {
                 </Route>
 
                 <Route path="/performance" element={
-                  <ProtectedRoute requiredRoles={['ADMIN', 'HR', 'MANAGER']}>
+                  <ProtectedRoute requiredRoles={['ADMIN', 'HR', 'MANAGER', 'EMPLOYEE']}>
                     <Layout />
                   </ProtectedRoute>
                 }>
@@ -271,7 +285,7 @@ function App() {
                     <Layout />
                   </ProtectedRoute>
                 }>
-                  <Route index element={<Recruitment />} />
+                  <Route index element={<RecruitmentManagement />} />
                 </Route>
 
                 <Route path="/departments" element={
@@ -287,7 +301,23 @@ function App() {
                     <Layout />
                   </ProtectedRoute>
                 }>
-                  <Route index element={<ReportsAnalytics />} />
+                  <Route index element={<Reports />} />
+                </Route>
+
+                <Route path="/employees/add" element={
+                  <ProtectedRoute requiredRoles={['ADMIN', 'HR']}>
+                    <Layout />
+                  </ProtectedRoute>
+                }>
+                  <Route index element={<AddEmployee />} />
+                </Route>
+
+                <Route path="/recruitment/jobs/create" element={
+                  <ProtectedRoute requiredRoles={['ADMIN', 'HR']}>
+                    <Layout />
+                  </ProtectedRoute>
+                }>
+                  <Route index element={<CreateJobPosting />} />
                 </Route>
 
                 <Route path="/settings" element={
@@ -295,8 +325,15 @@ function App() {
                     <Layout />
                   </ProtectedRoute>
                 }>
-                  <Route index element={<Settings />} />
+                  <Route index element={<SystemSettings />} />
                 </Route>
+
+                {/* Session Test Page */}
+                <Route path="/session-test" element={
+                  <ProtectedRoute requiredRoles={['ADMIN', 'HR', 'MANAGER', 'EMPLOYEE']}>
+                    <SessionTestPage />
+                  </ProtectedRoute>
+                } />
 
                 {/* Catch-all route - redirect to appropriate dashboard */}
                 <Route path="*" element={<Navigate to="/dashboard" replace />} />

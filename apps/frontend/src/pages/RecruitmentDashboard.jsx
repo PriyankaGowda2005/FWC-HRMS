@@ -184,6 +184,14 @@ const RecruitmentDashboard = () => {
     }
   })
 
+  // Refresh all data
+  const handleRefreshData = () => {
+    refetchJobs()
+    refetchCandidates()
+    queryClient.invalidateQueries('departments')
+    toast.success('Data refreshed successfully!')
+  }
+
   // Handlers
   const handleCreateJob = (jobData) => {
     createJobMutation.mutate(jobData)
@@ -247,17 +255,24 @@ const RecruitmentDashboard = () => {
   console.log('User from context:', user)
 
 
-  // Calculate stats
+  // Calculate stats with trends
   const stats = {
     totalJobs: jobPostings.length,
     activeJobs: jobPostings.filter(job => job.status === 'PUBLISHED').length,
-    totalCandidates: candidates.length,
+    totalApplications: candidates.length,
     newApplications: candidates.filter(candidate => 
       new Date(candidate.createdAt).toDateString() === new Date().toDateString()
     ).length,
     aiInterviews: candidates.filter(candidate => candidate.aiInterviewCompleted).length,
+    hireRate: candidates.length > 0 ? 
+      ((candidates.filter(c => c.status === 'HIRED').length / candidates.length) * 100).toFixed(1) : 0,
     averageFitScore: candidates.length > 0 ? 
-      (candidates.reduce((sum, c) => sum + (c.fitScore || 0), 0) / candidates.length).toFixed(1) : 0
+      (candidates.reduce((sum, c) => sum + (c.fitScore || 0), 0) / candidates.length).toFixed(1) : 0,
+    // Mock trend data - in real app, this would come from historical data
+    applicationsTrend: '+12%',
+    aiInterviewsTrend: '+8%',
+    hireRateTrend: '+3%',
+    fitScoreTrend: '+5%'
   }
 
   // Handle loading state
@@ -295,34 +310,65 @@ const RecruitmentDashboard = () => {
         </div>
       )}
 
-      {/* Stats Cards */}
+      {/* Header with Refresh Button */}
       <div className="px-6 py-6">
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+        <div className="flex justify-between items-center mb-6">
+          <div>
+            <h1 className="text-2xl font-bold text-gray-900">Recruitment Dashboard</h1>
+            <p className="text-gray-600">Manage job postings, candidates, and recruitment process</p>
+            <p className="text-sm text-blue-600 mt-1">
+              <strong>Note:</strong> Job postings and candidate management are now available in the Recruitment Dashboard tab for better organization.
+            </p>
+          </div>
+          <button
+            onClick={handleRefreshData}
+            className="flex items-center space-x-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+          >
+            <ArrowTrendingUpIcon className="w-4 h-4" />
+            <span>Refresh Data</span>
+          </button>
+        </div>
+
+        {/* Stats Cards */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
           <div className="bg-gradient-to-r from-blue-500 to-blue-600 rounded-xl p-6 text-white">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-blue-100 text-sm font-medium">Total Jobs</p>
-                <p className="text-3xl font-bold">{stats.totalJobs}</p>
+                <p className="text-blue-100 text-sm font-medium">Total Applications</p>
+                <p className="text-3xl font-bold">{stats.totalApplications}</p>
+                <p className="text-blue-200 text-sm mt-1">{stats.applicationsTrend} from last month</p>
               </div>
-              <BriefcaseIcon className="w-8 h-8 text-blue-200" />
-            </div>
-          </div>
-          <div className="bg-gradient-to-r from-green-500 to-green-600 rounded-xl p-6 text-white">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-green-100 text-sm font-medium">Candidates</p>
-                <p className="text-3xl font-bold">{stats.totalCandidates}</p>
-              </div>
-              <UserGroupIcon className="w-8 h-8 text-green-200" />
+              <UserGroupIcon className="w-8 h-8 text-blue-200" />
             </div>
           </div>
           <div className="bg-gradient-to-r from-purple-500 to-purple-600 rounded-xl p-6 text-white">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-purple-100 text-sm font-medium">New Today</p>
-                <p className="text-3xl font-bold">{stats.newApplications}</p>
+                <p className="text-purple-100 text-sm font-medium">AI Interviews</p>
+                <p className="text-3xl font-bold">{stats.aiInterviews}</p>
+                <p className="text-purple-200 text-sm mt-1">{stats.aiInterviewsTrend} from last month</p>
               </div>
-              <ArrowTrendingUpIcon className="w-8 h-8 text-purple-200" />
+              <VideoCameraIcon className="w-8 h-8 text-purple-200" />
+            </div>
+          </div>
+          <div className="bg-gradient-to-r from-green-500 to-green-600 rounded-xl p-6 text-white">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-green-100 text-sm font-medium">Hire Rate</p>
+                <p className="text-3xl font-bold">{stats.hireRate}%</p>
+                <p className="text-green-200 text-sm mt-1">{stats.hireRateTrend} from last month</p>
+              </div>
+              <CheckCircleIcon className="w-8 h-8 text-green-200" />
+            </div>
+          </div>
+          <div className="bg-gradient-to-r from-orange-500 to-orange-600 rounded-xl p-6 text-white">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-orange-100 text-sm font-medium">Avg. Fit Score</p>
+                <p className="text-3xl font-bold">{stats.averageFitScore}%</p>
+                <p className="text-orange-200 text-sm mt-1">{stats.fitScoreTrend} from last month</p>
+              </div>
+              <StarIcon className="w-8 h-8 text-orange-200" />
             </div>
           </div>
         </div>

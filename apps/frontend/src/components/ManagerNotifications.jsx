@@ -1,105 +1,9 @@
 import React, { useState, useEffect } from 'react'
 import toast from 'react-hot-toast'
-import socketClient from '../services/socketClient'
 
 const ManagerNotifications = ({ managerId }) => {
   const [notifications, setNotifications] = useState([])
-  const [isSocketConnected, setIsSocketConnected] = useState(false)
   const [unreadCount, setUnreadCount] = useState(0)
-
-  // Socket connection management
-  useEffect(() => {
-    const handleSocketConnected = () => {
-      setIsSocketConnected(true)
-    }
-
-    const handleSocketDisconnected = () => {
-      setIsSocketConnected(false)
-    }
-
-    const handleNotification = (data) => {
-      const newNotification = {
-        id: Date.now(),
-        type: data.type,
-        title: getNotificationTitle(data.type),
-        message: getNotificationMessage(data.type, data.data),
-        timestamp: new Date().toISOString(),
-        read: false,
-        data: data.data
-      }
-
-      setNotifications(prev => [newNotification, ...prev])
-      setUnreadCount(prev => prev + 1)
-
-      // Show toast notification
-      toast.success(newNotification.message, {
-        duration: 4000,
-        position: 'top-right'
-      })
-    }
-
-    const handleLeaveDecision = (data) => {
-      const notification = {
-        id: Date.now(),
-        type: 'leave_decision',
-        title: 'Leave Request Processed',
-        message: `Leave request for ${data.employeeName} has been ${data.status.toLowerCase()}`,
-        timestamp: new Date().toISOString(),
-        read: false,
-        data: data
-      }
-
-      setNotifications(prev => [notification, ...prev])
-      setUnreadCount(prev => prev + 1)
-    }
-
-    const handleAttendanceUpdate = (data) => {
-      const notification = {
-        id: Date.now(),
-        type: 'attendance_update',
-        title: 'Attendance Update',
-        message: `${data.employeeName} clocked ${data.type.toLowerCase()} at ${new Date(data.timestamp).toLocaleTimeString()}`,
-        timestamp: new Date().toISOString(),
-        read: false,
-        data: data
-      }
-
-      setNotifications(prev => [notification, ...prev])
-      setUnreadCount(prev => prev + 1)
-    }
-
-    const handlePerformanceUpdate = (data) => {
-      const notification = {
-        id: Date.now(),
-        type: 'performance_update',
-        title: 'Performance Review Update',
-        message: `Performance review for ${data.employeeName} has been completed`,
-        timestamp: new Date().toISOString(),
-        read: false,
-        data: data
-      }
-
-      setNotifications(prev => [notification, ...prev])
-      setUnreadCount(prev => prev + 1)
-    }
-
-    // Register event listeners
-    socketClient.on('socket:connected', handleSocketConnected)
-    socketClient.on('socket:disconnected', handleSocketDisconnected)
-    socketClient.on('notification', handleNotification)
-    socketClient.on('leave:decision', handleLeaveDecision)
-    socketClient.on('attendance:clocked', handleAttendanceUpdate)
-    socketClient.on('performance:review_created', handlePerformanceUpdate)
-
-    return () => {
-      socketClient.off('socket:connected', handleSocketConnected)
-      socketClient.off('socket:disconnected', handleSocketDisconnected)
-      socketClient.off('notification', handleNotification)
-      socketClient.off('leave:decision', handleLeaveDecision)
-      socketClient.off('attendance:clocked', handleAttendanceUpdate)
-      socketClient.off('performance:review_created', handlePerformanceUpdate)
-    }
-  }, [])
 
   const getNotificationTitle = (type) => {
     const titles = {
@@ -301,5 +205,6 @@ const ManagerNotifications = ({ managerId }) => {
 }
 
 export default ManagerNotifications
+
 
 

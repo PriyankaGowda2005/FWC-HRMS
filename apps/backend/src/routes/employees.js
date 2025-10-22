@@ -321,21 +321,28 @@ router.get('/analytics/hr', requireRole('ADMIN', 'HR', 'MANAGER'), asyncHandler(
   });
 }));
 
-// Get recruitment stats
-router.get('/analytics/recruitment', requireRole('ADMIN', 'HR', 'MANAGER'), asyncHandler(async (req, res) => {
-  const openPositions = await database.count('job_postings', { status: 'PUBLISHED' });
-  const totalCandidates = await database.count('candidates');
+// Search employees
+router.get('/search', requireRole('ADMIN', 'HR', 'MANAGER'), asyncHandler(async (req, res) => {
+  const { q } = req.query;
   
-  // Mock new hires for this month
-  const newHires = Math.floor(Math.random() * 5) + 1;
+  if (!q || q.trim().length < 2) {
+    return res.json({ data: [] });
+  }
 
-  res.json({
-    recruitment: {
-      openPositions,
-      totalCandidates,
-      newHires
-    }
+  const searchRegex = new RegExp(q, 'i');
+  const employees = await database.find('employees', {
+    $or: [
+      { firstName: searchRegex },
+      { lastName: searchRegex },
+      { email: searchRegex },
+      { designation: searchRegex },
+      { department: searchRegex },
+      { employeeCode: searchRegex }
+    ],
+    isActive: true
   });
+
+  res.json({ data: employees });
 }));
 
 // Get team members for a manager

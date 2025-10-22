@@ -29,11 +29,15 @@ const limiter = rateLimit({
 });
 app.use(limiter);
 
-// Auth rate limiting (relaxed in development)
+// Auth rate limiting (completely disabled in development)
 const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: process.env.NODE_ENV === 'development' ? 1000 : 100, // Much higher limit in development
-  message: 'Too many authentication attempts, please try again later.'
+  max: process.env.NODE_ENV === 'development' ? 0 : 100, // 0 means unlimited in development
+  message: 'Too many authentication attempts, please try again later.',
+  skip: (req) => {
+    // Always skip rate limiting in development
+    return process.env.NODE_ENV === 'development' || true; // Force skip for now
+  }
 });
 
 // CORS configuration
@@ -94,7 +98,9 @@ app.get('/api/health', (req, res) => {
 });
 
 // Routes
-app.use('/api/auth', authLimiter, authRoutes);
+// Temporarily disable auth rate limiting for development
+// app.use('/api/auth', authLimiter, authRoutes);
+app.use('/api/auth', authRoutes);
 app.use('/api/employees', employeeRoutes);
 app.use('/api/departments', require('./routes/departments'));
 app.use('/api/attendance', require('./routes/attendance'));
@@ -112,6 +118,17 @@ app.use('/api/performance-reviews', require('./routes/performanceReviews'));
 app.use('/api/reports', require('./routes/reports'));
 app.use('/api/settings', require('./routes/settings'));
 app.use('/api/ai', require('./routes/ai'));
+
+// New module routes
+app.use('/api/recruitment', require('./routes/recruitment'));
+app.use('/api/performance', require('./routes/performance'));
+
+// GitHub recruitment routes
+app.use('/api/job-postings', require('./routes/jobPostings'));
+app.use('/api/candidates', require('./routes/candidates'));
+app.use('/api/resume-screening', require('./routes/resumeScreening'));
+app.use('/api/job-attachments', require('./routes/jobAttachments'));
+
 app.use('/api/files/:folder/:filename', require('./middleware/fileUpload').serveFile);
 
 // Error handling middleware

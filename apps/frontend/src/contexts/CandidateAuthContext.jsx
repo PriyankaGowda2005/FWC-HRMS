@@ -24,23 +24,31 @@ export const CandidateAuthProvider = ({ children }) => {
     const checkAuth = async () => {
       try {
         const token = localStorage.getItem('candidateToken')
+        console.log('🔍 Checking candidate auth, token exists:', !!token)
+        
         if (token) {
-          // Set token in API headers
-          api.defaults.headers.common['Authorization'] = `Bearer ${token}`
-          
           // Verify token and get candidate data
+          console.log('🔍 Making profile request...')
           const response = await api.get('/candidates/profile')
+          console.log('🔍 Profile response:', response.data)
+          
           if (response.data.success) {
             setCandidate(response.data.data)
+            console.log('✅ Candidate authenticated successfully')
           } else {
+            console.log('❌ Profile request failed:', response.data.message)
             localStorage.removeItem('candidateToken')
-            delete api.defaults.headers.common['Authorization']
+            setCandidate(null)
           }
+        } else {
+          console.log('❌ No candidate token found')
+          setCandidate(null)
         }
       } catch (error) {
-        console.error('Auth check failed:', error)
+        console.error('❌ Auth check failed:', error)
+        console.error('❌ Error details:', error.response?.data)
         localStorage.removeItem('candidateToken')
-        delete api.defaults.headers.common['Authorization']
+        setCandidate(null)
       } finally {
         setLoading(false)
       }
@@ -61,7 +69,6 @@ export const CandidateAuthProvider = ({ children }) => {
         
         // Store token and candidate data
         localStorage.setItem('candidateToken', token)
-        api.defaults.headers.common['Authorization'] = `Bearer ${token}`
         setCandidate(candidateData)
         
         toast.success('Login successful!')
@@ -93,7 +100,6 @@ export const CandidateAuthProvider = ({ children }) => {
         
         // Store token and candidate data
         localStorage.setItem('candidateToken', token)
-        api.defaults.headers.common['Authorization'] = `Bearer ${token}`
         setCandidate(candidateInfo)
         
         toast.success('Registration successful!')
@@ -115,7 +121,6 @@ export const CandidateAuthProvider = ({ children }) => {
 
   const logout = () => {
     localStorage.removeItem('candidateToken')
-    delete api.defaults.headers.common['Authorization']
     setCandidate(null)
     setError(null)
     toast.success('Logged out successfully!')
