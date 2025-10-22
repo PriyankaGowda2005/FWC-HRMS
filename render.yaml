@@ -69,12 +69,13 @@ services:
     healthCheckPath: /health
     autoDeploy: true
 
+  # Redis Service
+  - type: redis
+    name: fwc-hrms-redis
+    plan: starter
+
 databases:
   - name: fwc-hrms-db
     plan: starter
     databaseName: fwc_hrms
     user: fwc_user
-
-redis:
-  - name: fwc-hrms-redis
-    plan: starter
