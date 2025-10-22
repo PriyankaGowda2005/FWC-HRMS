@@ -75,7 +75,6 @@ databases:
     databaseName: fwc_hrms
     user: fwc_user
 
-services:
-  - type: redis
-    name: fwc-hrms-redis
+redis:
+  - name: fwc-hrms-redis
     plan: starter
