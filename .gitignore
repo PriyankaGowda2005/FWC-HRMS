@@ -156,7 +156,6 @@ dist/
 FWC-HRMS-Presentation.html
 
 # Additional documentation
-docs/
 *.txt
 !requirements.txt
 !package.json
@@ -165,3 +164,4 @@ docs/
 # Script files
 *.sh
 *.bat
+.vercel
