@@ -36,12 +36,12 @@ The FWC HRMS provides an intuitive and modern interface for managing recruitment
 
 #### Recruitment Dashboard
 
-![Recruitment Dashboard](./docs/images/recruitment-dashboard.png)
+![Recruitment Dashboard](./docs/images/recruitment-dashboard.jpg)
 _Overview of recruitment metrics including total jobs, candidates, and daily statistics_
 
 #### Candidate Management
 
-![Candidate Management](./docs/images/candidate-management.png)
+![Candidate Management](./docs/images/candidate-management.jpg)
 _Comprehensive candidate profiles with resume status, profile completion, and action buttons_
 
 #### AI Interview Scheduling
