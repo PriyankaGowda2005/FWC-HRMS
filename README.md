@@ -5,6 +5,9 @@
 [![React Version](https://img.shields.io/badge/react-%5E18.2.0-blue)](https://reactjs.org/)
 [![MongoDB](https://img.shields.io/badge/MongoDB-4.4+-green)](https://www.mongodb.com/)
 [![Docker](https://img.shields.io/badge/Docker-Supported-blue)](https://www.docker.com/)
+[![GitHub Repository](https://img.shields.io/badge/GitHub-Repository-black?logo=github)](https://github.com/PriyankaGowda2005/FWC-HRMS)
+
+> **🚀 Live Repository**: [https://github.com/PriyankaGowda2005/FWC-HRMS](https://github.com/PriyankaGowda2005/FWC-HRMS)
 
 A comprehensive, production-ready Human Resource Management System built with modern web technologies. Features real-time updates, role-based access control, AI-powered features, and a mobile-responsive design.
 
@@ -595,9 +598,11 @@ sudo systemctl start nginx
 
 We welcome contributions! Please follow these guidelines:
 
+> **📁 Repository**: [https://github.com/PriyankaGowda2005/FWC-HRMS](https://github.com/PriyankaGowda2005/FWC-HRMS)
+
 ### Development Workflow
 
-1. **Fork the repository**
+1. **Fork the repository** from [GitHub](https://github.com/PriyankaGowda2005/FWC-HRMS)
 2. **Create a feature branch**
    ```bash
    git checkout -b feature/amazing-feature
@@ -644,8 +649,9 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 ### Getting Help
 
 - **Documentation**: Check this README and inline code documentation
-- **Issues**: Open an issue on GitHub for bugs or feature requests
-- **Discussions**: Use GitHub Discussions for questions and ideas
+- **Issues**: Open an issue on [GitHub](https://github.com/PriyankaGowda2005/FWC-HRMS/issues) for bugs or feature requests
+- **Discussions**: Use [GitHub Discussions](https://github.com/PriyankaGowda2005/FWC-HRMS/discussions) for questions and ideas
+- **Repository**: [https://github.com/PriyankaGowda2005/FWC-HRMS](https://github.com/PriyankaGowda2005/FWC-HRMS)
 - **Email**: Contact the development team at support@fwchrms.com
 
 ### Common Issues
@@ -700,5 +706,7 @@ npm run build
 ---
 
 **Built with ❤️ by the FWC Development Team**
+
+🔗 **GitHub Repository**: [https://github.com/PriyankaGowda2005/FWC-HRMS](https://github.com/PriyankaGowda2005/FWC-HRMS)
 
 For more information, visit our [website](https://fwchrms.com) or contact us at [info@fwchrms.com](mailto:info@fwchrms.com).

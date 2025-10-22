@@ -3,6 +3,14 @@
   "version": "1.0.0",
   "description": "FWC HR Management System - Monorepo",
   "private": true,
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/PriyankaGowda2005/FWC-HRMS.git"
+  },
+  "homepage": "https://github.com/PriyankaGowda2005/FWC-HRMS#readme",
+  "bugs": {
+    "url": "https://github.com/PriyankaGowda2005/FWC-HRMS/issues"
+  },
   "workspaces": [
     "apps/*"
   ],

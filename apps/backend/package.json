@@ -3,6 +3,11 @@
   "version": "1.0.0",
   "description": "FWC HRMS Backend API",
   "main": "src/server.js",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/PriyankaGowda2005/FWC-HRMS.git"
+  },
+  "homepage": "https://github.com/PriyankaGowda2005/FWC-HRMS#readme",
   "scripts": {
     "dev": "nodemon src/server.js",
     "start": "node src/server.js",

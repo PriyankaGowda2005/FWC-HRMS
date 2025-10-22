@@ -2,6 +2,11 @@
   "name": "@fwc-hrms/frontend",
   "version": "1.0.0",
   "type": "module",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/PriyankaGowda2005/FWC-HRMS.git"
+  },
+  "homepage": "https://github.com/PriyankaGowda2005/FWC-HRMS#readme",
   "scripts": {
     "dev": "vite",
     "build": "vite build",
