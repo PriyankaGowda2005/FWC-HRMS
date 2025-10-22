@@ -924,10 +924,13 @@ def get_role_permissions(role: str) -> List[str]:
 # ----------------------
 if __name__ == "__main__":
     import uvicorn
+    import os
 
+    port = int(os.environ.get("PORT", 8000))
+    
     logger.info("🚀 Starting SmartHire AI Recruitment System...")
     logger.info(f"📊 AI Services Available: {AI_SERVICES_AVAILABLE}")
-    logger.info("🌐 API Documentation: http://localhost:8000/docs")
-    logger.info("💡 Health Check: http://localhost:8000/health")
+    logger.info(f"🌐 API Documentation: http://localhost:{port}/docs")
+    logger.info(f"💡 Health Check: http://localhost:{port}/health")
 
-    uvicorn.run(app, host="0.0.0.0", port=8000, reload=True)
+    uvicorn.run(app, host="0.0.0.0", port=port, reload=False)

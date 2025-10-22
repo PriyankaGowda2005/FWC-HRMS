@@ -1,0 +1,81 @@
+services:
+  # Backend Service
+  - type: web
+    name: fwc-hrms-backend
+    env: node
+    plan: starter
+    buildCommand: |
+      cd apps/backend
+      npm install
+    startCommand: cd apps/backend && npm start
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 3001
+      - key: DATABASE_URL
+        fromDatabase:
+          name: fwc-hrms-db
+          property: connectionString
+      - key: JWT_SECRET
+        generateValue: true
+      - key: JWT_REFRESH_SECRET
+        generateValue: true
+      - key: JWT_EXPIRES_IN
+        value: 15m
+      - key: JWT_REFRESH_EXPIRES_IN
+        value: 7d
+      - key: FRONTEND_URL
+        value: https://fwc-hrms-frontend.onrender.com
+      - key: ML_SERVICE_URL
+        value: https://fwc-hrms-ml.onrender.com
+      - key: RESEND_API_KEY
+        sync: false
+      - key: RESEND_FROM
+        value: FWC HRMS <noreply@fwchrms.com>
+      - key: REDIS_URL
+        fromService:
+          type: redis
+          name: fwc-hrms-redis
+          property: connectionString
+    healthCheckPath: /health
+    autoDeploy: true
+
+  # ML Service
+  - type: web
+    name: fwc-hrms-ml
+    env: python
+    plan: starter
+    buildCommand: |
+      cd services/ml
+      pip install -r requirements.txt
+    startCommand: cd services/ml && uvicorn main:app --host 0.0.0.0 --port $PORT
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.11.0
+      - key: PORT
+        value: 8000
+      - key: DATABASE_URL
+        fromDatabase:
+          name: fwc-hrms-db
+          property: connectionString
+      - key: REDIS_URL
+        fromService:
+          type: redis
+          name: fwc-hrms-redis
+          property: connectionString
+      - key: OPENAI_API_KEY
+        sync: false
+    healthCheckPath: /health
+    autoDeploy: true
+
+databases:
+  - name: fwc-hrms-db
+    plan: starter
+    databaseName: fwc_hrms
+    user: fwc_user
+
+services:
+  - type: redis
+    name: fwc-hrms-redis
+    plan: starter
