@@ -67,13 +67,13 @@ const generateTokens = (userId, role, permissions) => {
       roleLevel: ROLE_HIERARCHY[role] || 0
     },
     process.env.JWT_SECRET,
-    { expiresIn: process.env.JWT_EXPIRES_IN || '15m' }
+    { expiresIn: process.env.JWT_EXPIRES_IN || '24h' } // Extended to 24 hours
   );
 
   const refreshToken = jwt.sign(
     { userId, type: 'refresh' },
     process.env.JWT_REFRESH_SECRET,
-    { expiresIn: process.env.JWT_REFRESH_EXPIRES_IN || '7d' }
+    { expiresIn: process.env.JWT_REFRESH_EXPIRES_IN || '30d' } // Extended to 30 days
   );
 
   return { token, refreshToken };

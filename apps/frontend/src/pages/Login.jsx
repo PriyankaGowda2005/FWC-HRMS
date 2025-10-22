@@ -4,16 +4,40 @@ import { useForm } from 'react-hook-form'
 import toast from 'react-hot-toast'
 import { motion } from 'framer-motion'
 import { useAuth } from '../contexts/AuthContext'
-import { useCandidateAuth } from '../contexts/CandidateAuthContext'
+import { CandidateAuthProvider } from '../contexts/CandidateAuthContext'
 import LoadingSpinner from '../components/LoadingSpinner'
 import BackButton from '../components/UI/BackButton'
 import PageTransition from '../components/PageTransition'
+import api from '../services/api'
 
-const Login = () => {
+const LoginForm = () => {
   const [loading, setLoading] = useState(false)
   const navigate = useNavigate()
   const { login } = useAuth()
-  const { login: candidateLogin } = useCandidateAuth()
+  
+  // Direct candidate login function
+  const candidateLogin = async (email, password) => {
+    try {
+      const response = await api.post('/candidates/login', { email, password })
+      
+      if (response.data.success) {
+        const { token, ...candidateData } = response.data.data
+        
+        // Store token and candidate data
+        localStorage.setItem('candidateToken', token)
+        
+        toast.success('Login successful!')
+        return { success: true, candidate: candidateData }
+      } else {
+        toast.error(response.data.message)
+        return { success: false, error: response.data.message }
+      }
+    } catch (error) {
+      const errorMessage = error.response?.data?.message || 'Login failed'
+      toast.error(errorMessage)
+      return { success: false, error: errorMessage }
+    }
+  }
   
   const {
     register,
@@ -38,6 +62,7 @@ const Login = () => {
         const candidateResult = await candidateLogin(data.email, data.password)
         if (candidateResult.success) {
           toast.success('Candidate login successful!')
+          // Navigate to candidate portal - the CandidateAuthContext will handle the rest
           navigate('/candidate-portal/dashboard')
           return
         }
@@ -402,6 +427,14 @@ const Login = () => {
         </div>
       </div>
     </PageTransition>
+  )
+}
+
+const Login = () => {
+  return (
+    <CandidateAuthProvider>
+      <LoginForm />
+    </CandidateAuthProvider>
   )
 }
 

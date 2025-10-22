@@ -44,7 +44,7 @@ const TeamManagement = () => {
     return <LoadingSpinner />
   }
 
-  const teamMembers = teamData?.teamMembers || []
+  const teamMembers = teamData?.data?.teamMembers || teamData?.teamMembers || []
   const attendanceStats = attendanceData?.stats || {}
   const performanceStats = performanceData?.stats || {}
 

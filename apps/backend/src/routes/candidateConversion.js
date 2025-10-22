@@ -2,7 +2,7 @@
 const express = require('express');
 const router = express.Router();
 const database = require('../database/connection');
-const { verifyToken } = require('../middleware/authMiddleware');
+const { authenticate } = require('../middleware/authMiddleware');
 const bcrypt = require('bcrypt');
 const Queue = require('bull');
 
@@ -20,7 +20,7 @@ try {
 }
 
 // Convert candidate to employee
-router.post('/convert', verifyToken, async (req, res) => {
+router.post('/convert', authenticate, async (req, res) => {
   try {
     const { 
       candidateId, 
@@ -264,7 +264,7 @@ router.post('/convert', verifyToken, async (req, res) => {
 });
 
 // Get candidates ready for conversion
-router.get('/candidates-ready', verifyToken, async (req, res) => {
+router.get('/candidates-ready', authenticate, async (req, res) => {
   try {
     const userId = req.user._id;
 
@@ -341,7 +341,7 @@ router.get('/candidates-ready', verifyToken, async (req, res) => {
 });
 
 // Get conversion history
-router.get('/conversion-history', verifyToken, async (req, res) => {
+router.get('/conversion-history', authenticate, async (req, res) => {
   try {
     const userId = req.user._id;
     const { limit = 20, offset = 0 } = req.query;
@@ -414,7 +414,7 @@ router.get('/conversion-history', verifyToken, async (req, res) => {
 });
 
 // Get onboarding status
-router.get('/onboarding/:employeeId', verifyToken, async (req, res) => {
+router.get('/onboarding/:employeeId', authenticate, async (req, res) => {
   try {
     const { employeeId } = req.params;
     const userId = req.user._id;
@@ -455,7 +455,7 @@ router.get('/onboarding/:employeeId', verifyToken, async (req, res) => {
 });
 
 // Update onboarding task status
-router.put('/onboarding/:employeeId/task/:taskId', verifyToken, async (req, res) => {
+router.put('/onboarding/:employeeId/task/:taskId', authenticate, async (req, res) => {
   try {
     const { employeeId, taskId } = req.params;
     const { status, notes } = req.body;

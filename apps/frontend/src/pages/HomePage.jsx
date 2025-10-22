@@ -115,10 +115,7 @@ const HomePage = () => {
       {/* Background Pattern */}
       <div className="absolute inset-0 opacity-40">
         <div className="absolute inset-0 bg-gradient-to-r from-blue-100/20 to-purple-100/20"></div>
-        <div className="absolute inset-0" style={{
-          backgroundImage: `radial-gradient(circle at 1px 1px, rgba(59, 130, 246, 0.15) 1px, transparent 0)`,
-          backgroundSize: '20px 20px'
-        }}></div>
+        {/* Radial gradient dots removed to clean up background */}
       </div>
       
       {/* Header */}

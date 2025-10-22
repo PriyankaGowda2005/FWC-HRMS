@@ -14,42 +14,74 @@ const HRDashboard = () => {
   const queryClient = useQueryClient()
   const [selectedMetric, setSelectedMetric] = useState('overview')
   const [selectedPeriod, setSelectedPeriod] = useState('current')
+  const [searchQuery, setSearchQuery] = useState('')
+  const [searchResults, setSearchResults] = useState([])
 
   // Fetch HR analytics
-  const { data: hrAnalytics, isLoading: analyticsLoading } = useQuery(
+  const { data: hrAnalytics, isLoading: analyticsLoading, error: analyticsError } = useQuery(
     'hr-analytics',
     () => employeeAPI.getHRAnalytics(),
-    { enabled: user?.role === 'HR' || user?.role === 'ADMIN' }
+    { 
+      enabled: user?.role === 'HR' || user?.role === 'ADMIN',
+      retry: 3,
+      staleTime: 30000,
+      refetchInterval: 300000
+    }
   )
 
   // Fetch employee stats
-  const { data: employeeStats, isLoading: statsLoading } = useQuery(
+  const { data: employeeStats, isLoading: statsLoading, error: statsError } = useQuery(
     'employee-stats',
-    () => employeeAPI.getStats()
+    () => employeeAPI.getStats(),
+    { 
+      retry: 3,
+      staleTime: 30000,
+      refetchInterval: 300000
+    }
   )
 
   // Fetch recruitment stats
-  const { data: recruitmentStats, isLoading: recruitmentLoading } = useQuery(
+  const { data: recruitmentStats, isLoading: recruitmentLoading, error: recruitmentError } = useQuery(
     'recruitment-stats',
-    () => employeeAPI.getRecruitmentStats()
+    () => employeeAPI.getRecruitmentStats(),
+    { 
+      retry: 3,
+      staleTime: 30000,
+      refetchInterval: 300000
+    }
   )
 
   // Fetch AI insights
-  const { data: aiInsights, isLoading: aiLoading } = useQuery(
+  const { data: aiInsights, isLoading: aiLoading, error: aiError } = useQuery(
     'hr-ai-insights',
-    () => aiAPI.getHRInsights()
+    () => aiAPI.getHRInsights(),
+    { 
+      retry: 3,
+      staleTime: 30000,
+      refetchInterval: 300000
+    }
   )
 
   // Fetch pending leave requests
-  const { data: pendingLeaves, isLoading: leavesLoading } = useQuery(
+  const { data: pendingLeaves, isLoading: leavesLoading, error: leavesError } = useQuery(
     'pending-leaves',
-    () => leaveAPI.getPendingLeaves()
+    () => leaveAPI.getPendingLeaves(),
+    { 
+      retry: 3,
+      staleTime: 30000,
+      refetchInterval: 60000
+    }
   )
 
   // Fetch recent job postings
   const { data: jobPostings, isLoading: jobsLoading } = useQuery(
     'recent-job-postings',
-    () => jobPostingAPI.getAll({ page: 1, limit: 5 })
+    () => jobPostingAPI.getAll({ page: 1, limit: 5 }),
+    { 
+      retry: 3,
+      staleTime: 30000,
+      refetchInterval: 60000
+    }
   )
 
   // Fetch performance reviews
@@ -105,9 +137,60 @@ const HRDashboard = () => {
     processPayrollMutation.mutate({ month, year })
   }
 
+  const handleSearch = async (query) => {
+    if (!query.trim()) {
+      setSearchResults([])
+      return
+    }
+
+    try {
+      // Search employees
+      const employeeResults = await employeeAPI.search(query)
+      // Search job postings
+      const jobResults = await jobPostingAPI.search(query)
+      // Search candidates
+      const candidateResults = await candidateAPI.search(query)
+
+      setSearchResults({
+        employees: employeeResults?.data || [],
+        jobPostings: jobResults?.data || [],
+        candidates: candidateResults?.data || []
+      })
+    } catch (error) {
+      console.error('Search error:', error)
+      setSearchResults([])
+    }
+  }
+
+  const handleSearchChange = (e) => {
+    const query = e.target.value
+    setSearchQuery(query)
+    if (query.length > 2) {
+      handleSearch(query)
+    } else {
+      setSearchResults([])
+    }
+  }
+
   if (analyticsLoading || statsLoading || recruitmentLoading || aiLoading) {
     return <LoadingSpinner />
   }
+
+  // Debug logging
+  console.log('HR Dashboard Data:', {
+    hrAnalytics,
+    employeeStats,
+    recruitmentStats,
+    aiInsights,
+    pendingLeaves,
+    jobPostings,
+    performanceReviews,
+    analyticsError,
+    statsError,
+    recruitmentError,
+    aiError,
+    leavesError
+  })
 
   const analytics = hrAnalytics?.analytics || {}
   const stats = employeeStats?.data || {}
@@ -126,6 +209,57 @@ const HRDashboard = () => {
           <p className="text-gray-600">Human resources analytics and management</p>
         </div>
         <div className="flex space-x-3">
+          <div className="relative">
+            <input
+              type="text"
+              placeholder="Search employees, jobs, candidates..."
+              value={searchQuery}
+              onChange={handleSearchChange}
+              className="w-80 border border-gray-300 rounded-md px-4 py-2 pr-10 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+            />
+            <div className="absolute inset-y-0 right-0 flex items-center pr-3">
+              <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+              </svg>
+            </div>
+            {searchResults && Object.keys(searchResults).length > 0 && (
+              <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-gray-300 rounded-md shadow-lg z-50 max-h-96 overflow-y-auto">
+                {searchResults.employees?.length > 0 && (
+                  <div className="p-3 border-b">
+                    <h4 className="font-medium text-gray-900 mb-2">Employees</h4>
+                    {searchResults.employees.map((emp) => (
+                      <div key={emp._id} className="py-2 px-3 hover:bg-gray-50 rounded cursor-pointer">
+                        <div className="font-medium">{emp.firstName} {emp.lastName}</div>
+                        <div className="text-sm text-gray-600">{emp.designation} - {emp.department}</div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                {searchResults.jobPostings?.length > 0 && (
+                  <div className="p-3 border-b">
+                    <h4 className="font-medium text-gray-900 mb-2">Job Postings</h4>
+                    {searchResults.jobPostings.map((job) => (
+                      <div key={job._id} className="py-2 px-3 hover:bg-gray-50 rounded cursor-pointer">
+                        <div className="font-medium">{job.title}</div>
+                        <div className="text-sm text-gray-600">{job.department} - {job.location}</div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                {searchResults.candidates?.length > 0 && (
+                  <div className="p-3">
+                    <h4 className="font-medium text-gray-900 mb-2">Candidates</h4>
+                    {searchResults.candidates.map((candidate) => (
+                      <div key={candidate._id} className="py-2 px-3 hover:bg-gray-50 rounded cursor-pointer">
+                        <div className="font-medium">{candidate.firstName} {candidate.lastName}</div>
+                        <div className="text-sm text-gray-600">{candidate.position} - {candidate.status}</div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
           <select
             value={selectedMetric}
             onChange={(e) => setSelectedMetric(e.target.value)}
@@ -238,21 +372,30 @@ const HRDashboard = () => {
             <span>Process Payroll</span>
           </button>
           
-          <button className="btn-secondary flex items-center justify-center space-x-2">
+          <button 
+            onClick={() => window.location.href = '/employees/add'}
+            className="btn-secondary flex items-center justify-center space-x-2"
+          >
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
             </svg>
             <span>Add Employee</span>
           </button>
           
-          <button className="btn-secondary flex items-center justify-center space-x-2">
+          <button 
+            onClick={() => window.location.href = '/recruitment/jobs/create'}
+            className="btn-secondary flex items-center justify-center space-x-2"
+          >
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 13.255A23.931 23.931 0 0112 15c-3.183 0-6.22-.62-9-1.745M16 6V4a2 2 0 00-2-2h-4a2 2 0 00-2-2v2m8 0V6a2 2 0 00-2 2H10a2 2 0 00-2-2V6m8 0H8m8 0v8a2 2 0 01-2 2H10a2 2 0 01-2-2V6" />
             </svg>
             <span>Create Job Posting</span>
           </button>
           
-          <button className="btn-secondary flex items-center justify-center space-x-2">
+          <button 
+            onClick={() => window.location.href = '/reports'}
+            className="btn-secondary flex items-center justify-center space-x-2"
+          >
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
             </svg>

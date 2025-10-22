@@ -77,19 +77,24 @@ const createMissingUsers = async () => {
 
       // Create candidate record for CANDIDATE role
       if (user.role === 'CANDIDATE') {
-        const candidateData = {
-          userId: userResult.insertedId,
-          firstName: 'Vishnu',
-          lastName: 'H S',
-          email: user.email,
-          phone: '+1234567890',
-          status: 'ACTIVE',
-          createdAt: new Date(),
-          updatedAt: new Date()
-        };
+        const existingCandidate = await database.findOne('candidates', { email: user.email });
+        if (!existingCandidate) {
+          const candidateData = {
+            userId: userResult.insertedId,
+            firstName: 'Vishnu',
+            lastName: 'H S',
+            email: user.email,
+            phone: '+1234567890',
+            status: 'ACTIVE',
+            createdAt: new Date(),
+            updatedAt: new Date()
+          };
 
-        await database.insertOne('candidates', candidateData);
-        console.log(`✅ Created candidate record for: ${user.email}`);
+          await database.insertOne('candidates', candidateData);
+          console.log(`✅ Created candidate record for: ${user.email}`);
+        } else {
+          console.log(`⏭️ Candidate ${user.email} already exists, skipping...`);
+        }
       }
     }
 
@@ -121,3 +126,4 @@ module.exports = { createMissingUsers };
 if (require.main === module) {
   createMissingUsers();
 }
+

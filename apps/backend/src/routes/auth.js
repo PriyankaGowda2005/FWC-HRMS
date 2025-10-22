@@ -13,13 +13,13 @@ const generateTokens = (userId, role) => {
   const token = jwt.sign(
     { userId, role },
     process.env.JWT_SECRET || 'fwc-hrms-super-secret-jwt-key-2024',
-    { expiresIn: process.env.JWT_EXPIRES_IN || '15m' }
+    { expiresIn: process.env.JWT_EXPIRES_IN || '24h' } // Extended to 24 hours
   );
 
   const refreshToken = jwt.sign(
     { userId, type: 'refresh' },
     process.env.JWT_REFRESH_SECRET || 'fwc-hrms-super-secret-refresh-key-2024',
-    { expiresIn: process.env.JWT_REFRESH_EXPIRES_IN || '7d' }
+    { expiresIn: process.env.JWT_REFRESH_EXPIRES_IN || '30d' } // Extended to 30 days
   );
 
   return { token, refreshToken };

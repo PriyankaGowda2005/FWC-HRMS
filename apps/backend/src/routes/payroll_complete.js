@@ -1,14 +1,14 @@
 const express = require('express');
 const { body, param, query, validationResult } = require('express-validator');
 const { PrismaClient } = require('@prisma/client');
-const { verifyToken, checkRole } = require('../middleware/authMiddleware');
+const { authenticate, requireRole } = require('../middleware/authMiddleware');
 const { asyncHandler } = require('../middleware/errorHandler');
 
 const router = express.Router();
 const prisma = new PrismaClient();
 
 // Apply auth middleware to all routes
-router.use(verifyToken);
+router.use(authenticate);
 
 // Validation schemas
 const payrollCreateSchema = [
@@ -139,7 +139,7 @@ router.get('/my-payroll', [
 
 // Admin/HR: Get all payroll records with filters
 router.get('/', [
-  checkRole('ADMIN', 'HR', 'MANAGER'),
+  requireRole('ADMIN', 'HR', 'MANAGER'),
   query('employeeId').optional().isMongoId().withMessage('Invalid employee ID'),
   query('departmentId').optional().isMongoId().withMessage('Invalid department ID'),
   query('year').optional().isInt({ min: 2020, max: 2030 }).withMessage('Invalid year'),
@@ -265,7 +265,7 @@ router.get('/', [
 
 // Create payroll record (Admin/HR only)
 router.post('/', [
-  checkRole('ADMIN', 'HR'),
+  requireRole('ADMIN', 'HR'),
   ...payrollCreateSchema
 ], asyncHandler(async: req, res) => {
   const errors = validationResult(req);
@@ -316,7 +316,7 @@ router.post('/', [
 
 // Process payroll for all employees (Admin only)
 router.post('/process', [
-  checkRole('ADMIN'),
+  requireRole('ADMIN'),
   body('month').isInt({ min: 1, max: 12 }).withMessage('Invalid month'),
   body('year').isInt({ min: 2020, max: 2030 }).withMessage('Invalid year'),
   body('customAllowances').optional().isObject(),
@@ -407,7 +407,7 @@ router.post('/process', [
 
 // Delete payroll record (Admin only)
 router.delete('/:id', [
-  checkRole('ADMIN'),
+  requireRole('ADMIN'),
   param('id').isMongoId().withMessage('Invalid payroll ID')
 ], asyncHandler(async (req, res) => {
   const errors = validationResult(req);

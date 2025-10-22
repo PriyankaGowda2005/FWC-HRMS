@@ -100,21 +100,6 @@ export default {
           body: ['Inter', 'Lato', 'system-ui', 'sans-serif'],
           sans: ['Inter', 'system-ui', 'sans-serif'],
         },
-        fontSize: {
-          'display': ['3rem', { lineHeight: '1.1', fontWeight: '700' }],
-          'h1': ['2.5rem', { lineHeight: '1.2', fontWeight: '600' }],
-          'h2': ['2rem', { lineHeight: '1.3', fontWeight: '600' }],
-          'h3': ['1.5rem', { lineHeight: '1.4', fontWeight: '600' }],
-          'h4': ['1.25rem', { lineHeight: '1.4', fontWeight: '600' }],
-          'body': ['1rem', { lineHeight: '1.6', fontWeight: '400' }],
-          'body-lg': ['1.125rem', { lineHeight: '1.6', fontWeight: '400' }],
-          'small': ['0.875rem', { lineHeight: '1.5', fontWeight: '400' }],
-        },
-        spacing: {
-          '18': '4.5rem',
-          '88': '22rem',
-          '128': '32rem',
-        },
         borderRadius: {
           '4xl': '2rem',
           '5xl': '2.5rem',
@@ -187,22 +172,229 @@ export default {
         backdropBlur: {
           'xs': '2px',
         },
+        // Responsive design utilities
+        container: {
+          center: true,
+          padding: {
+            DEFAULT: '1rem',
+            sm: '1.5rem',
+            lg: '2rem',
+            xl: '2.5rem',
+            '2xl': '3rem',
+          },
+          screens: {
+            sm: '640px',
+            md: '768px',
+            lg: '1024px',
+            xl: '1280px',
+            '2xl': '1536px',
+          },
+        },
+        // Responsive spacing
+        spacing: {
+          '18': '4.5rem',
+          '88': '22rem',
+          '128': '32rem',
+          // Mobile-first spacing
+          'mobile': '1rem',
+          'tablet': '1.5rem',
+          'desktop': '2rem',
+        },
+        // Responsive typography
+        fontSize: {
+          'xs': ['0.75rem', { lineHeight: '1rem' }],
+          'sm': ['0.875rem', { lineHeight: '1.25rem' }],
+          'base': ['1rem', { lineHeight: '1.5rem' }],
+          'lg': ['1.125rem', { lineHeight: '1.75rem' }],
+          'xl': ['1.25rem', { lineHeight: '1.75rem' }],
+          '2xl': ['1.5rem', { lineHeight: '2rem' }],
+          '3xl': ['1.875rem', { lineHeight: '2.25rem' }],
+          '4xl': ['2.25rem', { lineHeight: '2.5rem' }],
+          '5xl': ['3rem', { lineHeight: '1' }],
+          '6xl': ['3.75rem', { lineHeight: '1' }],
+          '7xl': ['4.5rem', { lineHeight: '1' }],
+          '8xl': ['6rem', { lineHeight: '1' }],
+          '9xl': ['8rem', { lineHeight: '1' }],
+          // Responsive display sizes
+          'display': ['3rem', { lineHeight: '1.1', fontWeight: '700' }],
+          'h1': ['2.5rem', { lineHeight: '1.2', fontWeight: '600' }],
+          'h2': ['2rem', { lineHeight: '1.3', fontWeight: '600' }],
+          'h3': ['1.5rem', { lineHeight: '1.4', fontWeight: '600' }],
+          'h4': ['1.25rem', { lineHeight: '1.4', fontWeight: '600' }],
+          'body': ['1rem', { lineHeight: '1.6', fontWeight: '400' }],
+          'body-lg': ['1.125rem', { lineHeight: '1.6', fontWeight: '400' }],
+          'small': ['0.875rem', { lineHeight: '1.5', fontWeight: '400' }],
+        },
         screens: {
-          'xs': '475px',
-          'sm': '640px',
-          'md': '768px',
-          'lg': '1024px',
-          'xl': '1280px',
-          '2xl': '1536px',
-          '3xl': '1600px',
           // Mobile-first breakpoints
+          'xs': '320px',      // Extra small phones
+          'sm': '640px',      // Small phones
+          'md': '768px',      // Tablets
+          'lg': '1024px',     // Small laptops
+          'xl': '1280px',     // Large laptops
+          '2xl': '1536px',    // Desktops
+          '3xl': '1920px',    // Large desktops
+          
+          // Custom breakpoints for better responsive design
           'mobile': '320px',
           'mobile-lg': '375px',
+          'mobile-xl': '414px',
           'tablet': '768px',
-          'desktop': '1024px',
+          'tablet-lg': '1024px',
+          'desktop': '1280px',
           'desktop-lg': '1440px',
+          'desktop-xl': '1920px',
+          
+          // Container breakpoints
+          'container-sm': '640px',
+          'container-md': '768px',
+          'container-lg': '1024px',
+          'container-xl': '1280px',
+          'container-2xl': '1536px',
         },
       },
   },
-  plugins: [],
+  plugins: [
+    // Add responsive design utilities
+    function({ addUtilities, theme }) {
+      const newUtilities = {
+        // Responsive text utilities
+        '.text-responsive-xs': {
+          fontSize: theme('fontSize.xs[0]'),
+          lineHeight: theme('fontSize.xs[1].lineHeight'),
+        },
+        '.text-responsive-sm': {
+          fontSize: theme('fontSize.sm[0]'),
+          lineHeight: theme('fontSize.sm[1].lineHeight'),
+        },
+        '.text-responsive-base': {
+          fontSize: theme('fontSize.base[0]'),
+          lineHeight: theme('fontSize.base[1].lineHeight'),
+        },
+        '.text-responsive-lg': {
+          fontSize: theme('fontSize.lg[0]'),
+          lineHeight: theme('fontSize.lg[1].lineHeight'),
+        },
+        '.text-responsive-xl': {
+          fontSize: theme('fontSize.xl[0]'),
+          lineHeight: theme('fontSize.xl[1].lineHeight'),
+        },
+        
+        // Responsive spacing utilities
+        '.p-responsive': {
+          padding: theme('spacing.mobile'),
+          '@media (min-width: 768px)': {
+            padding: theme('spacing.tablet'),
+          },
+          '@media (min-width: 1024px)': {
+            padding: theme('spacing.desktop'),
+          },
+        },
+        '.m-responsive': {
+          margin: theme('spacing.mobile'),
+          '@media (min-width: 768px)': {
+            margin: theme('spacing.tablet'),
+          },
+          '@media (min-width: 1024px)': {
+            margin: theme('spacing.desktop'),
+          },
+        },
+        
+        // Responsive grid utilities
+        '.grid-responsive': {
+          display: 'grid',
+          gridTemplateColumns: 'repeat(1, minmax(0, 1fr))',
+          gap: theme('spacing.4'),
+          '@media (min-width: 640px)': {
+            gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
+            gap: theme('spacing.6'),
+          },
+          '@media (min-width: 1024px)': {
+            gridTemplateColumns: 'repeat(3, minmax(0, 1fr))',
+            gap: theme('spacing.8'),
+          },
+        },
+        
+        // Responsive flex utilities
+        '.flex-responsive': {
+          display: 'flex',
+          flexDirection: 'column',
+          gap: theme('spacing.4'),
+          '@media (min-width: 768px)': {
+            flexDirection: 'row',
+            gap: theme('spacing.6'),
+          },
+        },
+        
+        // Mobile-first container
+        '.container-responsive': {
+          width: '100%',
+          marginLeft: 'auto',
+          marginRight: 'auto',
+          paddingLeft: theme('spacing.4'),
+          paddingRight: theme('spacing.4'),
+          '@media (min-width: 640px)': {
+            paddingLeft: theme('spacing.6'),
+            paddingRight: theme('spacing.6'),
+          },
+          '@media (min-width: 1024px)': {
+            paddingLeft: theme('spacing.8'),
+            paddingRight: theme('spacing.8'),
+          },
+          '@media (min-width: 1280px)': {
+            maxWidth: '1280px',
+          },
+        },
+        
+        // Responsive visibility utilities
+        '.mobile-only': {
+          display: 'block',
+          '@media (min-width: 768px)': {
+            display: 'none',
+          },
+        },
+        '.tablet-up': {
+          display: 'none',
+          '@media (min-width: 768px)': {
+            display: 'block',
+          },
+        },
+        '.desktop-up': {
+          display: 'none',
+          '@media (min-width: 1024px)': {
+            display: 'block',
+          },
+        },
+        
+        // Touch-friendly button sizes
+        '.btn-touch': {
+          minHeight: '44px',
+          minWidth: '44px',
+          padding: theme('spacing.3'),
+          '@media (min-width: 768px)': {
+            minHeight: '40px',
+            minWidth: '40px',
+            padding: theme('spacing.2'),
+          },
+        },
+        
+        // Responsive card utilities
+        '.card-responsive': {
+          borderRadius: theme('borderRadius.lg'),
+          padding: theme('spacing.4'),
+          boxShadow: theme('boxShadow.sm'),
+          '@media (min-width: 768px)': {
+            padding: theme('spacing.6'),
+            boxShadow: theme('boxShadow.md'),
+          },
+          '@media (min-width: 1024px)': {
+            padding: theme('spacing.8'),
+            boxShadow: theme('boxShadow.lg'),
+          },
+        },
+      }
+      
+      addUtilities(newUtilities)
+    }
+  ],
 }

@@ -2,16 +2,16 @@ const express = require('express');
 const { body, validationResult, param } = require('express-validator');
 const { ObjectId } = require('mongodb');
 const database = require('../database/connection');
-const { verifyToken, checkRole } = require('../middleware/authMiddleware');
+const { authenticate, requireRole } = require('../middleware/authMiddleware');
 const { asyncHandler } = require('../middleware/errorHandler');
 
 const router = express.Router();
 
 // Apply auth middleware to all routes
-router.use(verifyToken);
+router.use(authenticate);
 
 // Get all employees (Admin/HR only)
-router.get('/', checkRole('ADMIN', 'HR'), asyncHandler(async (req, res) => {
+router.get('/', requireRole('ADMIN', 'HR'), asyncHandler(async (req, res) => {
   const page = parseInt(req.query.page) || 1;
   const limit = parseInt(req.query.limit) || 10;
   const skip = (page - 1) * limit;
@@ -99,7 +99,7 @@ router.get('/:id', asyncHandler(async (req, res) => {
 }));
 
 // Create new employee
-router.post('/', checkRole('ADMIN', 'HR'), [
+router.post('/', requireRole('ADMIN', 'HR'), [
   body('firstName').notEmpty().withMessage('First name required'),
   body('lastName').notEmpty().withMessage('Last name required'),
   body('email').isEmail().withMessage('Valid email required'),
@@ -175,7 +175,7 @@ router.post('/', checkRole('ADMIN', 'HR'), [
 }));
 
 // Update employee
-router.put('/:id', checkRole('ADMIN', 'HR'), [
+router.put('/:id', requireRole('ADMIN', 'HR'), [
   body('firstName').optional().notEmpty(),
   body('lastName').optional().notEmpty(),
   body('position').optional().notEmpty(),
@@ -219,7 +219,7 @@ router.put('/:id', checkRole('ADMIN', 'HR'), [
 }));
 
 // Delete employee (soft delete)
-router.delete('/:id', checkRole('ADMIN'), asyncHandler(async (req, res) => {
+router.delete('/:id', requireRole('ADMIN'), asyncHandler(async (req, res) => {
   const { id } = req.params;
   
   if (!ObjectId.isValid(id)) {
@@ -262,7 +262,7 @@ router.delete('/:id', checkRole('ADMIN'), asyncHandler(async (req, res) => {
 }));
 
 // Get employee statistics
-router.get('/stats/overview', checkRole('ADMIN', 'HR', 'MANAGER'), asyncHandler(async (req, res) => {
+router.get('/stats/overview', requireRole('ADMIN', 'HR', 'MANAGER'), asyncHandler(async (req, res) => {
   const totalEmployees = await database.count('employees', { isActive: true });
   const totalDepartments = await database.count('departments', { isActive: true });
   
@@ -286,7 +286,7 @@ router.get('/stats/overview', checkRole('ADMIN', 'HR', 'MANAGER'), asyncHandler(
 }));
 
 // Get HR analytics
-router.get('/analytics/hr', checkRole('ADMIN', 'HR', 'MANAGER'), asyncHandler(async (req, res) => {
+router.get('/analytics/hr', requireRole('ADMIN', 'HR', 'MANAGER'), asyncHandler(async (req, res) => {
   const totalEmployees = await database.count('employees', { isActive: true });
   const totalDepartments = await database.count('departments', { isActive: true });
   
@@ -321,51 +321,91 @@ router.get('/analytics/hr', checkRole('ADMIN', 'HR', 'MANAGER'), asyncHandler(as
   });
 }));
 
-// Get recruitment stats
-router.get('/analytics/recruitment', checkRole('ADMIN', 'HR', 'MANAGER'), asyncHandler(async (req, res) => {
-  const openPositions = await database.count('job_postings', { status: 'PUBLISHED' });
-  const totalCandidates = await database.count('candidates');
+// Search employees
+router.get('/search', requireRole('ADMIN', 'HR', 'MANAGER'), asyncHandler(async (req, res) => {
+  const { q } = req.query;
   
-  // Mock new hires for this month
-  const newHires = Math.floor(Math.random() * 5) + 1;
+  if (!q || q.trim().length < 2) {
+    return res.json({ data: [] });
+  }
 
-  res.json({
-    recruitment: {
-      openPositions,
-      totalCandidates,
-      newHires
-    }
+  const searchRegex = new RegExp(q, 'i');
+  const employees = await database.find('employees', {
+    $or: [
+      { firstName: searchRegex },
+      { lastName: searchRegex },
+      { email: searchRegex },
+      { designation: searchRegex },
+      { department: searchRegex },
+      { employeeCode: searchRegex }
+    ],
+    isActive: true
   });
+
+  res.json({ data: employees });
 }));
 
 // Get team members for a manager
-router.get('/team/:managerId', checkRole('ADMIN', 'HR', 'MANAGER'), asyncHandler(async (req, res) => {
+router.get('/team/:managerId', requireRole('ADMIN', 'HR', 'MANAGER'), asyncHandler(async (req, res) => {
   const { managerId } = req.params;
   
-  // For now, return all employees as team members
-  // In a real system, you'd have a manager-employee relationship
-  const employees = await database.find('employees', { isActive: true });
-  
-  const teamMembers = await Promise.all(
-    employees.map(async (employee) => {
-      const user = await database.findOne('users', { _id: employee.userId });
-      return {
-        id: employee._id,
-        firstName: employee.firstName,
-        lastName: employee.lastName,
-        position: employee.position,
-        department: employee.department,
-        email: user?.email,
-        isActive: employee.isActive
-      };
-    })
-  );
+  try {
+    // Get manager's employee record
+    const managerEmployee = await database.findOne('employees', { userId: new ObjectId(managerId) });
+    if (!managerEmployee) {
+      return res.status(404).json({ 
+        success: false,
+        message: 'Manager profile not found',
+        teamMembers: []
+      });
+    }
 
-  res.json(teamMembers);
+    // Get team members under this manager
+    const teamMembers = await database.find('employees', { 
+      managerId: managerEmployee._id,
+      isActive: true 
+    });
+    
+    // Populate team member data with user information
+    const populatedTeamMembers = await Promise.all(
+      teamMembers.map(async (employee) => {
+        const user = await database.findOne('users', { _id: employee.userId });
+        const department = await database.findOne('departments', { _id: employee.departmentId });
+        
+        return {
+          id: employee._id,
+          userId: employee.userId,
+          firstName: employee.firstName,
+          lastName: employee.lastName,
+          position: employee.position || employee.designation,
+          department: department?.name || 'Unknown',
+          email: user?.email,
+          phone: employee.phone,
+          isActive: employee.isActive,
+          hireDate: employee.hireDate,
+          employeeCode: employee.employeeCode
+        };
+      })
+    );
+
+    res.json({
+      success: true,
+      teamMembers: populatedTeamMembers,
+      count: populatedTeamMembers.length
+    });
+  } catch (error) {
+    console.error('Error fetching team members:', error);
+    res.status(500).json({ 
+      success: false,
+      message: 'Failed to fetch team members',
+      error: error.message,
+      teamMembers: []
+    });
+  }
 }));
 
 // Get performance data for an employee
-router.get('/:id/performance', checkRole('ADMIN', 'HR', 'MANAGER'), asyncHandler(async (req, res) => {
+router.get('/:id/performance', requireRole('ADMIN', 'HR', 'MANAGER'), asyncHandler(async (req, res) => {
   const { id } = req.params;
   
   if (!ObjectId.isValid(id)) {

@@ -2,13 +2,13 @@ const express = require('express');
 const { body, validationResult, param } = require('express-validator');
 const { ObjectId } = require('mongodb');
 const database = require('../database/connection');
-const { verifyToken, checkRole } = require('../middleware/authMiddleware');
+const { authenticate, requireRole } = require('../middleware/authMiddleware');
 const { asyncHandler } = require('../middleware/errorHandler');
 
 const router = express.Router();
 
 // Apply auth middleware to all routes
-router.use(verifyToken);
+router.use(authenticate);
 
 // Get performance reviews
 router.get('/', asyncHandler(async (req, res) => {
@@ -76,7 +76,7 @@ router.get('/my-reviews', asyncHandler(async (req, res) => {
   const skip = (page - 1) * limit;
 
   // Get employee by user ID
-  const employee = await database.findOne('employees', { userId: new ObjectId(req.user.userId) });
+  const employee = await database.findOne('employees', { userId: new ObjectId(req.user.id) });
   if (!employee) {
     return res.status(404).json({ message: 'Employee not found' });
   }
@@ -135,7 +135,7 @@ router.get('/my-reviews', asyncHandler(async (req, res) => {
 }));
 
 // Create performance review
-router.post('/', checkRole('ADMIN', 'HR', 'MANAGER'), [
+router.post('/', requireRole('ADMIN', 'HR', 'MANAGER'), [
   body('employeeId').notEmpty().withMessage('Employee ID required'),
   body('reviewPeriod').notEmpty().withMessage('Review period required'),
   body('overallRating').isNumeric().withMessage('Overall rating must be a number')
@@ -183,7 +183,7 @@ router.post('/', checkRole('ADMIN', 'HR', 'MANAGER'), [
 }));
 
 // Update performance review
-router.put('/:id', checkRole('ADMIN', 'HR', 'MANAGER'), asyncHandler(async (req, res) => {
+router.put('/:id', requireRole('ADMIN', 'HR', 'MANAGER'), asyncHandler(async (req, res) => {
   const { id } = req.params;
   
   if (!ObjectId.isValid(id)) {
@@ -254,7 +254,7 @@ router.post('/:id/self-rating', asyncHandler(async (req, res) => {
 }));
 
 // Delete performance review
-router.delete('/:id', checkRole('ADMIN', 'HR'), asyncHandler(async (req, res) => {
+router.delete('/:id', requireRole('ADMIN', 'HR'), asyncHandler(async (req, res) => {
   const { id } = req.params;
   
   if (!ObjectId.isValid(id)) {
@@ -268,6 +268,141 @@ router.delete('/:id', checkRole('ADMIN', 'HR'), asyncHandler(async (req, res) =>
   }
 
   res.json({ message: 'Performance review deleted successfully' });
+}));
+
+// Get team performance reviews
+router.get('/team/:managerId', requireRole('ADMIN', 'HR', 'MANAGER'), asyncHandler(async (req, res) => {
+  const { managerId } = req.params;
+  const { year, status } = req.query;
+
+  // Get team members under this manager
+  const teamMembers = await database.find('employees', { 
+    managerId: new ObjectId(managerId),
+    isActive: true 
+  });
+
+  if (!teamMembers || teamMembers.length === 0) {
+    return res.json({
+      success: true,
+      stats: {
+        totalTeamMembers: 0,
+        totalReviews: 0,
+        averageRating: 0,
+        highPerformers: 0,
+        needsImprovement: 0
+      },
+      reviews: []
+    });
+  }
+
+  const teamMemberIds = teamMembers.map(member => member._id);
+
+  // Build query for team performance reviews
+  let query = { employeeId: { $in: teamMemberIds } };
+  if (year) {
+    const startDate = new Date(`${year}-01-01`);
+    const endDate = new Date(`${year}-12-31`);
+    query.reviewDate = { $gte: startDate, $lte: endDate };
+  }
+  if (status) query.status = status;
+
+  const reviews = await database.find('performance_reviews', query, {
+    sort: { reviewDate: -1 }
+  });
+
+  // Calculate team statistics
+  const stats = {
+    totalTeamMembers: teamMembers.length,
+    totalReviews: reviews.length,
+    averageRating: reviews.length > 0 ? 
+      reviews.reduce((sum, r) => sum + (r.overallRating || 0), 0) / reviews.length : 0,
+    highPerformers: reviews.filter(r => (r.overallRating || 0) >= 4).length,
+    needsImprovement: reviews.filter(r => (r.overallRating || 0) < 3).length,
+    completionRate: teamMembers.length > 0 ? 
+      (reviews.length / teamMembers.length * 100).toFixed(1) : 0
+  };
+
+  // Add employee details to reviews
+  const reviewsWithDetails = reviews.map(review => {
+    const employee = teamMembers.find(member => member._id.toString() === review.employeeId.toString());
+    return {
+      ...review,
+      employee: employee ? {
+        firstName: employee.firstName,
+        lastName: employee.lastName,
+        position: employee.position,
+        department: employee.department
+      } : null
+    };
+  });
+
+  res.json({
+    success: true,
+    stats,
+    reviews: reviewsWithDetails,
+    teamMembers: teamMembers.map(member => ({
+      _id: member._id,
+      firstName: member.firstName,
+      lastName: member.lastName,
+      position: member.position,
+      department: member.department
+    }))
+  });
+}));
+
+// Get performance metrics
+router.get('/metrics', requireRole('ADMIN', 'HR', 'MANAGER'), asyncHandler(async (req, res) => {
+  const { period = 'current' } = req.query;
+  
+  // Calculate date range based on period
+  let startDate, endDate;
+  const now = new Date();
+  
+  switch (period) {
+    case 'current':
+      startDate = new Date(now.getFullYear(), 0, 1);
+      endDate = now;
+      break;
+    case 'last-month':
+      startDate = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+      endDate = new Date(now.getFullYear(), now.getMonth(), 0);
+      break;
+    case 'last-quarter':
+      const quarter = Math.floor(now.getMonth() / 3);
+      startDate = new Date(now.getFullYear(), (quarter - 1) * 3, 1);
+      endDate = new Date(now.getFullYear(), quarter * 3, 0);
+      break;
+    default:
+      startDate = new Date(now.getFullYear(), 0, 1);
+      endDate = now;
+  }
+
+  const reviews = await database.find('performance_reviews', {
+    reviewDate: { $gte: startDate, $lte: endDate }
+  });
+
+  const metrics = {
+    period: { startDate, endDate, period },
+    totalReviews: reviews.length,
+    averageRating: reviews.length > 0 ? 
+      reviews.reduce((sum, r) => sum + (r.overallRating || 0), 0) / reviews.length : 0,
+    ratingDistribution: {
+      excellent: reviews.filter(r => (r.overallRating || 0) >= 4.5).length,
+      good: reviews.filter(r => (r.overallRating || 0) >= 3.5 && (r.overallRating || 0) < 4.5).length,
+      satisfactory: reviews.filter(r => (r.overallRating || 0) >= 2.5 && (r.overallRating || 0) < 3.5).length,
+      needsImprovement: reviews.filter(r => (r.overallRating || 0) < 2.5).length
+    },
+    statusDistribution: {
+      completed: reviews.filter(r => r.status === 'COMPLETED').length,
+      pending: reviews.filter(r => r.status === 'PENDING').length,
+      draft: reviews.filter(r => r.status === 'DRAFT').length
+    }
+  };
+
+  res.json({
+    success: true,
+    metrics
+  });
 }));
 
 module.exports = router;

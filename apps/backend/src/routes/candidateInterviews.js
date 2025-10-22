@@ -2,7 +2,7 @@
 const express = require('express');
 const router = express.Router();
 const database = require('../database/connection');
-const { authenticateCandidate } = require('../middleware/authMiddleware');
+const { authenticate, authenticateCandidate } = require('../middleware/authMiddleware');
 const Queue = require('bull');
 
 // Initialize email queue

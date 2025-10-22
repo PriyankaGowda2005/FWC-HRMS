@@ -2,11 +2,23 @@
   "name": "@fwc-hrms/frontend",
   "version": "1.0.0",
   "type": "module",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/PriyankaGowda2005/FWC-HRMS.git"
+  },
+  "homepage": "https://github.com/PriyankaGowda2005/FWC-HRMS#readme",
   "scripts": {
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "lint": "eslint . --ext js,jsx --report-unused-disable-directives --max-warnings 0"
+    "lint": "eslint . --ext js,jsx --report-unused-disable-directives --max-warnings 0",
+    "test": "vitest",
+    "test:ui": "vitest --ui",
+    "test:run": "vitest run",
+    "test:coverage": "vitest run --coverage",
+    "test:watch": "vitest --watch",
+    "test:components": "vitest run --reporter=verbose src/components",
+    "test:integration": "vitest run --reporter=verbose src/tests/integration"
   },
   "dependencies": {
     "@headlessui/react": "^2.2.9",
@@ -22,19 +34,29 @@
     "react-qr-code": "^2.0.18",
     "react-query": "^3.39.3",
     "react-router-dom": "^6.20.1",
-    "recharts": "^3.2.1"
+    "recharts": "^3.2.1",
+    "socket.io-client": "^4.7.5"
   },
   "devDependencies": {
+    "@testing-library/jest-dom": "^6.1.5",
+    "@testing-library/react": "^14.1.2",
+    "@testing-library/user-event": "^14.5.1",
     "@types/react": "^18.2.37",
     "@types/react-dom": "^18.2.15",
     "@vitejs/plugin-react": "^4.1.1",
+    "@vitest/ui": "^1.0.4",
     "autoprefixer": "^10.4.16",
     "eslint": "^8.53.0",
     "eslint-plugin-react": "^7.33.2",
     "eslint-plugin-react-hooks": "^4.6.0",
     "eslint-plugin-react-refresh": "^0.4.4",
+    "happy-dom": "^12.10.3",
+    "jsdom": "^23.0.1",
+    "msw": "^2.0.11",
     "postcss": "^8.4.32",
     "tailwindcss": "^3.3.6",
-    "vite": "^5.0.0"
+    "terser": "^5.44.0",
+    "vite": "^5.0.0",
+    "vitest": "^1.0.4"
   }
 }

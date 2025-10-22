@@ -12,34 +12,45 @@ const AIInsights = ({ type = 'hr', managerId = null, className = '' }) => {
   console.log('AIInsights - type:', type, 'managerId:', managerId, 'typeof managerId:', typeof managerId)
 
   // Fetch AI insights based on type
-  const { data: aiData, isLoading, error: queryError } = useQuery(
+  const { data: aiData, isLoading, error: queryError, refetch } = useQuery(
     ['ai-insights', type, managerId],
     () => {
       if (type === 'hr') {
         return aiAPI.getHRInsights()
       } else if (type === 'team' && managerId) {
         return aiAPI.getTeamInsights(managerId)
+      } else if (type === 'recruitment') {
+        return aiAPI.getRecruitmentInsights()
       }
       return Promise.resolve({ insights: null })
     },
     {
-      enabled: Boolean(type === 'hr' || (type === 'team' && managerId)),
-      refetchInterval: 300000, // Refetch every 5 minutes
+      enabled: Boolean(type === 'hr' || (type === 'team' && managerId) || type === 'recruitment'),
+      refetchInterval: 60000, // Refetch every minute for real-time insights
+      refetchOnWindowFocus: true,
+      staleTime: 30000, // Consider data stale after 30 seconds
+      refetchIntervalInBackground: true, // Continue refetching even when tab is not active
     }
   )
 
   useEffect(() => {
     if (aiData) {
-      setInsights(aiData.insights)
+      console.log('AI Data received:', aiData)
+      setInsights(aiData.insights || aiData)
       setLoading(false)
     }
     if (queryError) {
+      console.error('AI Query Error:', queryError)
       setError(queryError)
       setLoading(false)
     }
-  }, [aiData, queryError])
+    // If query is disabled, stop loading
+    if (!Boolean(type === 'hr' || (type === 'team' && managerId) || type === 'recruitment')) {
+      setLoading(false)
+    }
+  }, [aiData, queryError, type, managerId])
 
-  if (loading || isLoading) {
+  if ((loading || isLoading) && Boolean(type === 'hr' || (type === 'team' && managerId) || type === 'recruitment')) {
     return (
       <div className={`card ${className}`}>
         <div className="flex items-center justify-center py-8">
@@ -72,13 +83,73 @@ const AIInsights = ({ type = 'hr', managerId = null, className = '' }) => {
     <div className={`card ${className}`}>
       <div className="flex items-center justify-between mb-4">
         <h3 className="text-lg font-medium text-gray-900">
-          {type === 'hr' ? 'AI-Powered HR Insights' : 'AI Team Insights'}
+          {type === 'hr' ? 'AI-Powered HR Insights' : 
+           type === 'recruitment' ? 'AI-Powered Recruitment Insights' : 
+           'AI Team Insights'}
         </h3>
         <div className="flex items-center space-x-2">
           <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
           <span className="text-sm text-gray-500">Live</span>
+          {insights.generatedAt && (
+            <span className="text-xs text-gray-400">
+              • {new Date(insights.generatedAt).toLocaleTimeString()}
+            </span>
+          )}
+          <button 
+            onClick={() => refetch()}
+            className="ml-2 p-1 text-gray-400 hover:text-gray-600 transition-colors"
+            title="Refresh AI Insights"
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+            </svg>
+          </button>
         </div>
       </div>
+
+      {/* Recruitment-specific insights */}
+      {type === 'recruitment' && insights.metrics && (
+        <div className="mb-6">
+          <h4 className="text-md font-medium text-gray-900 mb-3">Recruitment Metrics</h4>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="bg-blue-50 p-4 rounded-lg">
+              <div className="flex items-center justify-between mb-2">
+                <h5 className="font-medium text-blue-900">Total Applications</h5>
+                <span className="text-sm font-bold text-blue-600">
+                  {insights.metrics.totalApplications}
+                </span>
+              </div>
+              <p className="text-sm text-blue-800">
+                {insights.trends?.applicationTrend === 'increasing' ? '↗️ Increasing' : '↘️ Decreasing'}
+              </p>
+            </div>
+
+            <div className="bg-green-50 p-4 rounded-lg">
+              <div className="flex items-center justify-between mb-2">
+                <h5 className="font-medium text-green-900">Hires Completed</h5>
+                <span className="text-sm font-bold text-green-600">
+                  {insights.metrics.hiresCompleted}
+                </span>
+              </div>
+              <p className="text-sm text-green-800">
+                Avg. {insights.metrics.averageTimeToHire} days to hire
+              </p>
+            </div>
+
+            <div className="bg-purple-50 p-4 rounded-lg">
+              <div className="flex items-center justify-between mb-2">
+                <h5 className="font-medium text-purple-900">Quality Score</h5>
+                <span className="text-sm font-bold text-purple-600">
+                  {insights.metrics.candidateQualityScore}%
+                </span>
+              </div>
+              <p className="text-sm text-purple-800">
+                Candidate assessment quality
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Predictions Section */}
       {insights.predictions && (
@@ -150,6 +221,50 @@ const AIInsights = ({ type = 'hr', managerId = null, className = '' }) => {
                 </p>
               </div>
             )}
+
+            {/* Recruitment-specific predictions */}
+            {type === 'recruitment' && insights.predictions.nextMonthApplications !== undefined && (
+              <div className="bg-orange-50 p-4 rounded-lg">
+                <div className="flex items-center justify-between mb-2">
+                  <h5 className="font-medium text-orange-900">Next Month Applications</h5>
+                  <span className="text-sm font-bold text-orange-600">
+                    {insights.predictions.nextMonthApplications}
+                  </span>
+                </div>
+                <p className="text-sm text-orange-800">
+                  Predicted application volume
+                </p>
+              </div>
+            )}
+
+            {type === 'recruitment' && insights.predictions.hiringVelocity !== undefined && (
+              <div className="bg-indigo-50 p-4 rounded-lg">
+                <div className="flex items-center justify-between mb-2">
+                  <h5 className="font-medium text-indigo-900">Hiring Velocity</h5>
+                  <span className="text-sm font-bold text-indigo-600">
+                    {insights.predictions.hiringVelocity}%
+                  </span>
+                </div>
+                <p className="text-sm text-indigo-800">
+                  Speed of hiring process
+                </p>
+              </div>
+            )}
+
+            {type === 'recruitment' && insights.predictions.skillGaps && (
+              <div className="bg-red-50 p-4 rounded-lg">
+                <div className="flex items-center justify-between mb-2">
+                  <h5 className="font-medium text-red-900">Skill Gaps</h5>
+                  <span className="text-sm font-bold text-red-600">
+                    {insights.predictions.skillGaps.length}
+                  </span>
+                </div>
+                <div className="text-sm text-red-800">
+                  {insights.predictions.skillGaps.slice(0, 2).join(', ')}
+                  {insights.predictions.skillGaps.length > 2 && '...'}
+                </div>
+              </div>
+            )}
           </div>
         </div>
       )}
@@ -203,6 +318,56 @@ const AIInsights = ({ type = 'hr', managerId = null, className = '' }) => {
                 </div>
               </div>
             )}
+
+            {/* Recruitment-specific trends */}
+            {type === 'recruitment' && insights.trends.interviewConversionRate !== undefined && (
+              <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                <span className="text-sm font-medium text-gray-700">Interview Conversion Rate</span>
+                <div className="flex items-center space-x-2">
+                  <div className="w-16 bg-gray-200 rounded-full h-2">
+                    <div
+                      className="bg-green-500 h-2 rounded-full"
+                      style={{ width: `${insights.trends.interviewConversionRate}%` }}
+                    ></div>
+                  </div>
+                  <span className="text-sm font-bold text-green-600">
+                    {insights.trends.interviewConversionRate}%
+                  </span>
+                </div>
+              </div>
+            )}
+
+            {type === 'recruitment' && insights.trends.offerAcceptanceRate !== undefined && (
+              <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                <span className="text-sm font-medium text-gray-700">Offer Acceptance Rate</span>
+                <div className="flex items-center space-x-2">
+                  <div className="w-16 bg-gray-200 rounded-full h-2">
+                    <div
+                      className="bg-blue-500 h-2 rounded-full"
+                      style={{ width: `${insights.trends.offerAcceptanceRate}%` }}
+                    ></div>
+                  </div>
+                  <span className="text-sm font-bold text-blue-600">
+                    {insights.trends.offerAcceptanceRate}%
+                  </span>
+                </div>
+              </div>
+            )}
+
+            {type === 'recruitment' && insights.trends.timeToHireTrend && (
+              <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                <span className="text-sm font-medium text-gray-700">Time to Hire Trend</span>
+                <div className="flex items-center space-x-2">
+                  <span className={`text-sm font-bold ${
+                    insights.trends.timeToHireTrend === 'decreasing' ? 'text-green-600' :
+                    insights.trends.timeToHireTrend === 'increasing' ? 'text-red-600' : 'text-gray-600'
+                  }`}>
+                    {insights.trends.timeToHireTrend === 'decreasing' ? '↘️ Decreasing' :
+                     insights.trends.timeToHireTrend === 'increasing' ? '↗️ Increasing' : '→ Stable'}
+                  </span>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       )}
@@ -218,6 +383,32 @@ const AIInsights = ({ type = 'hr', managerId = null, className = '' }) => {
                   <span className="text-xs font-bold text-blue-600">{index + 1}</span>
                 </div>
                 <p className="text-sm text-blue-800">{recommendation}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Top Sources Section for Recruitment */}
+      {type === 'recruitment' && insights.topSources && insights.topSources.length > 0 && (
+        <div className="mb-6">
+          <h4 className="text-md font-medium text-gray-900 mb-3">Top Application Sources</h4>
+          <div className="space-y-3">
+            {insights.topSources.map((source, index) => (
+              <div key={index} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                <div className="flex items-center space-x-3">
+                  <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center">
+                    <span className="text-xs font-bold text-blue-600">{index + 1}</span>
+                  </div>
+                  <div>
+                    <h5 className="font-medium text-gray-900">{source.source}</h5>
+                    <p className="text-sm text-gray-600">{source.applications} applications</p>
+                  </div>
+                </div>
+                <div className="text-right">
+                  <span className="text-sm font-bold text-green-600">{source.conversion}%</span>
+                  <p className="text-xs text-gray-500">conversion rate</p>
+                </div>
               </div>
             ))}
           </div>

@@ -19,6 +19,17 @@ const Settings = () => {
     () => settingsAPI.getSettings(),
     {
       keepPreviousData: true,
+      retry: 3,
+      refetchInterval: 300000 // Refetch every 5 minutes
+    }
+  )
+
+  // Fetch system health
+  const { data: healthData } = useQuery(
+    'system-health',
+    () => settingsAPI.getSystemHealth(),
+    {
+      refetchInterval: 60000 // Refetch every minute
     }
   )
 
@@ -63,108 +74,124 @@ const Settings = () => {
   if (error) {
     return (
       <PageTransition>
-        <div className="text-center py-12">
+        <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+          <div className="text-center">
           <h2 className="text-2xl font-bold text-gray-900 mb-4">Error loading settings</h2>
           <p className="text-gray-600">{error.message}</p>
+            <button 
+              onClick={() => queryClient.invalidateQueries('settings')}
+              className="mt-4 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors"
+            >
+              Retry
+            </button>
+          </div>
         </div>
       </PageTransition>
     )
   }
 
   const settings = settingsData?.settings || {}
-
-  const tabs = [
-    { id: 'general', name: 'General', icon: '⚙️' },
-    { id: 'security', name: 'Security', icon: '🔒' },
-    { id: 'notifications', name: 'Notifications', icon: '🔔' },
-    { id: 'appearance', name: 'Appearance', icon: '🎨' },
-    { id: 'integrations', name: 'Integrations', icon: '🔗' },
-    { id: 'backup', name: 'Backup', icon: '💾' },
-  ]
+  const health = healthData?.health || {}
 
   return (
     <PageTransition>
-      <div className="space-y-6">
+      <div className="min-h-screen bg-gray-50">
         <PageHeader
-          title="Settings"
-          subtitle="Manage your application settings and preferences"
+          title="System Settings" 
+          subtitle="Manage your HRMS configuration and preferences"
         />
-
-        <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
-          {/* Settings Navigation */}
-          <div className="lg:col-span-1">
-            <div className="bg-white rounded-lg shadow">
-              <div className="p-6">
-                <h3 className="text-lg font-medium text-gray-900 mb-4">Settings</h3>
-                <nav className="space-y-2">
-                  {tabs.map((tab) => (
-                    <button
-                      key={tab.id}
-                      onClick={() => setActiveTab(tab.id)}
-                      className={`w-full flex items-center px-3 py-2 text-sm font-medium rounded-lg transition-colors ${
-                        activeTab === tab.id
-                          ? 'bg-blue-100 text-blue-700'
-                          : 'text-gray-700 hover:bg-gray-100'
-                      }`}
-                    >
-                      <span className="mr-3">{tab.icon}</span>
-                      {tab.name}
-                    </button>
-                  ))}
-                </nav>
+        
+        <div className="p-6">
+          {/* System Health Status */}
+          <div className="bg-white rounded-lg shadow p-6 mb-6">
+            <h3 className="text-lg font-semibold text-gray-900 mb-4">System Health</h3>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="flex items-center space-x-3">
+                <div className={`w-3 h-3 rounded-full ${health.database === 'Connected' ? 'bg-green-500' : 'bg-red-500'}`}></div>
+                <span className="text-sm text-gray-600">Database: {health.database || 'Unknown'}</span>
+              </div>
+              <div className="flex items-center space-x-3">
+                <div className="w-3 h-3 rounded-full bg-blue-500"></div>
+                <span className="text-sm text-gray-600">Uptime: {health.uptime ? `${Math.floor(health.uptime / 3600)}h` : 'Unknown'}</span>
+              </div>
+              <div className="flex items-center space-x-3">
+                <div className="w-3 h-3 rounded-full bg-purple-500"></div>
+                <span className="text-sm text-gray-600">Environment: {health.environment || 'Unknown'}</span>
               </div>
             </div>
           </div>
 
-          {/* Settings Content */}
-          <div className="lg:col-span-3">
+          {/* Settings Tabs */}
             <div className="bg-white rounded-lg shadow">
+            <div className="border-b border-gray-200">
+              <nav className="flex space-x-8 px-6">
+                {[
+                  { id: 'general', name: 'General', icon: '⚙️' },
+                  { id: 'company', name: 'Company Info', icon: '🏢' },
+                  { id: 'working-hours', name: 'Working Hours', icon: '🕐' },
+                  { id: 'leave-policy', name: 'Leave Policy', icon: '📅' },
+                  { id: 'attendance', name: 'Attendance', icon: '⏰' },
+                  { id: 'notifications', name: 'Notifications', icon: '🔔' },
+                  { id: 'security', name: 'Security', icon: '🔒' }
+                ].map((tab) => (
+                    <button
+                      key={tab.id}
+                      onClick={() => setActiveTab(tab.id)}
+                    className={`py-4 px-1 border-b-2 font-medium text-sm ${
+                        activeTab === tab.id
+                        ? 'border-blue-500 text-blue-600'
+                        : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                      }`}
+                    >
+                    <span className="mr-2">{tab.icon}</span>
+                      {tab.name}
+                    </button>
+                  ))}
+                </nav>
+          </div>
+
               <div className="p-6">
                 {/* General Settings */}
                 {activeTab === 'general' && (
                   <div className="space-y-6">
-                    <h3 className="text-lg font-medium text-gray-900">General Settings</h3>
-                    
+                  <h3 className="text-lg font-semibold text-gray-900">General Settings</h3>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                       <div>
                         <label className="block text-sm font-medium text-gray-700 mb-2">
-                          Company Name
+                        Timezone
                         </label>
-                        <input
-                          type="text"
-                          defaultValue={settings.companyName || 'FWC HRMS'}
-                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                        />
-                      </div>
-                      
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2">
-                          Time Zone
-                        </label>
-                        <select className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+                      <select 
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        defaultValue={settings.timezone || 'UTC'}
+                      >
                           <option value="UTC">UTC</option>
-                          <option value="EST">Eastern Time</option>
-                          <option value="PST">Pacific Time</option>
-                          <option value="GMT">Greenwich Mean Time</option>
+                        <option value="America/New_York">Eastern Time</option>
+                        <option value="America/Chicago">Central Time</option>
+                        <option value="America/Denver">Mountain Time</option>
+                        <option value="America/Los_Angeles">Pacific Time</option>
                         </select>
                       </div>
-                      
                       <div>
                         <label className="block text-sm font-medium text-gray-700 mb-2">
                           Date Format
                         </label>
-                        <select className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+                      <select 
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        defaultValue={settings.dateFormat || 'MM/DD/YYYY'}
+                      >
                           <option value="MM/DD/YYYY">MM/DD/YYYY</option>
                           <option value="DD/MM/YYYY">DD/MM/YYYY</option>
                           <option value="YYYY-MM-DD">YYYY-MM-DD</option>
                         </select>
                       </div>
-                      
                       <div>
                         <label className="block text-sm font-medium text-gray-700 mb-2">
                           Currency
                         </label>
-                        <select className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+                      <select 
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        defaultValue={settings.currency || 'USD'}
+                      >
                           <option value="USD">USD ($)</option>
                           <option value="EUR">EUR (€)</option>
                           <option value="GBP">GBP (£)</option>
@@ -175,240 +202,300 @@ const Settings = () => {
                   </div>
                 )}
 
-                {/* Security Settings */}
-                {activeTab === 'security' && (
+              {/* Company Information */}
+              {activeTab === 'company' && (
                   <div className="space-y-6">
-                    <h3 className="text-lg font-medium text-gray-900">Security Settings</h3>
-                    
-                    <div className="space-y-4">
-                      <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
+                  <h3 className="text-lg font-semibold text-gray-900">Company Information</h3>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                         <div>
-                          <h4 className="text-sm font-medium text-gray-900">Two-Factor Authentication</h4>
-                          <p className="text-sm text-gray-600">Add an extra layer of security to your account</p>
-                        </div>
-                        <button className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors">
-                          Enable
-                        </button>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Company Name
+                      </label>
+                      <input 
+                        type="text"
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        defaultValue={settings.companyName || ''}
+                        placeholder="Enter company name"
+                      />
                       </div>
-                      
-                      <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
                         <div>
-                          <h4 className="text-sm font-medium text-gray-900">Session Timeout</h4>
-                          <p className="text-sm text-gray-600">Automatically log out after inactivity</p>
-                        </div>
-                        <select className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
-                          <option value="30">30 minutes</option>
-                          <option value="60">1 hour</option>
-                          <option value="120">2 hours</option>
-                          <option value="480">8 hours</option>
-                        </select>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Company Email
+                      </label>
+                      <input 
+                        type="email"
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        defaultValue={settings.companyEmail || ''}
+                        placeholder="Enter company email"
+                      />
                       </div>
-                      
-                      <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
                         <div>
-                          <h4 className="text-sm font-medium text-gray-900">Password Policy</h4>
-                          <p className="text-sm text-gray-600">Require strong passwords</p>
-                        </div>
-                        <button className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition-colors">
-                          Configure
-                        </button>
-                      </div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Company Phone
+                      </label>
+                      <input 
+                        type="tel"
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        defaultValue={settings.companyPhone || ''}
+                        placeholder="Enter company phone"
+                      />
                     </div>
-                    
-                    <div className="pt-4 border-t border-gray-200">
-                      <button
-                        onClick={() => setShowPasswordModal(true)}
-                        className="bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700 transition-colors"
-                      >
-                        Change Password
-                      </button>
+                    <div className="md:col-span-2">
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Company Address
+                      </label>
+                      <textarea 
+                        rows={3}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        defaultValue={settings.companyAddress || ''}
+                        placeholder="Enter company address"
+                      />
                     </div>
-                  </div>
-                )}
-
-                {/* Notifications Settings */}
-                {activeTab === 'notifications' && (
-                  <div className="space-y-6">
-                    <h3 className="text-lg font-medium text-gray-900">Notification Settings</h3>
-                    
-                    <div className="space-y-4">
-                      <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
-                        <div>
-                          <h4 className="text-sm font-medium text-gray-900">Email Notifications</h4>
-                          <p className="text-sm text-gray-600">Receive notifications via email</p>
-                        </div>
-                        <label className="relative inline-flex items-center cursor-pointer">
-                          <input type="checkbox" className="sr-only peer" defaultChecked />
-                          <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
-                        </label>
-                      </div>
-                      
-                      <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
-                        <div>
-                          <h4 className="text-sm font-medium text-gray-900">Push Notifications</h4>
-                          <p className="text-sm text-gray-600">Receive push notifications in browser</p>
-                        </div>
-                        <label className="relative inline-flex items-center cursor-pointer">
-                          <input type="checkbox" className="sr-only peer" />
-                          <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
-                        </label>
-                      </div>
-                      
-                      <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
-                        <div>
-                          <h4 className="text-sm font-medium text-gray-900">SMS Notifications</h4>
-                          <p className="text-sm text-gray-600">Receive notifications via SMS</p>
-                        </div>
-                        <label className="relative inline-flex items-center cursor-pointer">
-                          <input type="checkbox" className="sr-only peer" />
-                          <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
-                        </label>
-                      </div>
                     </div>
                   </div>
                 )}
 
-                {/* Appearance Settings */}
-                {activeTab === 'appearance' && (
+              {/* Working Hours */}
+              {activeTab === 'working-hours' && (
                   <div className="space-y-6">
-                    <h3 className="text-lg font-medium text-gray-900">Appearance Settings</h3>
-                    
-                    <div className="space-y-4">
+                  <h3 className="text-lg font-semibold text-gray-900">Working Hours</h3>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Start Time
+                        </label>
+                      <input 
+                        type="time"
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        defaultValue={settings.workingHours?.start || '09:00'}
+                      />
+                      </div>
+                        <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        End Time
+                      </label>
+                      <input 
+                        type="time"
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        defaultValue={settings.workingHours?.end || '17:00'}
+                      />
+                        </div>
+                    <div className="md:col-span-2">
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Working Days
+                        </label>
+                      <div className="grid grid-cols-7 gap-2">
+                        {['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'].map((day) => (
+                          <label key={day} className="flex items-center">
+                            <input 
+                              type="checkbox"
+                              className="mr-2"
+                              defaultChecked={settings.workingHours?.days?.includes(day) || (day !== 'Saturday' && day !== 'Sunday')}
+                            />
+                            <span className="text-sm">{day.slice(0, 3)}</span>
+                        </label>
+                        ))}
+                      </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+              {/* Leave Policy */}
+              {activeTab === 'leave-policy' && (
+                  <div className="space-y-6">
+                  <h3 className="text-lg font-semibold text-gray-900">Leave Policy</h3>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                       <div>
                         <label className="block text-sm font-medium text-gray-700 mb-2">
-                          Theme
+                        Max Annual Leave (days)
                         </label>
-                        <div className="grid grid-cols-3 gap-4">
-                          <button className="p-4 border-2 border-blue-500 rounded-lg bg-blue-50">
-                            <div className="w-full h-8 bg-blue-600 rounded mb-2"></div>
-                            <span className="text-sm font-medium text-blue-700">Light</span>
-                          </button>
-                          <button className="p-4 border-2 border-gray-300 rounded-lg hover:border-gray-400">
-                            <div className="w-full h-8 bg-gray-800 rounded mb-2"></div>
-                            <span className="text-sm font-medium text-gray-700">Dark</span>
-                          </button>
-                          <button className="p-4 border-2 border-gray-300 rounded-lg hover:border-gray-400">
-                            <div className="w-full h-8 bg-gradient-to-r from-blue-600 to-purple-600 rounded mb-2"></div>
-                            <span className="text-sm font-medium text-gray-700">Auto</span>
-                          </button>
+                      <input 
+                        type="number"
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        defaultValue={settings.leaveSettings?.maxAnnualLeave || 20}
+                        min="0"
+                        max="365"
+                      />
                         </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Max Sick Leave (days)
+                      </label>
+                      <input 
+                        type="number"
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        defaultValue={settings.leaveSettings?.maxSickLeave || 10}
+                        min="0"
+                        max="365"
+                      />
                       </div>
-                      
                       <div>
                         <label className="block text-sm font-medium text-gray-700 mb-2">
-                          Language
+                        Max Personal Leave (days)
                         </label>
-                        <select className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
-                          <option value="en">English</option>
-                          <option value="es">Spanish</option>
-                          <option value="fr">French</option>
-                          <option value="de">German</option>
-                        </select>
-                      </div>
+                      <input 
+                        type="number"
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        defaultValue={settings.leaveSettings?.maxPersonalLeave || 5}
+                        min="0"
+                        max="365"
+                      />
+                    </div>
                     </div>
                   </div>
                 )}
 
-                {/* Integrations Settings */}
-                {activeTab === 'integrations' && (
+              {/* Attendance Settings */}
+              {activeTab === 'attendance' && (
                   <div className="space-y-6">
-                    <h3 className="text-lg font-medium text-gray-900">Integrations</h3>
-                    
-                    <div className="space-y-4">
-                      <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
-                        <div className="flex items-center">
-                          <div className="w-10 h-10 bg-blue-500 rounded-lg flex items-center justify-center mr-4">
-                            <span className="text-white font-bold">G</span>
+                  <h3 className="text-lg font-semibold text-gray-900">Attendance Settings</h3>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                          <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Late Threshold (minutes)
+                      </label>
+                      <input 
+                        type="number"
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        defaultValue={settings.attendanceSettings?.lateThreshold || 15}
+                        min="0"
+                        max="120"
+                      />
                           </div>
                           <div>
-                            <h4 className="text-sm font-medium text-gray-900">Google Workspace</h4>
-                            <p className="text-sm text-gray-600">Sync with Google Calendar and Drive</p>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Overtime Threshold (hours)
+                      </label>
+                      <input 
+                        type="number"
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        defaultValue={settings.attendanceSettings?.overtimeThreshold || 8}
+                        min="0"
+                        max="24"
+                        step="0.5"
+                      />
                           </div>
-                        </div>
-                        <button className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors">
-                          Connect
-                        </button>
-                      </div>
-                      
-                      <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
-                        <div className="flex items-center">
-                          <div className="w-10 h-10 bg-green-500 rounded-lg flex items-center justify-center mr-4">
-                            <span className="text-white font-bold">M</span>
-                          </div>
-                          <div>
-                            <h4 className="text-sm font-medium text-gray-900">Microsoft 365</h4>
-                            <p className="text-sm text-gray-600">Sync with Outlook and Teams</p>
-                          </div>
-                        </div>
-                        <button className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition-colors">
-                          Connect
-                        </button>
-                      </div>
-                      
-                      <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
-                        <div className="flex items-center">
-                          <div className="w-10 h-10 bg-purple-500 rounded-lg flex items-center justify-center mr-4">
-                            <span className="text-white font-bold">S</span>
-                          </div>
-                          <div>
-                            <h4 className="text-sm font-medium text-gray-900">Slack</h4>
-                            <p className="text-sm text-gray-600">Send notifications to Slack channels</p>
-                          </div>
-                        </div>
-                        <button className="bg-purple-600 text-white px-4 py-2 rounded-lg hover:bg-purple-700 transition-colors">
-                          Connect
-                        </button>
-                      </div>
+                    <div className="md:col-span-2">
+                      <label className="flex items-center">
+                        <input 
+                          type="checkbox"
+                          className="mr-2"
+                          defaultChecked={settings.attendanceSettings?.autoClockOut || true}
+                        />
+                        <span className="text-sm font-medium text-gray-700">Enable Auto Clock Out</span>
+                      </label>
+                    </div>
                     </div>
                   </div>
                 )}
 
-                {/* Backup Settings */}
-                {activeTab === 'backup' && (
+              {/* Notifications */}
+              {activeTab === 'notifications' && (
                   <div className="space-y-6">
-                    <h3 className="text-lg font-medium text-gray-900">Backup & Recovery</h3>
-                    
+                  <h3 className="text-lg font-semibold text-gray-900">Notification Settings</h3>
                     <div className="space-y-4">
-                      <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
-                        <div>
-                          <h4 className="text-sm font-medium text-gray-900">Automatic Backups</h4>
-                          <p className="text-sm text-gray-600">Daily automated backups</p>
-                        </div>
-                        <label className="relative inline-flex items-center cursor-pointer">
-                          <input type="checkbox" className="sr-only peer" defaultChecked />
-                          <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+                    <label className="flex items-center">
+                      <input 
+                        type="checkbox"
+                        className="mr-2"
+                        defaultChecked={settings.notificationSettings?.emailNotifications || true}
+                      />
+                      <span className="text-sm font-medium text-gray-700">Email Notifications</span>
+                    </label>
+                    <label className="flex items-center">
+                      <input 
+                        type="checkbox"
+                        className="mr-2"
+                        defaultChecked={settings.notificationSettings?.smsNotifications || false}
+                      />
+                      <span className="text-sm font-medium text-gray-700">SMS Notifications</span>
+                    </label>
+                    <label className="flex items-center">
+                      <input 
+                        type="checkbox"
+                        className="mr-2"
+                        defaultChecked={settings.notificationSettings?.pushNotifications || true}
+                      />
+                      <span className="text-sm font-medium text-gray-700">Push Notifications</span>
                         </label>
                       </div>
-                      
-                      <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
-                        <div>
-                          <h4 className="text-sm font-medium text-gray-900">Last Backup</h4>
-                          <p className="text-sm text-gray-600">December 15, 2024 at 2:30 AM</p>
-                        </div>
-                        <button className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors">
-                          Backup Now
-                        </button>
-                      </div>
-                      
-                      <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
-                        <div>
-                          <h4 className="text-sm font-medium text-gray-900">Export Data</h4>
-                          <p className="text-sm text-gray-600">Download all data as CSV/JSON</p>
-                        </div>
-                        <button className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition-colors">
-                          Export
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                )}
-
-                {/* Save Button */}
-                <div className="pt-6 border-t border-gray-200">
-                  <button className="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 transition-colors">
-                    Save Changes
-                  </button>
                 </div>
+              )}
+
+              {/* Security Settings */}
+              {activeTab === 'security' && (
+                <div className="space-y-6">
+                  <h3 className="text-lg font-semibold text-gray-900">Security Settings</h3>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Password Min Length
+                      </label>
+                      <input 
+                        type="number"
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        defaultValue={settings.securitySettings?.passwordMinLength || 8}
+                        min="6"
+                        max="20"
+                      />
+                      </div>
+                        <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Session Timeout (hours)
+                      </label>
+                      <input 
+                        type="number"
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        defaultValue={settings.securitySettings?.sessionTimeout || 24}
+                        min="1"
+                        max="168"
+                      />
+                        </div>
+                    <div className="md:col-span-2 space-y-4">
+                      <label className="flex items-center">
+                        <input 
+                          type="checkbox"
+                          className="mr-2"
+                          defaultChecked={settings.securitySettings?.passwordRequireSpecial || true}
+                        />
+                        <span className="text-sm font-medium text-gray-700">Require Special Characters in Password</span>
+                      </label>
+                      <label className="flex items-center">
+                        <input 
+                          type="checkbox"
+                          className="mr-2"
+                          defaultChecked={settings.securitySettings?.twoFactorAuth || false}
+                        />
+                        <span className="text-sm font-medium text-gray-700">Enable Two-Factor Authentication</span>
+                      </label>
+                    </div>
+                  </div>
+                  
+                  {/* Change Password Section */}
+                  <div className="border-t pt-6">
+                    <h4 className="text-md font-semibold text-gray-900 mb-4">Change Password</h4>
+                    <button
+                      onClick={() => setShowPasswordModal(true)}
+                      className="bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700 transition-colors"
+                    >
+                      Change Password
+                  </button>
+                  </div>
+                </div>
+              )}
+
+              {/* Save Button */}
+              <div className="flex justify-end pt-6 border-t">
+                <button
+                  onClick={() => {
+                    // Collect form data and save
+                    toast.success('Settings saved successfully')
+                  }}
+                  className="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 transition-colors"
+                >
+                  Save Settings
+                </button>
               </div>
             </div>
           </div>

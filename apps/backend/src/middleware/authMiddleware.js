@@ -1,313 +1,329 @@
 const jwt = require('jsonwebtoken');
-const { ObjectId } = require('mongodb');
 const database = require('../database/connection');
+const { ObjectId } = require('mongodb');
 
-// Role hierarchy and permissions
-const ROLE_HIERARCHY = {
-  ADMIN: 5,
-  HR: 4,
-  MANAGER: 3,
-  EMPLOYEE: 2,
-  CANDIDATE: 1
+// Role-based permissions
+const PERMISSIONS = {
+  // User management
+  'users:read': ['ADMIN', 'HR'],
+  'users:write': ['ADMIN', 'HR'],
+  'users:delete': ['ADMIN'],
+  
+  // Employee management
+  'employees:read': ['ADMIN', 'HR', 'MANAGER'],
+  'employees:write': ['ADMIN', 'HR'],
+  'employees:delete': ['ADMIN'],
+  
+  // Attendance
+  'attendance:read': ['ADMIN', 'HR', 'MANAGER', 'EMPLOYEE'],
+  'attendance:write': ['ADMIN', 'HR', 'EMPLOYEE'],
+  'attendance:clock': ['EMPLOYEE'],
+  
+  // Leave management
+  'leaves:read': ['ADMIN', 'HR', 'MANAGER', 'EMPLOYEE'],
+  'leaves:write': ['ADMIN', 'HR', 'EMPLOYEE'],
+  'leaves:approve': ['ADMIN', 'HR', 'MANAGER'],
+  
+  // Payroll
+  'payroll:read': ['ADMIN', 'HR', 'EMPLOYEE'],
+  'payroll:write': ['ADMIN', 'HR'],
+  'payroll:release': ['ADMIN', 'HR'],
+  
+  // Performance
+  'performance:read': ['ADMIN', 'HR', 'MANAGER', 'EMPLOYEE'],
+  'performance:write': ['ADMIN', 'HR', 'MANAGER'],
+  
+  // Reports
+  'reports:read': ['ADMIN', 'HR'],
+  'reports:export': ['ADMIN', 'HR'],
+  
+  // Departments
+  'departments:read': ['ADMIN', 'HR', 'MANAGER'],
+  'departments:write': ['ADMIN', 'HR'],
+  
+  // Settings
+  'settings:read': ['ADMIN', 'HR', 'MANAGER'],
+  'settings:write': ['ADMIN', 'HR'],
+  
+  // Recruitment
+  'recruitment:read': ['ADMIN', 'HR', 'MANAGER'],
+  'recruitment:write': ['ADMIN', 'HR'],
+  'recruitment:delete': ['ADMIN', 'HR'],
+  
+  // Job Postings
+  'job-postings:read': ['ADMIN', 'HR', 'MANAGER'],
+  'job-postings:write': ['ADMIN', 'HR'],
+  'job-postings:delete': ['ADMIN', 'HR'],
+  
+  // Candidates
+  'candidates:read': ['ADMIN', 'HR', 'MANAGER'],
+  'candidates:write': ['ADMIN', 'HR'],
+  'candidates:delete': ['ADMIN', 'HR'],
+  
+  // Notifications
+  'notifications:read': ['ADMIN', 'HR', 'MANAGER', 'EMPLOYEE'],
+  'notifications:write': ['ADMIN', 'HR', 'MANAGER'],
 };
 
-const ROLE_PERMISSIONS = {
-  ADMIN: [
-    'users.create', 'users.read', 'users.update', 'users.delete',
-    'employees.create', 'employees.read', 'employees.update', 'employees.delete',
-    'departments.create', 'departments.read', 'departments.update', 'departments.delete',
-    'attendance.read', 'attendance.update', 'attendance.delete',
-    'leave.read', 'leave.approve', 'leave.reject',
-    'payroll.create', 'payroll.read', 'payroll.update', 'payroll.delete',
-    'performance.create', 'performance.read', 'performance.update', 'performance.delete',
-    'recruitment.create', 'recruitment.read', 'recruitment.update', 'recruitment.delete',
-    'reports.read', 'analytics.read', 'settings.read', 'settings.update'
-  ],
-  HR: [
-    'employees.create', 'employees.read', 'employees.update',
-    'departments.read',
-    'attendance.read', 'attendance.update',
-    'leave.read', 'leave.approve', 'leave.reject',
-    'payroll.create', 'payroll.read', 'payroll.update',
-    'performance.create', 'performance.read', 'performance.update',
-    'recruitment.create', 'recruitment.read', 'recruitment.update', 'recruitment.delete',
-    'reports.read', 'analytics.read'
-  ],
-  MANAGER: [
-    'employees.read',
-    'departments.read',
-    'attendance.read', 'attendance.update',
-    'leave.read', 'leave.approve', 'leave.reject',
-    'performance.create', 'performance.read', 'performance.update',
-    'reports.read'
-  ],
-  EMPLOYEE: [
-    'attendance.read', 'attendance.create',
-    'leave.read', 'leave.create',
-    'performance.read'
-  ],
-  CANDIDATE: [
-    'profile.read', 'profile.update'
-  ]
+// Check if user has permission
+const hasPermission = (userRole, permission) => {
+  const allowedRoles = PERMISSIONS[permission];
+  return allowedRoles && allowedRoles.includes(userRole);
+};
+
+// Authentication middleware
+const authenticate = async (req, res, next) => {
+  try {
+    const token = req.cookies.token || req.headers.authorization?.replace('Bearer ', '');
+    
+    if (!token) {
+      return res.status(401).json({ message: 'Access denied. No token provided.' });
+    }
+
+    const decoded = jwt.verify(token, process.env.JWT_SECRET || 'fwc-hrms-super-secret-jwt-key-2024');
+    
+    // Get user from database
+    const user = await database.findOne('users', { _id: new ObjectId(decoded.userId) });
+    
+    if (!user || !user.isActive) {
+      return res.status(401).json({ message: 'Invalid token. User not found or inactive.' });
+    }
+
+    // Get employee data if user is an employee
+    let employee = null;
+    if (user.role === 'EMPLOYEE' || user.role === 'MANAGER') {
+      employee = await database.findOne('employees', { userId: user._id });
+    }
+
+    req.user = {
+      id: user._id,
+      email: user.email,
+      username: user.username,
+      role: user.role,
+      isActive: user.isActive,
+      employee: employee
+    };
+
+    next();
+  } catch (error) {
+    if (error.name === 'TokenExpiredError') {
+      return res.status(401).json({ message: 'Token expired. Please login again.' });
+    } else if (error.name === 'JsonWebTokenError') {
+      return res.status(401).json({ message: 'Invalid token.' });
+    }
+    
+    console.error('Authentication error:', error);
+    return res.status(500).json({ message: 'Internal server error during authentication.' });
+  }
+};
+
+// Authorization middleware
+const authorize = (permission) => {
+  return (req, res, next) => {
+    if (!req.user) {
+      return res.status(401).json({ message: 'Authentication required.' });
+    }
+
+    if (!hasPermission(req.user.role, permission)) {
+      return res.status(403).json({ 
+        message: 'Access denied. Insufficient permissions.',
+        required: permission,
+        userRole: req.user.role
+      });
+    }
+
+    next();
+  };
+};
+
+// Role-based middleware
+const requireRole = (...roles) => {
+  return (req, res, next) => {
+    if (!req.user) {
+      return res.status(401).json({ message: 'Authentication required.' });
+    }
+
+    if (!roles.includes(req.user.role)) {
+      return res.status(403).json({ 
+        message: 'Access denied. Insufficient role.',
+        required: roles,
+        userRole: req.user.role
+      });
+    }
+
+    next();
+  };
+};
+
+// Manager access middleware (can access their team members)
+const requireManagerAccess = async (req, res, next) => {
+  try {
+    if (!req.user) {
+      return res.status(401).json({ message: 'Authentication required.' });
+    }
+
+    // Admin and HR can access all employees
+    if (req.user.role === 'ADMIN' || req.user.role === 'HR') {
+      return next();
+    }
+
+    // Managers can only access their team members
+    if (req.user.role === 'MANAGER') {
+      const managerEmployee = await database.findOne('employees', { userId: req.user.id });
+      
+      if (!managerEmployee) {
+        return res.status(403).json({ message: 'Manager profile not found.' });
+      }
+
+      // Check if the requested employee is under this manager
+      const targetEmployeeId = req.params.id || req.params.employeeId;
+      if (targetEmployeeId) {
+        const targetEmployee = await database.findOne('employees', { 
+          _id: new ObjectId(targetEmployeeId),
+          managerId: managerEmployee._id
+        });
+
+        if (!targetEmployee) {
+          return res.status(403).json({ message: 'Access denied. Employee not under your management.' });
+        }
+      }
+
+      req.managerEmployee = managerEmployee;
+      return next();
+    }
+
+    // Employees can only access their own data
+    if (req.user.role === 'EMPLOYEE') {
+      const employeeId = req.params.id || req.params.employeeId;
+      if (employeeId && employeeId !== req.user.id.toString()) {
+        return res.status(403).json({ message: 'Access denied. Can only access own data.' });
+      }
+      return next();
+    }
+
+    return res.status(403).json({ message: 'Access denied. Invalid role.' });
+  } catch (error) {
+    console.error('Manager access check error:', error);
+    return res.status(500).json({ message: 'Internal server error during authorization.' });
+  }
+};
+
+// Audit logging middleware
+const auditLog = (action, entity) => {
+  return async (req, res, next) => {
+    const originalSend = res.send;
+    
+    res.send = function(data) {
+      // Log the action after response is sent
+      if (res.statusCode < 400 && req.user) {
+        const auditData = {
+          userId: req.user.id,
+          action: action,
+          entity: entity,
+          entityId: req.params.id || null,
+          details: {
+            method: req.method,
+            url: req.url,
+            ip: req.ip,
+            userAgent: req.get('User-Agent'),
+            timestamp: new Date()
+          },
+          timestamp: new Date()
+        };
+
+        // Don't await this to avoid blocking the response
+        database.insertOne('audit_logs', auditData).catch(console.error);
+      }
+      
+      originalSend.call(this, data);
+    };
+    
+    next();
+  };
 };
 
 // Candidate authentication middleware
 const authenticateCandidate = async (req, res, next) => {
   try {
-    // Check for token in Authorization header first, then cookies
-    let token = req.headers.authorization?.split(' ')[1];
+    const token = req.cookies.token || req.headers.authorization?.replace('Bearer ', '');
+    
     if (!token) {
-      token = req.cookies.token;
-    }
-
-    if (!token) {
-      return res.status(401).json({ 
-        success: false,
-        message: 'Access token required' 
-      });
+      return res.status(401).json({ message: 'Access denied. No token provided.' });
     }
 
     const decoded = jwt.verify(token, process.env.JWT_SECRET || 'fwc-hrms-super-secret-jwt-key-2024');
+    
+    // Check if this is a candidate token
+    if (decoded.role !== 'CANDIDATE') {
+      return res.status(401).json({ message: 'Invalid token. Candidate access required.' });
+    }
     
     // Get candidate from database
     const candidate = await database.findOne('candidates', { _id: new ObjectId(decoded.candidateId) });
     
     if (!candidate || candidate.status !== 'ACTIVE') {
-      return res.status(401).json({ 
-        success: false,
-        message: 'Invalid or inactive candidate' 
-      });
+      return res.status(401).json({ message: 'Invalid token. Candidate not found or inactive.' });
     }
 
     req.candidateId = candidate._id;
-    req.candidate = candidate;
+    req.candidate = {
+      id: candidate._id,
+      email: candidate.email,
+      firstName: candidate.firstName,
+      lastName: candidate.lastName,
+      status: candidate.status,
+      profileComplete: candidate.profileComplete,
+      resumeUploaded: candidate.resumeUploaded
+    };
+
     next();
   } catch (error) {
-    console.error('Candidate token verification error:', error);
-    return res.status(401).json({ 
-      success: false,
-      message: 'Invalid token' 
-    });
+    if (error.name === 'TokenExpiredError') {
+      return res.status(401).json({ message: 'Token expired. Please login again.' });
+    } else if (error.name === 'JsonWebTokenError') {
+      return res.status(401).json({ message: 'Invalid token.' });
+    }
+    
+    console.error('Candidate authentication error:', error);
+    return res.status(500).json({ message: 'Internal server error during authentication.' });
   }
 };
 
-// Enhanced token verification with permissions
-const verifyToken = async (req, res, next) => {
-  try {
-    const token = req.cookies.token || req.headers.authorization?.split(' ')[1];
-
-    if (!token) {
-      return res.status(401).json({ message: 'Access token required' });
-    }
-
-    const decoded = jwt.verify(token, process.env.JWT_SECRET || 'fwc-hrms-super-secret-jwt-key-2024');
-    
-    // Get user from database with enhanced information
-    const user = await database.findOne('users', { _id: new ObjectId(decoded.userId) });
-    
-    if (!user || !user.isActive) {
-      return res.status(401).json({ message: 'Invalid or inactive user' });
-    }
-
-    // Get employee data
-    const employee = await database.findOne('employees', { userId: user._id });
-
-    // Add permissions and role level to user object
-    user.permissions = ROLE_PERMISSIONS[user.role] || [];
-    user.roleLevel = ROLE_HIERARCHY[user.role] || 0;
-    user.employee = employee ? {
-      id: employee._id,
-      firstName: employee.firstName,
-      lastName: employee.lastName,
-      department: employee.department,
-      position: employee.position,
-      employeeId: employee.employeeId,
-      hireDate: employee.hireDate,
-      isOnProbation: employee.isOnProbation
-    } : null;
-
-    req.user = user;
-    next();
-  } catch (error) {
-    console.error('Token verification error:', error);
-    return res.status(401).json({ message: 'Invalid token' });
-  }
-};
-
-// Enhanced role checking with hierarchy support
-const checkRole = (...allowedRoles) => {
-  return (req, res, next) => {
-    if (!req.user) {
-      return res.status(401).json({ message: 'Authentication required' });
-    }
-
-    const userRoleLevel = ROLE_HIERARCHY[req.user.role] || 0;
-    const hasPermission = allowedRoles.some(role => {
-      const requiredLevel = ROLE_HIERARCHY[role] || 0;
-      return userRoleLevel >= requiredLevel;
-    });
-
-    if (!hasPermission) {
-      return res.status(403).json({ 
-        message: 'Insufficient permissions',
-        required: allowedRoles,
-        current: req.user.role,
-        roleLevel: userRoleLevel
-      });
-    }
-
-    next();
-  };
-};
-
-// Check specific permission
-const checkPermission = (permission) => {
-  return (req, res, next) => {
-    if (!req.user) {
-      return res.status(401).json({ message: 'Authentication required' });
-    }
-
-    if (!req.user.permissions || !req.user.permissions.includes(permission)) {
-      return res.status(403).json({ 
-        message: 'Insufficient permissions',
-        required: permission,
-        current: req.user.permissions
-      });
-    }
-
-    next();
-  };
-};
-
-// Check multiple permissions (user must have ALL)
-const checkPermissions = (...permissions) => {
-  return (req, res, next) => {
-    if (!req.user) {
-      return res.status(401).json({ message: 'Authentication required' });
-    }
-
-    const hasAllPermissions = permissions.every(permission => 
-      req.user.permissions && req.user.permissions.includes(permission)
-    );
-
-    if (!hasAllPermissions) {
-      return res.status(403).json({ 
-        message: 'Insufficient permissions',
-        required: permissions,
-        current: req.user.permissions
-      });
-    }
-
-    next();
-  };
-};
-
-// Check if user can access resource (owner or higher role)
-const checkResourceAccess = (resourceUserIdField = 'userId') => {
-  return (req, res, next) => {
-    if (!req.user) {
-      return res.status(401).json({ message: 'Authentication required' });
-    }
-
-    // Admin and HR can access all resources
-    if (req.user.role === 'ADMIN' || req.user.role === 'HR') {
-      return next();
-    }
-
-    // Check if user is accessing their own resource
-    const resourceUserId = req.params[resourceUserIdField] || req.body[resourceUserIdField];
-    if (resourceUserId && resourceUserId === req.user._id.toString()) {
-      return next();
-    }
-
-    // Managers can access their team members' resources
-    if (req.user.role === 'MANAGER') {
-      // This would need additional logic to check if the resource belongs to a team member
-      // For now, we'll allow it but this should be enhanced with actual team checking
-      return next();
-    }
-
-    return res.status(403).json({ 
-      message: 'Access denied to this resource',
-      resourceUserId,
-      currentUserId: req.user._id
-    });
-  };
-};
-
-// Optional auth middleware (doesn't fail if no token)
+// Optional authentication (for public endpoints)
 const optionalAuth = async (req, res, next) => {
   try {
-    const token = req.cookies.token || req.headers.authorization?.split(' ')[1];
-
+    const token = req.cookies.token || req.headers.authorization?.replace('Bearer ', '');
+    
     if (token) {
       const decoded = jwt.verify(token, process.env.JWT_SECRET || 'fwc-hrms-super-secret-jwt-key-2024');
       const user = await database.findOne('users', { _id: new ObjectId(decoded.userId) });
       
       if (user && user.isActive) {
-        const employee = await database.findOne('employees', { userId: user._id });
-        
-        user.permissions = ROLE_PERMISSIONS[user.role] || [];
-        user.roleLevel = ROLE_HIERARCHY[user.role] || 0;
-        user.employee = employee ? {
-          id: employee._id,
-          firstName: employee.firstName,
-          lastName: employee.lastName,
-          department: employee.department,
-          position: employee.position
-        } : null;
-        
-        req.user = user;
+        req.user = {
+          id: user._id,
+          email: user.email,
+          username: user.username,
+          role: user.role,
+          isActive: user.isActive
+        };
       }
     }
-
+    
     next();
   } catch (error) {
-    // Silently fail for optional auth
+    // Continue without authentication for optional auth
     next();
   }
 };
 
-// Rate limiting middleware for sensitive operations
-const createRateLimit = (maxAttempts = 5, windowMs = 15 * 60 * 1000) => {
-  const attempts = new Map();
-
-  return (req, res, next) => {
-    const key = req.ip + (req.user?._id || 'anonymous');
-    const now = Date.now();
-    const windowStart = now - windowMs;
-
-    // Clean old attempts
-    if (attempts.has(key)) {
-      const userAttempts = attempts.get(key).filter(time => time > windowStart);
-      attempts.set(key, userAttempts);
-    } else {
-      attempts.set(key, []);
-    }
-
-    const userAttempts = attempts.get(key);
-
-    if (userAttempts.length >= maxAttempts) {
-      return res.status(429).json({
-        message: 'Too many attempts. Please try again later.',
-        retryAfter: Math.ceil((userAttempts[0] + windowMs - now) / 1000)
-      });
-    }
-
-    userAttempts.push(now);
-    next();
-  };
-};
-
 module.exports = {
-  verifyToken,
-  checkRole,
-  checkPermission,
-  checkPermissions,
-  checkResourceAccess,
-  optionalAuth,
-  createRateLimit,
+  authenticate,
   authenticateCandidate,
-  ROLE_HIERARCHY,
-  ROLE_PERMISSIONS
+  authorize,
+  requireRole,
+  requireManagerAccess,
+  auditLog,
+  optionalAuth,
+  PERMISSIONS,
+  hasPermission
 };
