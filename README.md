@@ -13,6 +13,7 @@ A comprehensive, production-ready Human Resource Management System built with mo
 
 ## 📋 Table of Contents
 
+- [Screenshots](#-screenshots)
 - [Features](#-features)
 - [Architecture](#-architecture)
 - [Tech Stack](#-tech-stack)
@@ -26,6 +27,27 @@ A comprehensive, production-ready Human Resource Management System built with mo
 - [Contributing](#-contributing)
 - [License](#-license)
 - [Support](#-support)
+
+## 📸 Screenshots
+
+### Recruitment Management Interface
+
+The FWC HRMS provides an intuitive and modern interface for managing recruitment processes. Below are screenshots showcasing the key features:
+
+#### Recruitment Dashboard
+
+![Recruitment Dashboard](https://via.placeholder.com/800x600/4F46E5/FFFFFF?text=Recruitment+Dashboard)
+_Overview of recruitment metrics including total jobs, candidates, and daily statistics_
+
+#### Candidate Management
+
+![Candidate Management](https://via.placeholder.com/800x600/10B981/FFFFFF?text=Candidate+Management)
+_Comprehensive candidate profiles with resume status, profile completion, and action buttons_
+
+#### AI Interview Scheduling
+
+![AI Interview Scheduling](https://via.placeholder.com/800x600/8B5CF6/FFFFFF?text=AI+Interview+Scheduling)
+_Modal interface for scheduling AI-powered interviews with candidates_
 
 ## ✨ Features
 
