@@ -19,11 +19,6 @@
   "env": {
     "NODE_ENV": "production"
   },
-  "functions": {
-    "apps/frontend/dist/**": {
-      "runtime": "nodejs18.x"
-    }
-  },
   "installCommand": "cd apps/frontend && npm install",
   "buildCommand": "cd apps/frontend && npm run build",
   "outputDirectory": "apps/frontend/dist",
