@@ -1,0 +1,21 @@
+{
+  "name": "fwc-hrms-frontend",
+  "version": "1.0.0",
+  "description": "FWC HRMS Frontend - Vercel Deployment",
+  "private": true,
+  "scripts": {
+    "dev": "cd apps/frontend && npm run dev",
+    "build": "cd apps/frontend && npm run build",
+    "preview": "cd apps/frontend && npm run preview",
+    "install": "cd apps/frontend && npm install"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/PriyankaGowda2005/FWC-HRMS.git"
+  },
+  "homepage": "https://github.com/PriyankaGowda2005/FWC-HRMS#readme",
+  "engines": {
+    "node": ">=18.0.0",
+    "npm": ">=8.0.0"
+  }
+}

@@ -14,5 +14,23 @@ export default defineConfig({
         secure: false,
       }
     }
-  }
+  },
+  build: {
+    outDir: 'dist',
+    assetsDir: 'assets',
+    sourcemap: false,
+    minify: 'terser',
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          vendor: ['react', 'react-dom'],
+          router: ['react-router-dom'],
+          ui: ['@headlessui/react', '@heroicons/react'],
+          charts: ['recharts'],
+          animations: ['framer-motion']
+        }
+      }
+    }
+  },
+  base: './'
 })
