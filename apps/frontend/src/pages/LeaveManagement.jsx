@@ -52,7 +52,7 @@ const LeaveManagement = () => {
     )
   }
 
-  const leaveRequests = leaveData?.data || []
+  const leaveRequests = leaveData?.leaveRequests || []
   const pendingRequests = leaveRequests.filter(req => req.status === 'PENDING')
   const myRequests = leaveRequests.filter(req => req.employeeId === user.employee?.id)
 
@@ -293,6 +293,205 @@ const LeaveManagement = () => {
               )}
             </tbody>
           </table>
+        </div>
+      </div>
+
+      {/* Request Leave Modal */}
+      {showRequestModal && (
+        <RequestLeaveModal
+          onClose={() => setShowRequestModal(false)}
+          onSubmit={(data) => {
+            // Handle leave request logic here
+            console.log('Request leave:', data)
+            setShowRequestModal(false)
+          }}
+        />
+      )}
+
+      {/* Approval Modal */}
+      {showApprovalModal && selectedLeave && (
+        <ApprovalModal
+          leave={selectedLeave}
+          onClose={() => {
+            setShowApprovalModal(false)
+            setSelectedLeave(null)
+          }}
+          onApprove={(reason) => {
+            handleApproveReject(selectedLeave.id, 'APPROVED', reason)
+          }}
+          onReject={(reason) => {
+            handleApproveReject(selectedLeave.id, 'REJECTED', reason)
+          }}
+        />
+      )}
+    </div>
+  )
+}
+
+// Request Leave Modal Component
+const RequestLeaveModal = ({ onClose, onSubmit }) => {
+  const [formData, setFormData] = useState({
+    leaveType: 'ANNUAL',
+    startDate: '',
+    endDate: '',
+    reason: '',
+    emergencyContact: '',
+    handoverNotes: ''
+  })
+
+  const handleSubmit = (e) => {
+    e.preventDefault()
+    onSubmit(formData)
+  }
+
+  return (
+    <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
+      <div className="relative top-20 mx-auto p-5 border w-96 shadow-lg rounded-md bg-white">
+        <div className="mt-3">
+          <h3 className="text-lg font-medium text-gray-900 mb-4">Request Leave</h3>
+          <form onSubmit={handleSubmit} className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700">Leave Type</label>
+              <select
+                required
+                value={formData.leaveType}
+                onChange={(e) => setFormData({ ...formData, leaveType: e.target.value })}
+                className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2"
+              >
+                <option value="ANNUAL">Annual Leave</option>
+                <option value="SICK">Sick Leave</option>
+                <option value="PERSONAL">Personal Leave</option>
+                <option value="EMERGENCY">Emergency Leave</option>
+                <option value="MATERNITY">Maternity Leave</option>
+                <option value="PATERNITY">Paternity Leave</option>
+              </select>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700">Start Date</label>
+              <input
+                type="date"
+                required
+                value={formData.startDate}
+                onChange={(e) => setFormData({ ...formData, startDate: e.target.value })}
+                className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700">End Date</label>
+              <input
+                type="date"
+                required
+                value={formData.endDate}
+                onChange={(e) => setFormData({ ...formData, endDate: e.target.value })}
+                className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700">Reason</label>
+              <textarea
+                required
+                rows={3}
+                value={formData.reason}
+                onChange={(e) => setFormData({ ...formData, reason: e.target.value })}
+                className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2"
+                placeholder="Please provide a reason for your leave request..."
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700">Emergency Contact</label>
+              <input
+                type="text"
+                value={formData.emergencyContact}
+                onChange={(e) => setFormData({ ...formData, emergencyContact: e.target.value })}
+                className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2"
+                placeholder="Emergency contact number"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700">Handover Notes</label>
+              <textarea
+                rows={3}
+                value={formData.handoverNotes}
+                onChange={(e) => setFormData({ ...formData, handoverNotes: e.target.value })}
+                className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2"
+                placeholder="Any important handover information..."
+              />
+            </div>
+            <div className="flex justify-end space-x-3 pt-4">
+              <button
+                type="button"
+                onClick={onClose}
+                className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-md hover:bg-gray-200"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                className="px-4 py-2 text-sm font-medium text-white bg-primary-600 rounded-md hover:bg-primary-700"
+              >
+                Submit Request
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// Approval Modal Component
+const ApprovalModal = ({ leave, onClose, onApprove, onReject }) => {
+  const [reason, setReason] = useState('')
+
+  return (
+    <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
+      <div className="relative top-20 mx-auto p-5 border w-96 shadow-lg rounded-md bg-white">
+        <div className="mt-3">
+          <h3 className="text-lg font-medium text-gray-900 mb-4">Leave Request Decision</h3>
+          <div className="mb-4 p-4 bg-gray-50 rounded-lg">
+            <h4 className="font-medium text-gray-900">
+              {leave.employee?.firstName} {leave.employee?.lastName}
+            </h4>
+            <p className="text-sm text-gray-600">
+              {leave.leaveType} • {leave.daysRequested} days
+            </p>
+            <p className="text-sm text-gray-500">
+              {new Date(leave.startDate).toLocaleDateString()} - {new Date(leave.endDate).toLocaleDateString()}
+            </p>
+            {leave.reason && (
+              <p className="text-sm text-gray-500 mt-2">Reason: {leave.reason}</p>
+            )}
+          </div>
+          <div className="mb-4">
+            <label className="block text-sm font-medium text-gray-700">Reason for decision</label>
+            <textarea
+              rows={3}
+              value={reason}
+              onChange={(e) => setReason(e.target.value)}
+              className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2"
+              placeholder="Optional reason for approval/rejection..."
+            />
+          </div>
+          <div className="flex justify-end space-x-3">
+            <button
+              onClick={onClose}
+              className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-md hover:bg-gray-200"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={() => onReject(reason)}
+              className="px-4 py-2 text-sm font-medium text-white bg-red-600 rounded-md hover:bg-red-700"
+            >
+              Reject
+            </button>
+            <button
+              onClick={() => onApprove(reason)}
+              className="px-4 py-2 text-sm font-medium text-white bg-green-600 rounded-md hover:bg-green-700"
+            >
+              Approve
+            </button>
+          </div>
         </div>
       </div>
     </div>

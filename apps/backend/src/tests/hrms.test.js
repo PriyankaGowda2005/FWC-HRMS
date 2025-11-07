@@ -1,8 +1,7 @@
 const request = require('supertest');
-const { PrismaClient } = require('@prisma/client');
+const database = require('../database/connection');
 
 const app = require('../server');
-const prisma = new PrismaClient();
 
 // Test user credentials (will be created in setup)
 let adminToken = '';

@@ -1,9 +1,38 @@
 import React, { useState, useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from 'react-query'
 import toast from 'react-hot-toast'
+import { motion, AnimatePresence } from 'framer-motion'
 import { useAuth } from '../contexts/AuthContext'
-import { jobPostingAPI, candidateAPI } from '../services/api'
+import { jobPostingAPI, candidateAPI, aiAPI, departmentAPI } from '../services/api'
 import LoadingSpinner from '../components/LoadingSpinner'
+import { 
+  BriefcaseIcon,
+  UserGroupIcon,
+  ChartBarIcon,
+  ClockIcon,
+  CheckCircleIcon,
+  XCircleIcon,
+  ExclamationTriangleIcon,
+  PlusIcon,
+  EyeIcon,
+  PencilIcon,
+  TrashIcon,
+  DocumentTextIcon,
+  CpuChipIcon,
+  StarIcon,
+  ArrowTrendingUpIcon,
+  ArrowTrendingDownIcon,
+  DocumentArrowDownIcon,
+  VideoCameraIcon,
+  MicrophoneIcon,
+  ChatBubbleLeftRightIcon,
+  LightBulbIcon,
+  AcademicCapIcon,
+  BuildingOfficeIcon,
+  CurrencyDollarIcon,
+  MapPinIcon,
+  CalendarIcon
+} from '@heroicons/react/24/outline'
 
 const RecruitmentManagement = () => {
   const { user } = useAuth()
@@ -12,34 +41,109 @@ const RecruitmentManagement = () => {
   const [selectedJob, setSelectedJob] = useState(null)
   const [showCreateJob, setShowCreateJob] = useState(false)
   const [showAIInterview, setShowAIInterview] = useState(false)
+  const [showResumeAnalysis, setShowResumeAnalysis] = useState(false)
   const [selectedCandidate, setSelectedCandidate] = useState(null)
   const [interviewSession, setInterviewSession] = useState(null)
+  const [realTimeStatus, setRealTimeStatus] = useState({
+    currentTime: new Date().toLocaleTimeString(),
+    activeInterviews: 0,
+    applicationsToday: 0
+  })
 
-  // Fetch job postings
-  const { data: jobPostings, isLoading: jobsLoading } = useQuery(
+  // Real-time updates
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setRealTimeStatus(prev => ({
+        ...prev,
+        currentTime: new Date().toLocaleTimeString()
+      }))
+    }, 1000)
+
+    return () => clearInterval(interval)
+  }, [])
+
+  // Fetch job postings with enhanced error handling
+  const { data: jobPostingsData, isLoading: jobsLoading, error: jobsError } = useQuery(
     'job-postings',
     () => jobPostingAPI.getAll(),
-    { enabled: activeTab === 'job-postings' }
+    { 
+      retry: 3,
+      refetchInterval: 60000 // Refetch every minute
+    }
   )
 
   // Fetch candidates
-  const { data: candidates, isLoading: candidatesLoading } = useQuery(
+  const { data: candidatesData, isLoading: candidatesLoading, error: candidatesError } = useQuery(
     'candidates',
     () => candidateAPI.getAll(),
-    { enabled: activeTab === 'candidates' }
+    { 
+      retry: 3,
+      refetchInterval: 60000 // Refetch every minute
+    }
+  )
+
+  // Fetch departments for job creation
+  const { data: departments, isLoading: departmentsLoading } = useQuery(
+    'departments',
+    () => departmentAPI.getDepartments(),
+    { 
+      retry: 3,
+      refetchInterval: 300000 // Refetch every 5 minutes
+    }
+  )
+
+  // Fetch AI recruitment insights
+  const { data: aiInsights, isLoading: aiLoading, error: aiError } = useQuery(
+    'recruitment-ai-insights',
+    () => aiAPI.getRecruitmentInsights(),
+    { 
+      retry: 3,
+      refetchInterval: 300000 // Refetch every 5 minutes
+    }
   )
 
   // Create job posting mutation
   const createJobMutation = useMutation(
     (jobData) => jobPostingAPI.create(jobData),
     {
-      onSuccess: () => {
+      onSuccess: (data) => {
         toast.success('Job posting created successfully')
         queryClient.invalidateQueries('job-postings')
         setShowCreateJob(false)
       },
       onError: (error) => {
         toast.error(error.response?.data?.message || 'Failed to create job posting')
+        console.error('Create job error:', error)
+      }
+    }
+  )
+
+  // Update job posting mutation
+  const updateJobMutation = useMutation(
+    ({ jobId, data }) => jobPostingAPI.update(jobId, data),
+    {
+      onSuccess: () => {
+        toast.success('Job posting updated successfully')
+        queryClient.invalidateQueries('job-postings')
+      },
+      onError: (error) => {
+        toast.error(error.response?.data?.message || 'Failed to update job posting')
+        console.error('Update job error:', error)
+      }
+    }
+  )
+
+  // Delete job posting mutation
+  const deleteJobMutation = useMutation(
+    (jobId) => jobPostingAPI.delete(jobId),
+    {
+      onSuccess: () => {
+        toast.success('Job posting deleted successfully')
+        queryClient.invalidateQueries('job-postings')
+      },
+      onError: (error) => {
+        toast.error(error.response?.data?.message || 'Failed to delete job posting')
+        console.error('Delete job error:', error)
       }
     }
   )
@@ -73,8 +177,57 @@ const RecruitmentManagement = () => {
     }
   )
 
+  // Analyze resume mutation
+  const analyzeResumeMutation = useMutation(
+    async ({ candidateId, resumePath, jobRequirements }) => {
+      const response = await fetch(`${process.env.REACT_APP_ML_SERVICE_URL || 'http://localhost:8000'}/api/resume/analyze`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('token')}`
+        },
+        body: JSON.stringify({
+          file_path: resumePath,
+          job_requirements: jobRequirements
+        })
+      })
+      return response.json()
+    },
+    {
+      onSuccess: async (result) => {
+        if (result.success) {
+          toast.success('Resume analyzed successfully')
+          // Update candidate with AI analysis results
+          await candidateAPI.update(selectedCandidate.id, {
+            fitScore: result.job_fit_analysis?.overall_score,
+            skills: result.candidate_profile?.skills_detected,
+            aiAnalysis: result
+          })
+          queryClient.invalidateQueries('candidates')
+          setShowResumeAnalysis(false)
+        } else {
+          toast.error('Failed to analyze resume')
+        }
+      },
+      onError: () => {
+        toast.error('Error analyzing resume')
+      }
+    }
+  )
+
+  // Handlers
   const handleCreateJob = (jobData) => {
     createJobMutation.mutate(jobData)
+  }
+
+  const handleUpdateJob = (jobId, jobData) => {
+    updateJobMutation.mutate({ jobId, data: jobData })
+  }
+
+  const handleDeleteJob = (jobId) => {
+    if (window.confirm('Are you sure you want to delete this job posting?')) {
+      deleteJobMutation.mutate(jobId)
+    }
   }
 
   const handleStartAIInterview = (candidate) => {
@@ -85,199 +238,481 @@ const RecruitmentManagement = () => {
     })
   }
 
-  const handleAnalyzeResume = async (candidateId, resumePath) => {
-    try {
-      const response = await fetch(`${process.env.REACT_APP_ML_SERVICE_URL || 'http://localhost:8000'}/api/resume/analyze`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('token')}`
-        },
-        body: JSON.stringify({
-          file_path: resumePath,
-          job_requirements: selectedJob ? {
-            skills: selectedJob.requirements?.skills || [],
-            experience_level: selectedJob.requirements?.experience_level || 'mid',
-            industry: selectedJob.requirements?.industry || 'technology'
-          } : null
-        })
-      })
-      
-      const result = await response.json()
-      if (result.success) {
-        toast.success('Resume analyzed successfully')
-        // Update candidate with AI analysis results
-        await candidateAPI.update(candidateId, {
-          fitScore: result.job_fit_analysis?.overall_score,
-          skills: result.candidate_profile?.skills_detected,
-          aiAnalysis: result
-        })
-        queryClient.invalidateQueries('candidates')
-      } else {
-        toast.error('Failed to analyze resume')
-      }
-    } catch (error) {
-      toast.error('Error analyzing resume')
-    }
+  const handleAnalyzeResume = (candidate) => {
+    setSelectedCandidate(candidate)
+    setShowResumeAnalysis(true)
   }
 
-  if (jobsLoading || candidatesLoading) return <LoadingSpinner />
+  const handleSubmitResumeAnalysis = (analysisData) => {
+    analyzeResumeMutation.mutate({
+      candidateId: selectedCandidate.id,
+      resumePath: selectedCandidate.resumeFile,
+      jobRequirements: selectedJob ? {
+        skills: selectedJob.requirements?.skills || [],
+        experience_level: selectedJob.requirements?.experience_level || 'mid',
+        industry: selectedJob.requirements?.industry || 'technology'
+      } : null
+    })
+  }
 
-  return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="flex justify-between items-center">
-        <div>
-          <h1 className="text-3xl font-bold text-gray-900">Recruitment Management</h1>
-          <p className="text-gray-600">AI-powered recruitment and candidate screening</p>
+  // Loading state
+  const isLoading = jobsLoading || candidatesLoading || departmentsLoading || aiLoading
+
+  // Error state
+  const hasErrors = jobsError || candidatesError || aiError
+
+  if (isLoading && !hasErrors) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-center">
+          <LoadingSpinner />
+          <p className="mt-4 text-gray-600">Loading recruitment management...</p>
         </div>
-        <div className="flex space-x-3">
-          <button
-            onClick={() => setShowCreateJob(true)}
+      </div>
+    )
+  }
+
+  if (hasErrors) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-center max-w-md mx-auto">
+          <XCircleIcon className="w-16 h-16 text-red-500 mx-auto mb-4" />
+          <h2 className="text-2xl font-bold text-gray-900 mb-2">Error Loading Recruitment Data</h2>
+          <p className="text-gray-600 mb-4">Unable to load recruitment management data. Please check your connection and try again.</p>
+          <button 
+            onClick={() => window.location.reload()} 
             className="btn-primary"
           >
-            Create Job Posting
+            Retry
           </button>
         </div>
       </div>
+    )
+  }
 
-      {/* Tabs */}
-      <div className="border-b border-gray-200">
-        <nav className="-mb-px flex space-x-8">
-          {[
-            { id: 'job-postings', label: 'Job Postings', count: jobPostings?.length || 0 },
-            { id: 'candidates', label: 'Candidates', count: candidates?.length || 0 },
-            { id: 'ai-interviews', label: 'AI Interviews', count: 0 },
-            { id: 'analytics', label: 'Analytics', count: 0 }
-          ].map((tab) => (
-            <button
-              key={tab.id}
-              onClick={() => setActiveTab(tab.id)}
-              className={`py-2 px-1 border-b-2 font-medium text-sm ${
-                activeTab === tab.id
-                  ? 'border-primary-500 text-primary-600'
-                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-              }`}
+  // Data extraction with fallbacks
+  const jobPostings = jobPostingsData?.jobPostings || []
+  const candidates = candidatesData?.candidates || []
+  const departmentList = departments || []
+  const insights = aiInsights?.insights || {}
+
+  // Calculate stats
+  const stats = {
+    totalJobs: jobPostings.length,
+    activeJobs: jobPostings.filter(job => job.status === 'PUBLISHED').length,
+    totalCandidates: candidates.length,
+    newApplications: candidates.filter(candidate => 
+      new Date(candidate.appliedAt).toDateString() === new Date().toDateString()
+    ).length,
+    aiInterviews: candidates.filter(candidate => candidate.aiInterviewCompleted).length,
+    averageFitScore: candidates.length > 0 ? 
+      (candidates.reduce((sum, c) => sum + (c.fitScore || 0), 0) / candidates.length).toFixed(1) : 0
+  }
+
+  // Update real-time status
+  useEffect(() => {
+    setRealTimeStatus(prev => ({
+      ...prev,
+      applicationsToday: stats.newApplications,
+      activeInterviews: candidates.filter(c => c.status === 'INTERVIEWED').length
+    }))
+  }, [stats.newApplications, candidates])
+
+  return (
+    <div className="min-h-screen bg-gray-50">
+      {/* Real-time Status Bar */}
+      <div className="bg-white border-b border-gray-200 px-6 py-3">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center space-x-6">
+            <div className="flex items-center space-x-2">
+              <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+              <span className="text-sm text-gray-600">
+                System Status: <span className="font-medium">Active</span>
+              </span>
+            </div>
+            <div className="flex items-center space-x-2">
+              <ClockIcon className="w-4 h-4 text-blue-500" />
+              <span className="text-sm text-gray-600">
+                Current Time: <span className="font-medium">{realTimeStatus.currentTime}</span>
+              </span>
+            </div>
+            <div className="flex items-center space-x-2">
+              <UserGroupIcon className="w-4 h-4 text-green-500" />
+              <span className="text-sm text-gray-600">
+                Applications Today: <span className="font-medium">{realTimeStatus.applicationsToday}</span>
+              </span>
+            </div>
+            <div className="flex items-center space-x-2">
+              <VideoCameraIcon className="w-4 h-4 text-purple-500" />
+              <span className="text-sm text-gray-600">
+                Active Interviews: <span className="font-medium">{realTimeStatus.activeInterviews}</span>
+              </span>
+            </div>
+          </div>
+          <div className="flex items-center space-x-4">
+            <button 
+              onClick={() => queryClient.invalidateQueries()}
+              className="text-sm text-blue-600 hover:text-blue-800 font-medium"
             >
-              {tab.label}
-              {tab.count > 0 && (
-                <span className="ml-2 bg-gray-100 text-gray-600 py-0.5 px-2 rounded-full text-xs">
-                  {tab.count}
-                </span>
-              )}
+              Refresh Data
             </button>
-          ))}
-        </nav>
+          </div>
+        </div>
       </div>
 
-      {/* Tab Content */}
-      {activeTab === 'job-postings' && (
-        <JobPostingsTab
-          jobPostings={jobPostings || []}
-          onSelectJob={setSelectedJob}
-          selectedJob={selectedJob}
-        />
-      )}
+      <div className="px-6 py-8 space-y-8">
+        {/* Header */}
+        <motion.div 
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="flex justify-between items-center"
+        >
+          <div>
+            <h1 className="text-4xl font-bold text-gray-900">Recruitment Management</h1>
+            <p className="text-gray-600 mt-2">AI-powered recruitment and candidate screening</p>
+          </div>
+          <div className="flex space-x-4">
+            <button
+              onClick={() => setShowCreateJob(true)}
+              className="flex items-center space-x-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+            >
+              <PlusIcon className="w-4 h-4" />
+              <span>Create Job Posting</span>
+            </button>
+            <button className="flex items-center space-x-2 px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors">
+              <CpuChipIcon className="w-4 h-4" />
+              <span>AI Insights</span>
+            </button>
+          </div>
+        </motion.div>
 
-      {activeTab === 'candidates' && (
-        <CandidatesTab
-          candidates={candidates || []}
-          onStartAIInterview={handleStartAIInterview}
-          onAnalyzeResume={handleAnalyzeResume}
-          selectedJob={selectedJob}
-        />
-      )}
+        {/* Key Metrics */}
+        <motion.div 
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.1 }}
+          className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6"
+        >
+          {/* Total Jobs */}
+          <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 hover:shadow-md transition-shadow">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-gray-600">Total Jobs</p>
+                <p className="text-3xl font-bold text-blue-600 mt-2">{stats.totalJobs}</p>
+                <p className="text-sm text-gray-500 mt-1">{stats.activeJobs} active</p>
+              </div>
+              <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center">
+                <BriefcaseIcon className="w-6 h-6 text-blue-600" />
+              </div>
+            </div>
+          </div>
 
-      {activeTab === 'ai-interviews' && (
-        <AIInterviewsTab />
-      )}
+          {/* Total Candidates */}
+          <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 hover:shadow-md transition-shadow">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-gray-600">Total Candidates</p>
+                <p className="text-3xl font-bold text-green-600 mt-2">{stats.totalCandidates}</p>
+                <p className="text-sm text-gray-500 mt-1">{stats.newApplications} today</p>
+              </div>
+              <div className="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center">
+                <UserGroupIcon className="w-6 h-6 text-green-600" />
+              </div>
+            </div>
+          </div>
 
-      {activeTab === 'analytics' && (
-        <AnalyticsTab />
-      )}
+          {/* AI Interviews */}
+          <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 hover:shadow-md transition-shadow">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-gray-600">AI Interviews</p>
+                <p className="text-3xl font-bold text-purple-600 mt-2">{stats.aiInterviews}</p>
+                <p className="text-sm text-gray-500 mt-1">Completed</p>
+              </div>
+              <div className="w-12 h-12 bg-purple-100 rounded-lg flex items-center justify-center">
+                <CpuChipIcon className="w-6 h-6 text-purple-600" />
+              </div>
+            </div>
+          </div>
 
-      {/* Create Job Modal */}
-      {showCreateJob && (
-        <CreateJobModal
-          onClose={() => setShowCreateJob(false)}
-          onSubmit={handleCreateJob}
-        />
-      )}
+          {/* Average Fit Score */}
+          <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 hover:shadow-md transition-shadow">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-gray-600">Avg Fit Score</p>
+                <p className="text-3xl font-bold text-yellow-600 mt-2">{stats.averageFitScore}%</p>
+                <p className="text-sm text-gray-500 mt-1">AI Analysis</p>
+              </div>
+              <div className="w-12 h-12 bg-yellow-100 rounded-lg flex items-center justify-center">
+                <StarIcon className="w-6 h-6 text-yellow-600" />
+              </div>
+            </div>
+          </div>
+        </motion.div>
 
-      {/* AI Interview Modal */}
-      {showAIInterview && interviewSession && (
-        <AIInterviewModal
-          session={interviewSession}
-          candidate={selectedCandidate}
-          onClose={() => {
-            setShowAIInterview(false)
-            setInterviewSession(null)
-            setSelectedCandidate(null)
-          }}
-        />
-      )}
+        {/* AI Insights */}
+        <motion.div 
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.2 }}
+          className="bg-white rounded-xl shadow-sm border border-gray-200 p-6"
+        >
+          <div className="flex items-center justify-between mb-6">
+            <h3 className="text-lg font-semibold text-gray-900 flex items-center">
+              <CpuChipIcon className="w-5 h-5 text-purple-600 mr-2" />
+              AI Recruitment Insights
+            </h3>
+            <div className="flex items-center space-x-2">
+              <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+              <span className="text-sm text-gray-600">AI Active</span>
+            </div>
+          </div>
+          
+          {aiLoading ? (
+            <div className="flex items-center justify-center py-8">
+              <LoadingSpinner />
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              <div className="bg-blue-50 rounded-lg p-4">
+                <p className="text-sm text-blue-600 font-medium">Top Skills Demand</p>
+                <p className="text-lg font-bold text-blue-900 mt-2">
+                  {insights.topSkillsDemand?.[0] || 'JavaScript'}
+                </p>
+                <p className="text-xs text-blue-700 mt-1">
+                  {insights.topSkillsDemand?.slice(1, 3).join(', ') || 'React, Node.js'}
+                </p>
+              </div>
+              <div className="bg-green-50 rounded-lg p-4">
+                <p className="text-sm text-green-600 font-medium">Hiring Trends</p>
+                <p className="text-lg font-bold text-green-900 mt-2">
+                  {insights.hiringTrends || '+15%'}
+                </p>
+                <p className="text-xs text-green-700 mt-1">vs last month</p>
+              </div>
+              <div className="bg-purple-50 rounded-lg p-4">
+                <p className="text-sm text-purple-600 font-medium">AI Recommendations</p>
+                <p className="text-lg font-bold text-purple-900 mt-2">
+                  {insights.recommendations?.length || 3}
+                </p>
+                <p className="text-xs text-purple-700 mt-1">active suggestions</p>
+              </div>
+            </div>
+          )}
+        </motion.div>
+
+        {/* Tabs */}
+        <motion.div 
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.3 }}
+          className="bg-white rounded-xl shadow-sm border border-gray-200"
+        >
+          <div className="border-b border-gray-200">
+            <nav className="-mb-px flex space-x-8 px-6">
+              {[
+                { id: 'job-postings', label: 'Job Postings', count: jobPostings?.length || 0, icon: BriefcaseIcon },
+                { id: 'candidates', label: 'Candidates', count: candidates?.length || 0, icon: UserGroupIcon },
+                { id: 'ai-interviews', label: 'AI Interviews', count: stats.aiInterviews, icon: VideoCameraIcon },
+                { id: 'analytics', label: 'Analytics', count: 0, icon: ChartBarIcon }
+              ].map((tab) => (
+                <button
+                  key={tab.id}
+                  onClick={() => setActiveTab(tab.id)}
+                  className={`py-4 px-1 border-b-2 font-medium text-sm flex items-center space-x-2 ${
+                    activeTab === tab.id
+                      ? 'border-blue-500 text-blue-600'
+                      : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                  }`}
+                >
+                  <tab.icon className="w-4 h-4" />
+                  <span>{tab.label}</span>
+                  {tab.count > 0 && (
+                    <span className="bg-gray-100 text-gray-600 py-0.5 px-2 rounded-full text-xs">
+                      {tab.count}
+                    </span>
+                  )}
+                </button>
+              ))}
+            </nav>
+          </div>
+
+          {/* Tab Content */}
+          <div className="p-6">
+            {activeTab === 'job-postings' && (
+              <JobPostingsTab
+                jobPostings={jobPostings}
+                onSelectJob={setSelectedJob}
+                selectedJob={selectedJob}
+                onUpdateJob={handleUpdateJob}
+                onDeleteJob={handleDeleteJob}
+                departments={departmentList}
+              />
+            )}
+
+            {activeTab === 'candidates' && (
+              <CandidatesTab
+                candidates={candidates}
+                onStartAIInterview={handleStartAIInterview}
+                onAnalyzeResume={handleAnalyzeResume}
+                selectedJob={selectedJob}
+              />
+            )}
+
+            {activeTab === 'ai-interviews' && (
+              <AIInterviewsTab candidates={candidates} />
+            )}
+
+            {activeTab === 'analytics' && (
+              <AnalyticsTab 
+                jobPostings={jobPostings}
+                candidates={candidates}
+                insights={insights}
+              />
+            )}
+          </div>
+        </motion.div>
+      </div>
+
+      {/* Modals */}
+      <AnimatePresence>
+        {showCreateJob && (
+          <CreateJobModal
+            onClose={() => setShowCreateJob(false)}
+            onSubmit={handleCreateJob}
+            isLoading={createJobMutation.isLoading}
+            departments={departmentList}
+          />
+        )}
+
+        {showAIInterview && interviewSession && (
+          <AIInterviewModal
+            session={interviewSession}
+            candidate={selectedCandidate}
+            onClose={() => {
+              setShowAIInterview(false)
+              setInterviewSession(null)
+              setSelectedCandidate(null)
+            }}
+          />
+        )}
+
+        {showResumeAnalysis && selectedCandidate && (
+          <ResumeAnalysisModal
+            candidate={selectedCandidate}
+            jobRequirements={selectedJob?.requirements}
+            onClose={() => {
+              setShowResumeAnalysis(false)
+              setSelectedCandidate(null)
+            }}
+            onSubmit={handleSubmitResumeAnalysis}
+            isLoading={analyzeResumeMutation.isLoading}
+          />
+        )}
+      </AnimatePresence>
     </div>
   )
 }
 
 // Job Postings Tab Component
-const JobPostingsTab = ({ jobPostings, onSelectJob, selectedJob }) => {
+const JobPostingsTab = ({ jobPostings, onSelectJob, selectedJob, onUpdateJob, onDeleteJob, departments }) => {
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+    <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
       {/* Job List */}
       <div className="lg:col-span-2">
-        <div className="card">
-          <h3 className="text-lg font-medium text-gray-900 mb-4">Active Job Postings</h3>
-          <div className="space-y-4">
-            {jobPostings.length === 0 ? (
-              <div className="text-center py-8 text-gray-500">
-                No job postings found. Create your first job posting to get started.
-              </div>
-            ) : (
-              jobPostings.map((job) => (
-                <div
-                  key={job.id}
-                  onClick={() => onSelectJob(job)}
-                  className={`p-4 border rounded-lg cursor-pointer transition-colors ${
-                    selectedJob?.id === job.id
-                      ? 'border-primary-500 bg-primary-50'
-                      : 'border-gray-200 hover:border-gray-300'
-                  }`}
-                >
-                  <div className="flex justify-between items-start">
-                    <div>
-                      <h4 className="font-medium text-gray-900">{job.title}</h4>
-                      <p className="text-sm text-gray-600 mt-1">{job.description}</p>
-                      <div className="flex items-center space-x-4 mt-2 text-xs text-gray-500">
+        <div className="space-y-4">
+          {jobPostings.length === 0 ? (
+            <div className="text-center py-12 text-gray-500">
+              <BriefcaseIcon className="w-16 h-16 mx-auto mb-4 text-gray-300" />
+              <h3 className="text-lg font-medium text-gray-900 mb-2">No job postings found</h3>
+              <p className="text-gray-600">Create your first job posting to get started.</p>
+            </div>
+          ) : (
+            jobPostings.map((job) => (
+              <motion.div
+                key={job._id}
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                onClick={() => onSelectJob(job)}
+                className={`p-6 border rounded-xl cursor-pointer transition-all ${
+                  selectedJob?._id === job._id
+                    ? 'border-blue-500 bg-blue-50 shadow-md'
+                    : 'border-gray-200 hover:border-gray-300 hover:shadow-sm'
+                }`}
+              >
+                <div className="flex justify-between items-start">
+                  <div className="flex-1">
+                    <div className="flex items-center space-x-3 mb-2">
+                      <h4 className="text-lg font-semibold text-gray-900">{job.title}</h4>
+                      <span className={`px-2 py-1 text-xs font-medium rounded-full ${
+                        job.status === 'PUBLISHED' ? 'bg-green-100 text-green-800' :
+                        job.status === 'DRAFT' ? 'bg-yellow-100 text-yellow-800' :
+                        'bg-gray-100 text-gray-800'
+                      }`}>
+                        {job.status}
+                      </span>
+                    </div>
+                    <p className="text-gray-600 mb-3">{job.description}</p>
+                    <div className="flex items-center space-x-6 text-sm text-gray-500">
+                      <div className="flex items-center space-x-1">
+                        <MapPinIcon className="w-4 h-4" />
                         <span>{job.location}</span>
-                        <span>{job.employmentType}</span>
-                        <span>{job.currentApplications} applications</span>
+                      </div>
+                      <div className="flex items-center space-x-1">
+                        <BuildingOfficeIcon className="w-4 h-4" />
+                        <span>{job.department?.name || 'N/A'}</span>
+                      </div>
+                      <div className="flex items-center space-x-1">
+                        <CurrencyDollarIcon className="w-4 h-4" />
+                        <span>
+                          {job.salaryMin && job.salaryMax
+                            ? `$${job.salaryMin.toLocaleString()} - $${job.salaryMax.toLocaleString()}`
+                            : 'Not specified'
+                          }
+                        </span>
+                      </div>
+                      <div className="flex items-center space-x-1">
+                        <UserGroupIcon className="w-4 h-4" />
+                        <span>{job.currentApplications || 0} applications</span>
                       </div>
                     </div>
-                    <span className={`px-2 py-1 text-xs font-medium rounded-full ${
-                      job.status === 'PUBLISHED' ? 'bg-green-100 text-green-800' :
-                      job.status === 'DRAFT' ? 'bg-yellow-100 text-yellow-800' :
-                      'bg-gray-100 text-gray-800'
-                    }`}>
-                      {job.status}
-                    </span>
+                  </div>
+                  <div className="flex space-x-2 ml-4">
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        onUpdateJob(job._id, { ...job, status: 'PUBLISHED' })
+                      }}
+                      className="text-blue-600 hover:text-blue-800"
+                    >
+                      <PencilIcon className="w-4 h-4" />
+                    </button>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        onDeleteJob(job._id)
+                      }}
+                      className="text-red-600 hover:text-red-800"
+                    >
+                      <TrashIcon className="w-4 h-4" />
+                    </button>
                   </div>
                 </div>
-              ))
-            )}
-          </div>
+              </motion.div>
+            ))
+          )}
         </div>
       </div>
 
       {/* Job Details */}
       <div className="lg:col-span-1">
         {selectedJob ? (
-          <div className="card">
-            <h3 className="text-lg font-medium text-gray-900 mb-4">Job Details</h3>
+          <div className="bg-white border border-gray-200 rounded-xl p-6 sticky top-6">
+            <h3 className="text-lg font-semibold text-gray-900 mb-6">Job Details</h3>
             <div className="space-y-4">
               <div>
                 <label className="text-sm font-medium text-gray-700">Title</label>
-                <p className="text-gray-900">{selectedJob.title}</p>
+                <p className="text-gray-900 font-medium">{selectedJob.title}</p>
               </div>
               <div>
                 <label className="text-sm font-medium text-gray-700">Department</label>
@@ -302,14 +737,21 @@ const JobPostingsTab = ({ jobPostings, onSelectJob, selectedJob }) => {
               </div>
               <div>
                 <label className="text-sm font-medium text-gray-700">Applications</label>
-                <p className="text-gray-900">{selectedJob.currentApplications}</p>
+                <p className="text-gray-900">{selectedJob.currentApplications || 0}</p>
+              </div>
+              <div>
+                <label className="text-sm font-medium text-gray-700">Created</label>
+                <p className="text-gray-900">
+                  {new Date(selectedJob.createdAt).toLocaleDateString()}
+                </p>
               </div>
             </div>
           </div>
         ) : (
-          <div className="card">
+          <div className="bg-white border border-gray-200 rounded-xl p-6">
             <div className="text-center py-8 text-gray-500">
-              Select a job posting to view details
+              <BriefcaseIcon className="w-12 h-12 mx-auto mb-4 text-gray-300" />
+              <p>Select a job posting to view details</p>
             </div>
           </div>
         )}
@@ -329,42 +771,45 @@ const CandidatesTab = ({ candidates, onStartAIInterview, onAnalyzeResume, select
   return (
     <div className="space-y-6">
       {/* Filters */}
-      <div className="card">
-        <div className="flex justify-between items-center">
-          <div className="flex space-x-4">
-            <select
-              value={filterStatus}
-              onChange={(e) => setFilterStatus(e.target.value)}
-              className="border border-gray-300 rounded-md px-3 py-2 text-sm"
-            >
-              <option value="all">All Candidates</option>
-              <option value="APPLIED">Applied</option>
-              <option value="SCREENING">Screening</option>
-              <option value="INTERVIEWED">Interviewed</option>
-              <option value="OFFERED">Offered</option>
-              <option value="HIRED">Hired</option>
-              <option value="REJECTED">Rejected</option>
-            </select>
-          </div>
-          <div className="text-sm text-gray-600">
-            {filteredCandidates.length} candidates
-          </div>
+      <div className="flex justify-between items-center">
+        <div className="flex space-x-4">
+          <select
+            value={filterStatus}
+            onChange={(e) => setFilterStatus(e.target.value)}
+            className="border border-gray-300 rounded-lg px-4 py-2 text-sm bg-white shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+          >
+            <option value="all">All Candidates</option>
+            <option value="APPLIED">Applied</option>
+            <option value="SCREENING">Screening</option>
+            <option value="INTERVIEWED">Interviewed</option>
+            <option value="OFFERED">Offered</option>
+            <option value="HIRED">Hired</option>
+            <option value="REJECTED">Rejected</option>
+          </select>
+        </div>
+        <div className="text-sm text-gray-600">
+          {filteredCandidates.length} candidates
         </div>
       </div>
 
       {/* Candidates Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {filteredCandidates.map((candidate) => (
-          <div key={candidate.id} className="card">
+          <motion.div
+            key={candidate._id}
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="bg-white border border-gray-200 rounded-xl p-6 hover:shadow-md transition-shadow"
+          >
             <div className="flex items-start justify-between mb-4">
               <div className="flex items-center space-x-3">
-                <div className="h-12 w-12 rounded-full bg-primary-100 flex items-center justify-center">
-                  <span className="text-lg font-medium text-primary-600">
-                    {candidate.firstName[0]}{candidate.lastName[0]}
+                <div className="h-12 w-12 rounded-full bg-blue-100 flex items-center justify-center">
+                  <span className="text-lg font-medium text-blue-600">
+                    {candidate.firstName?.[0]}{candidate.lastName?.[0]}
                   </span>
                 </div>
                 <div>
-                  <h4 className="font-medium text-gray-900">
+                  <h4 className="font-semibold text-gray-900">
                     {candidate.firstName} {candidate.lastName}
                   </h4>
                   <p className="text-sm text-gray-600">{candidate.email}</p>
@@ -428,15 +873,15 @@ const CandidatesTab = ({ candidates, onStartAIInterview, onAnalyzeResume, select
             {/* Actions */}
             <div className="flex space-x-2">
               <button
-                onClick={() => onAnalyzeResume(candidate.id, candidate.resumeFile)}
-                className="flex-1 px-3 py-2 text-sm bg-blue-600 text-white rounded-md hover:bg-blue-700"
+                onClick={() => onAnalyzeResume(candidate)}
+                className="flex-1 px-3 py-2 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
                 disabled={!candidate.resumeFile}
               >
                 Analyze Resume
               </button>
               <button
                 onClick={() => onStartAIInterview(candidate)}
-                className="flex-1 px-3 py-2 text-sm bg-purple-600 text-white rounded-md hover:bg-purple-700"
+                className="flex-1 px-3 py-2 text-sm bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors"
               >
                 AI Interview
               </button>
@@ -445,7 +890,7 @@ const CandidatesTab = ({ candidates, onStartAIInterview, onAnalyzeResume, select
             <div className="mt-3 text-xs text-gray-500">
               Applied: {new Date(candidate.appliedAt).toLocaleDateString()}
             </div>
-          </div>
+          </motion.div>
         ))}
       </div>
     </div>
@@ -453,60 +898,133 @@ const CandidatesTab = ({ candidates, onStartAIInterview, onAnalyzeResume, select
 }
 
 // AI Interviews Tab Component
-const AIInterviewsTab = () => {
+const AIInterviewsTab = ({ candidates }) => {
+  const interviewedCandidates = candidates.filter(candidate => candidate.aiInterviewCompleted)
+
   return (
-    <div className="card">
-      <div className="text-center py-12">
-        <div className="mx-auto h-12 w-12 text-purple-600">
-          <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
-          </svg>
-        </div>
-        <h3 className="mt-4 text-lg font-medium text-gray-900">AI Interview Sessions</h3>
-        <p className="mt-2 text-gray-600">
+    <div className="space-y-6">
+      <div className="text-center py-8">
+        <VideoCameraIcon className="w-16 h-16 mx-auto mb-4 text-purple-600" />
+        <h3 className="text-lg font-medium text-gray-900 mb-2">AI Interview Sessions</h3>
+        <p className="text-gray-600 mb-6">
           Manage and review AI-powered interview sessions with candidates
         </p>
-        <div className="mt-6">
-          <button className="btn-primary">
-            View All Sessions
-          </button>
-        </div>
       </div>
+
+      {interviewedCandidates.length > 0 ? (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {interviewedCandidates.map((candidate) => (
+            <div key={candidate._id} className="bg-white border border-gray-200 rounded-xl p-6">
+              <div className="flex items-center space-x-3 mb-4">
+                <div className="h-10 w-10 rounded-full bg-purple-100 flex items-center justify-center">
+                  <span className="text-sm font-medium text-purple-600">
+                    {candidate.firstName?.[0]}{candidate.lastName?.[0]}
+                  </span>
+                </div>
+                <div>
+                  <h4 className="font-medium text-gray-900">
+                    {candidate.firstName} {candidate.lastName}
+                  </h4>
+                  <p className="text-sm text-gray-600">{candidate.email}</p>
+                </div>
+              </div>
+              
+              {candidate.aiInterviewScore && (
+                <div className="mb-4">
+                  <div className="flex justify-between items-center mb-2">
+                    <span className="text-sm font-medium text-gray-700">Interview Score</span>
+                    <span className="text-sm font-bold text-purple-600">
+                      {candidate.aiInterviewScore}%
+                    </span>
+                  </div>
+                  <div className="w-full bg-gray-200 rounded-full h-2">
+                    <div
+                      className="h-2 rounded-full bg-purple-500"
+                      style={{ width: `${candidate.aiInterviewScore}%` }}
+                    ></div>
+                  </div>
+                </div>
+              )}
+
+              <div className="flex space-x-2">
+                <button className="flex-1 px-3 py-2 text-sm bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors">
+                  View Report
+                </button>
+                <button className="flex-1 px-3 py-2 text-sm bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors">
+                  Schedule Follow-up
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      ) : (
+        <div className="text-center py-12 text-gray-500">
+          <VideoCameraIcon className="w-12 h-12 mx-auto mb-4 text-gray-300" />
+          <p>No AI interviews completed yet</p>
+        </div>
+      )}
     </div>
   )
 }
 
 // Analytics Tab Component
-const AnalyticsTab = () => {
+const AnalyticsTab = ({ jobPostings, candidates, insights }) => {
+  const stats = {
+    totalApplications: candidates.length,
+    aiInterviews: candidates.filter(c => c.aiInterviewCompleted).length,
+    hireRate: candidates.length > 0 ? 
+      ((candidates.filter(c => c.status === 'HIRED').length / candidates.length) * 100).toFixed(1) : 0,
+    averageFitScore: candidates.length > 0 ? 
+      (candidates.reduce((sum, c) => sum + (c.fitScore || 0), 0) / candidates.length).toFixed(1) : 0
+  }
+
   return (
-    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+    <div className="space-y-8">
       {/* Stats Cards */}
-      <div className="card">
-        <h3 className="text-lg font-medium text-gray-900 mb-2">Total Applications</h3>
-        <p className="text-3xl font-bold text-blue-600">1,247</p>
-        <p className="text-sm text-gray-600 mt-1">+12% from last month</p>
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+        <div className="bg-white border border-gray-200 rounded-xl p-6">
+          <h3 className="text-lg font-medium text-gray-900 mb-2">Total Applications</h3>
+          <p className="text-3xl font-bold text-blue-600">{stats.totalApplications}</p>
+          <p className="text-sm text-gray-600 mt-1">+12% from last month</p>
+        </div>
+        <div className="bg-white border border-gray-200 rounded-xl p-6">
+          <h3 className="text-lg font-medium text-gray-900 mb-2">AI Interviews</h3>
+          <p className="text-3xl font-bold text-purple-600">{stats.aiInterviews}</p>
+          <p className="text-sm text-gray-600 mt-1">+8% from last month</p>
+        </div>
+        <div className="bg-white border border-gray-200 rounded-xl p-6">
+          <h3 className="text-lg font-medium text-gray-900 mb-2">Hire Rate</h3>
+          <p className="text-3xl font-bold text-green-600">{stats.hireRate}%</p>
+          <p className="text-sm text-gray-600 mt-1">+3% from last month</p>
+        </div>
+        <div className="bg-white border border-gray-200 rounded-xl p-6">
+          <h3 className="text-lg font-medium text-gray-900 mb-2">Avg. Fit Score</h3>
+          <p className="text-3xl font-bold text-yellow-600">{stats.averageFitScore}%</p>
+          <p className="text-sm text-gray-600 mt-1">+5% from last month</p>
+        </div>
       </div>
-      <div className="card">
-        <h3 className="text-lg font-medium text-gray-900 mb-2">AI Interviews</h3>
-        <p className="text-3xl font-bold text-purple-600">89</p>
-        <p className="text-sm text-gray-600 mt-1">+8% from last month</p>
-      </div>
-      <div className="card">
-        <h3 className="text-lg font-medium text-gray-900 mb-2">Hire Rate</h3>
-        <p className="text-3xl font-bold text-green-600">23%</p>
-        <p className="text-sm text-gray-600 mt-1">+3% from last month</p>
-      </div>
-      <div className="card">
-        <h3 className="text-lg font-medium text-gray-900 mb-2">Avg. Fit Score</h3>
-        <p className="text-3xl font-bold text-yellow-600">76%</p>
-        <p className="text-sm text-gray-600 mt-1">+5% from last month</p>
+
+      {/* Charts Placeholder */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div className="bg-white border border-gray-200 rounded-xl p-6">
+          <h3 className="text-lg font-medium text-gray-900 mb-4">Applications Over Time</h3>
+          <div className="h-64 bg-gray-50 rounded-lg flex items-center justify-center">
+            <p className="text-gray-500">Chart placeholder</p>
+          </div>
+        </div>
+        <div className="bg-white border border-gray-200 rounded-xl p-6">
+          <h3 className="text-lg font-medium text-gray-900 mb-4">Top Skills Demand</h3>
+          <div className="h-64 bg-gray-50 rounded-lg flex items-center justify-center">
+            <p className="text-gray-500">Chart placeholder</p>
+          </div>
+        </div>
       </div>
     </div>
   )
 }
 
 // Create Job Modal Component
-const CreateJobModal = ({ onClose, onSubmit }) => {
+const CreateJobModal = ({ onClose, onSubmit, isLoading, departments }) => {
   const [formData, setFormData] = useState({
     title: '',
     description: '',
@@ -526,75 +1044,95 @@ const CreateJobModal = ({ onClose, onSubmit }) => {
   }
 
   return (
-    <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
-      <div className="relative top-20 mx-auto p-5 border w-96 shadow-lg rounded-md bg-white">
-        <div className="mt-3">
-          <h3 className="text-lg font-medium text-gray-900 mb-4">Create Job Posting</h3>
-          <form onSubmit={handleSubmit} className="space-y-4">
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+      <div className="bg-white rounded-xl p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+        <h3 className="text-lg font-semibold text-gray-900 mb-4">Create Job Posting</h3>
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700">Job Title</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Job Title</label>
               <input
                 type="text"
                 required
                 value={formData.title}
                 onChange={(e) => setFormData({ ...formData, title: e.target.value })}
-                className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2"
+                className="w-full border border-gray-300 rounded-lg px-3 py-2"
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700">Description</label>
-              <textarea
+              <label className="block text-sm font-medium text-gray-700 mb-1">Department</label>
+              <select
                 required
-                rows={3}
-                value={formData.description}
-                onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2"
-              />
+                value={formData.departmentId}
+                onChange={(e) => setFormData({ ...formData, departmentId: e.target.value })}
+                className="w-full border border-gray-300 rounded-lg px-3 py-2"
+              >
+                <option value="">Select Department</option>
+                {departments.map((dept) => (
+                  <option key={dept._id} value={dept._id}>
+                    {dept.name}
+                  </option>
+                ))}
+              </select>
             </div>
+          </div>
+          
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
+            <textarea
+              required
+              rows={3}
+              value={formData.description}
+              onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+              className="w-full border border-gray-300 rounded-lg px-3 py-2"
+            />
+          </div>
+          
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Requirements</label>
+            <textarea
+              rows={3}
+              value={formData.requirements}
+              onChange={(e) => setFormData({ ...formData, requirements: e.target.value })}
+              className="w-full border border-gray-300 rounded-lg px-3 py-2"
+            />
+          </div>
+          
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Responsibilities</label>
+            <textarea
+              rows={3}
+              value={formData.responsibilities}
+              onChange={(e) => setFormData({ ...formData, responsibilities: e.target.value })}
+              className="w-full border border-gray-300 rounded-lg px-3 py-2"
+            />
+          </div>
+
+          <div className="grid grid-cols-3 gap-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700">Requirements</label>
-              <textarea
-                rows={3}
-                value={formData.requirements}
-                onChange={(e) => setFormData({ ...formData, requirements: e.target.value })}
-                className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2"
-              />
-            </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700">Min Salary</label>
-                <input
-                  type="number"
-                  value={formData.salaryMin}
-                  onChange={(e) => setFormData({ ...formData, salaryMin: e.target.value })}
-                  className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700">Max Salary</label>
-                <input
-                  type="number"
-                  value={formData.salaryMax}
-                  onChange={(e) => setFormData({ ...formData, salaryMax: e.target.value })}
-                  className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2"
-                />
-              </div>
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700">Location</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Min Salary</label>
               <input
-                type="text"
-                value={formData.location}
-                onChange={(e) => setFormData({ ...formData, location: e.target.value })}
-                className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2"
+                type="number"
+                value={formData.salaryMin}
+                onChange={(e) => setFormData({ ...formData, salaryMin: e.target.value })}
+                className="w-full border border-gray-300 rounded-lg px-3 py-2"
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700">Employment Type</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Max Salary</label>
+              <input
+                type="number"
+                value={formData.salaryMax}
+                onChange={(e) => setFormData({ ...formData, salaryMax: e.target.value })}
+                className="w-full border border-gray-300 rounded-lg px-3 py-2"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Employment Type</label>
               <select
                 value={formData.employmentType}
                 onChange={(e) => setFormData({ ...formData, employmentType: e.target.value })}
-                className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2"
+                className="w-full border border-gray-300 rounded-lg px-3 py-2"
               >
                 <option value="FULL_TIME">Full Time</option>
                 <option value="PART_TIME">Part Time</option>
@@ -602,23 +1140,35 @@ const CreateJobModal = ({ onClose, onSubmit }) => {
                 <option value="INTERN">Intern</option>
               </select>
             </div>
-            <div className="flex justify-end space-x-3 pt-4">
-              <button
-                type="button"
-                onClick={onClose}
-                className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-md hover:bg-gray-200"
-              >
-                Cancel
-              </button>
-              <button
-                type="submit"
-                className="px-4 py-2 text-sm font-medium text-white bg-primary-600 rounded-md hover:bg-primary-700"
-              >
-                Create Job
-              </button>
-            </div>
-          </form>
-        </div>
+          </div>
+          
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Location</label>
+            <input
+              type="text"
+              value={formData.location}
+              onChange={(e) => setFormData({ ...formData, location: e.target.value })}
+              className="w-full border border-gray-300 rounded-lg px-3 py-2"
+            />
+          </div>
+
+          <div className="flex space-x-3 pt-4">
+            <button
+              type="button"
+              onClick={onClose}
+              className="flex-1 px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={isLoading}
+              className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
+            >
+              {isLoading ? 'Creating...' : 'Create Job'}
+            </button>
+          </div>
+        </form>
       </div>
     </div>
   )
@@ -668,8 +1218,8 @@ const AIInterviewModal = ({ session, candidate, onClose }) => {
 
   if (interviewComplete && assessment) {
     return (
-      <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
-        <div className="relative top-20 mx-auto p-5 border w-full max-w-2xl shadow-lg rounded-md bg-white">
+      <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+        <div className="bg-white rounded-xl p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto">
           <div className="text-center">
             <h3 className="text-2xl font-bold text-gray-900 mb-4">Interview Complete!</h3>
             <div className="space-y-6">
@@ -715,7 +1265,7 @@ const AIInterviewModal = ({ session, candidate, onClose }) => {
               
               <button
                 onClick={onClose}
-                className="px-6 py-3 bg-primary-600 text-white rounded-md hover:bg-primary-700"
+                className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
               >
                 Close Assessment
               </button>
@@ -727,8 +1277,8 @@ const AIInterviewModal = ({ session, candidate, onClose }) => {
   }
 
   return (
-    <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
-      <div className="relative top-20 mx-auto p-5 border w-full max-w-2xl shadow-lg rounded-md bg-white">
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+      <div className="bg-white rounded-xl p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto">
         <div className="mb-4">
           <div className="flex justify-between items-center mb-4">
             <h3 className="text-xl font-bold text-gray-900">AI Interview Session</h3>
@@ -736,9 +1286,7 @@ const AIInterviewModal = ({ session, candidate, onClose }) => {
               onClick={onClose}
               className="text-gray-400 hover:text-gray-600"
             >
-              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-              </svg>
+              <XCircleIcon className="w-6 h-6" />
             </button>
           </div>
           
@@ -746,7 +1294,7 @@ const AIInterviewModal = ({ session, candidate, onClose }) => {
             <div className="flex items-center space-x-3">
               <div className="h-10 w-10 rounded-full bg-purple-100 flex items-center justify-center">
                 <span className="text-sm font-medium text-purple-600">
-                  {candidate.firstName[0]}{candidate.lastName[0]}
+                  {candidate.firstName?.[0]}{candidate.lastName?.[0]}
                 </span>
               </div>
               <div>
@@ -780,7 +1328,7 @@ const AIInterviewModal = ({ session, candidate, onClose }) => {
                   value={answer}
                   onChange={(e) => setAnswer(e.target.value)}
                   rows={6}
-                  className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary-500"
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
                   placeholder="Type your answer here..."
                 />
               </div>
@@ -788,14 +1336,14 @@ const AIInterviewModal = ({ session, candidate, onClose }) => {
               <div className="flex justify-end space-x-3">
                 <button
                   onClick={onClose}
-                  className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-md hover:bg-gray-200"
+                  className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200"
                 >
                   End Interview
                 </button>
                 <button
                   onClick={submitAnswer}
                   disabled={!answer.trim() || isSubmitting}
-                  className="px-4 py-2 text-sm font-medium text-white bg-primary-600 rounded-md hover:bg-primary-700 disabled:opacity-50"
+                  className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 disabled:opacity-50"
                 >
                   {isSubmitting ? 'Submitting...' : 'Submit Answer'}
                 </button>
@@ -803,6 +1351,102 @@ const AIInterviewModal = ({ session, candidate, onClose }) => {
             </div>
           )}
         </div>
+      </div>
+    </div>
+  )
+}
+
+// Resume Analysis Modal Component
+const ResumeAnalysisModal = ({ candidate, jobRequirements, onClose, onSubmit, isLoading }) => {
+  const [analysisData, setAnalysisData] = useState({
+    skills: [],
+    experience: '',
+    education: '',
+    recommendations: ''
+  })
+
+  const handleSubmit = (e) => {
+    e.preventDefault()
+    onSubmit(analysisData)
+  }
+
+  return (
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+      <div className="bg-white rounded-xl p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+        <h3 className="text-lg font-semibold text-gray-900 mb-4">Resume Analysis</h3>
+        
+        <div className="mb-6 p-4 bg-blue-50 rounded-lg">
+          <h4 className="font-medium text-gray-900 mb-2">
+            Analyzing: {candidate.firstName} {candidate.lastName}
+          </h4>
+          <p className="text-sm text-gray-600">{candidate.email}</p>
+        </div>
+
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Detected Skills</label>
+            <textarea
+              rows={3}
+              value={analysisData.skills.join(', ')}
+              onChange={(e) => setAnalysisData({ ...analysisData, skills: e.target.value.split(', ') })}
+              className="w-full border border-gray-300 rounded-lg px-3 py-2"
+              placeholder="Enter detected skills..."
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Experience Level</label>
+            <select
+              value={analysisData.experience}
+              onChange={(e) => setAnalysisData({ ...analysisData, experience: e.target.value })}
+              className="w-full border border-gray-300 rounded-lg px-3 py-2"
+            >
+              <option value="">Select Experience Level</option>
+              <option value="entry">Entry Level (0-2 years)</option>
+              <option value="mid">Mid Level (3-5 years)</option>
+              <option value="senior">Senior Level (6+ years)</option>
+            </select>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Education</label>
+            <input
+              type="text"
+              value={analysisData.education}
+              onChange={(e) => setAnalysisData({ ...analysisData, education: e.target.value })}
+              className="w-full border border-gray-300 rounded-lg px-3 py-2"
+              placeholder="Enter education details..."
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Recommendations</label>
+            <textarea
+              rows={3}
+              value={analysisData.recommendations}
+              onChange={(e) => setAnalysisData({ ...analysisData, recommendations: e.target.value })}
+              className="w-full border border-gray-300 rounded-lg px-3 py-2"
+              placeholder="Enter analysis recommendations..."
+            />
+          </div>
+
+          <div className="flex space-x-3 pt-4">
+            <button
+              type="button"
+              onClick={onClose}
+              className="flex-1 px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={isLoading}
+              className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
+            >
+              {isLoading ? 'Analyzing...' : 'Analyze Resume'}
+            </button>
+          </div>
+        </form>
       </div>
     </div>
   )

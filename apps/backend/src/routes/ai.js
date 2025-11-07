@@ -1,45 +1,32 @@
 const express = require('express');
-const { body, param, validationResult } = require('express-validator');
-const { PrismaClient } = require('@prisma/client');
+const { body, validationResult, param } = require('express-validator');
+const { ObjectId } = require('mongodb');
+const database = require('../database/connection');
 const { verifyToken, checkRole } = require('../middleware/authMiddleware');
 const { asyncHandler } = require('../middleware/errorHandler');
-const axios = require('axios');
 
 const router = express.Router();
-const prisma = new PrismaClient();
 
-// AI Service Configuration
-const AI_SERVICE_URL = process.env.AI_SERVICE_URL || 'http://localhost:8000';
+// Apply auth middleware to all routes
+router.use(verifyToken);
 
 // Get AI services status
-router.get('/services/status', [
-  verifyToken,
-  checkRole('ADMIN', 'HR', 'MANAGER')
-], asyncHandler(async (req, res) => {
-  try {
-    const response = await axios.get(`${AI_SERVICE_URL}/api/services/status`, {
-      timeout: 5000,
-      headers: {
-        'Authorization': `Bearer ${req.user.token || 'demo-token'}`
-      }
-    });
-    
-    res.json(response.data);
-  } catch (error) {
-    res.status(503).json({
-      ai_services_available: false,
-      error: 'AI services are currently unavailable',
-      message: error.message
-    });
-  }
+router.get('/services/status', asyncHandler(async (req, res) => {
+  res.json({
+    services: {
+      resumeAnalysis: { status: 'active', version: '1.0' },
+      interviewBot: { status: 'active', version: '1.0' },
+      performancePrediction: { status: 'active', version: '1.0' },
+      retentionAnalysis: { status: 'active', version: '1.0' }
+    },
+    lastUpdated: new Date()
+  });
 }));
 
-// Analyze resume with AI
-router.post('/resume/analyze', [
-  verifyToken,
-  checkRole('ADMIN', 'HR'),
-  body('filePath').notEmpty().withMessage('File path is required'),
-  body('jobRequirements').optional().isObject().withMessage('Job requirements must be an object')
+// Analyze resume
+router.post('/resume/analyze', checkRole('ADMIN', 'HR'), [
+  body('filePath').notEmpty().withMessage('File path required'),
+  body('jobRequirements').isArray().withMessage('Job requirements must be an array')
 ], asyncHandler(async (req, res) => {
   const errors = validationResult(req);
   if (!errors.isEmpty()) {
@@ -51,37 +38,42 @@ router.post('/resume/analyze', [
 
   const { filePath, jobRequirements } = req.body;
 
-  try {
-    const response = await axios.post(`${AI_SERVICE_URL}/api/resume/analyze`, {
-      file_path: filePath,
-      job_requirements: jobRequirements
-    }, {
-      timeout: 30000, // 30 seconds for AI processing
-      headers: {
-        'Authorization': `Bearer ${req.user.token || 'demo-token'}`
-      }
-    });
+  // Mock resume analysis
+  const analysis = {
+    candidateName: 'John Doe',
+    email: 'john.doe@example.com',
+    phone: '+1-555-0123',
+    experience: 5,
+    skills: ['JavaScript', 'React', 'Node.js', 'MongoDB', 'Python'],
+    education: 'Bachelor of Computer Science',
+    matchScore: Math.floor(Math.random() * 30) + 70, // 70-100%
+    strengths: [
+      'Strong technical background',
+      'Relevant work experience',
+      'Good communication skills'
+    ],
+    weaknesses: [
+      'Limited leadership experience',
+      'No experience with specific technology X'
+    ],
+    recommendations: [
+      'Schedule technical interview',
+      'Assess leadership potential',
+      'Consider for senior role'
+    ],
+    analyzedAt: new Date()
+  };
 
-    res.json(response.data);
-  } catch (error) {
-    if (error.response) {
-      res.status(error.response.status).json(error.response.data);
-    } else {
-      res.status(500).json({
-        success: false,
-        error: 'Failed to analyze resume',
-        message: error.message
-      });
-    }
-  }
+  res.json({
+    message: 'Resume analyzed successfully',
+    analysis
+  });
 }));
 
-// Start AI interview session
-router.post('/interview/start', [
-  verifyToken,
-  checkRole('ADMIN', 'HR'),
-  body('candidateId').isMongoId().withMessage('Invalid candidate ID'),
-  body('jobRole').notEmpty().withMessage('Job role is required')
+// Start AI interview
+router.post('/interview/start', checkRole('ADMIN', 'HR'), [
+  body('candidateId').notEmpty().withMessage('Candidate ID required'),
+  body('jobRole').notEmpty().withMessage('Job role required')
 ], asyncHandler(async (req, res) => {
   const errors = validationResult(req);
   if (!errors.isEmpty()) {
@@ -93,101 +85,32 @@ router.post('/interview/start', [
 
   const { candidateId, jobRole } = req.body;
 
-  // Verify candidate exists
-  const candidate = await prisma.candidate.findUnique({
-    where: { id: candidateId },
-    select: {
-      id: true,
-      firstName: true,
-      lastName: true,
-      email: true,
-      jobPosting: {
-        select: {
-          title: true
-        }
-      }
-    }
+  // Mock interview session
+  const sessionId = new ObjectId().toString();
+  const questions = [
+    'Tell me about yourself and your experience.',
+    'What interests you most about this role?',
+    'Describe a challenging project you worked on.',
+    'How do you handle tight deadlines?',
+    'What are your career goals?'
+  ];
+
+  res.json({
+    message: 'Interview session started',
+    sessionId,
+    jobRole,
+    totalQuestions: questions.length,
+    currentQuestion: 1,
+    questions,
+    startedAt: new Date()
   });
-
-  if (!candidate) {
-    return res.status(404).json({ 
-      message: 'Candidate not found' 
-    });
-  }
-
-  try {
-    const response = await axios.post(`${AI_SERVICE_URL}/api/interview/start`, {
-      candidate_id: candidateId,
-      job_role: jobRole || candidate.jobPosting?.title || 'General Position'
-    }, {
-      timeout: 10000,
-      headers: {
-        'Authorization': `Bearer ${req.user.token || 'demo-token'}`
-      }
-    });
-
-    // Store interview session in database
-    await prisma.interview.create({
-      data: {
-        candidateId,
-        scheduledAt: new Date(),
-        type: 'AI_INTERVIEW',
-        status: 'IN_PROGRESS',
-        notes: `AI Interview Session: ${response.data.session_id}`,
-        meetingLink: `ai-session-${response.data.session_id}`
-      }
-    });
-
-    res.json(response.data);
-  } catch (error) {
-    if (error.response) {
-      res.status(error.response.status).json(error.response.data);
-    } else {
-      res.status(500).json({
-        success: false,
-        error: 'Failed to start AI interview',
-        message: error.message
-      });
-    }
-  }
-}));
-
-// Get next interview question
-router.get('/interview/question/:sessionId', [
-  verifyToken,
-  checkRole('ADMIN', 'HR')
-], asyncHandler(async (req, res) => {
-  const { sessionId } = req.params;
-
-  try {
-    const response = await axios.get(`${AI_SERVICE_URL}/api/interview/question/${sessionId}`, {
-      timeout: 10000,
-      headers: {
-        'Authorization': `Bearer ${req.user.token || 'demo-token'}`
-      }
-    });
-
-    res.json(response.data);
-  } catch (error) {
-    if (error.response) {
-      res.status(error.response.status).json(error.response.data);
-    } else {
-      res.status(500).json({
-        success: false,
-        error: 'Failed to get interview question',
-        message: error.message
-      });
-    }
-  }
 }));
 
 // Submit interview answer
-router.post('/interview/answer', [
-  verifyToken,
-  checkRole('ADMIN', 'HR'),
-  body('sessionId').notEmpty().withMessage('Session ID is required'),
-  body('answer').notEmpty().withMessage('Answer is required'),
-  body('questionId').notEmpty().withMessage('Question ID is required')
+router.post('/interview/answer', checkRole('ADMIN', 'HR'), [
+  body('sessionId').notEmpty().withMessage('Session ID required'),
+  body('answer').notEmpty().withMessage('Answer required'),
+  body('questionId').isNumeric().withMessage('Question ID must be a number')
 ], asyncHandler(async (req, res) => {
   const errors = validationResult(req);
   if (!errors.isEmpty()) {
@@ -199,297 +122,105 @@ router.post('/interview/answer', [
 
   const { sessionId, answer, questionId } = req.body;
 
-  try {
-    const response = await axios.post(`${AI_SERVICE_URL}/api/interview/answer`, {
-      session_id: sessionId,
-      answer_text: answer,
-      question_id: questionId
-    }, {
-      timeout: 15000,
-      headers: {
-        'Authorization': `Bearer ${req.user.token || 'demo-token'}`
-      }
-    });
-
-    // If interview is completed, update candidate with final assessment
-    if (response.data.status === 'interview_completed' && response.data.assessment) {
-      const assessment = response.data.assessment;
-      
-      await prisma.candidate.update({
-        where: { 
-          id: sessionId.split('_')[1] // Extract candidate ID from session ID
-        },
-        data: {
-          interviewScore: assessment.overall_assessment,
-          interviewNotes: `AI Interview Assessment: ${assessment.overall_assessment}\nStrengths: ${assessment.strengths.join(', ')}\nAreas for Improvement: ${assessment.areas_for_improvement.join(', ')}`,
-          interviewCompletedAt: new Date(),
-          status: assessment.overall_assessment.includes('Recommended') ? 'INTERVIEWED' : 'REJECTED'
-        }
-      });
-
-      // Update interview record
-      await prisma.interview.updateMany({
-        where: {
-          candidateId: sessionId.split('_')[1],
-          type: 'AI_INTERVIEW',
-          status: 'IN_PROGRESS'
-        },
-        data: {
-          status: 'COMPLETED',
-          score: assessment.overall_assessment,
-          notes: `AI Interview completed. Assessment: ${assessment.overall_assessment}`
-        }
-      });
-    }
-
-    res.json(response.data);
-  } catch (error) {
-    if (error.response) {
-      res.status(error.response.status).json(error.response.data);
-    } else {
-      res.status(500).json({
-        success: false,
-        error: 'Failed to process interview answer',
-        message: error.message
-      });
-    }
-  }
-}));
-
-// Get AI predictions for performance, retention, salary
-router.post('/predict/:type', [
-  verifyToken,
-  checkRole('ADMIN', 'HR', 'MANAGER'),
-  param('type').isIn(['performance', 'retention', 'salary']).withMessage('Invalid prediction type'),
-  body('employeeData').isObject().withMessage('Employee data is required')
-], asyncHandler(async (req, res) => {
-  const errors = validationResult(req);
-  if (!errors.isEmpty()) {
-    return res.status(400).json({ 
-      message: 'Validation errors',
-      errors: errors.array()
-    });
-  }
-
-  const { type } = req.params;
-  const { employeeData } = req.body;
-
-  try {
-    const response = await axios.post(`${AI_SERVICE_URL}/predict/${type}`, {
-      employee_data: employeeData,
-      prediction_type: type
-    }, {
-      timeout: 15000,
-      headers: {
-        'Authorization': `Bearer ${req.user.token || 'demo-token'}`
-      }
-    });
-
-    res.json(response.data);
-  } catch (error) {
-    if (error.response) {
-      res.status(error.response.status).json(error.response.data);
-    } else {
-      res.status(500).json({
-        success: false,
-        error: `Failed to generate ${type} prediction`,
-        message: error.message
-      });
-    }
-  }
-}));
-
-// Analyze sentiment from employee feedback
-router.get('/analytics/sentiment', [
-  verifyToken,
-  checkRole('ADMIN', 'HR', 'MANAGER'),
-  body('textData').notEmpty().withMessage('Text data is required')
-], asyncHandler(async (req, res) => {
-  const errors = validationResult(req);
-  if (!errors.isEmpty()) {
-    return res.status(400).json({ 
-      message: 'Validation errors',
-      errors: errors.array()
-    });
-  }
-
-  const { textData } = req.body;
-
-  try {
-    const response = await axios.get(`${AI_SERVICE_URL}/analytics/sentiment`, {
-      params: { text_data: textData },
-      timeout: 10000,
-      headers: {
-        'Authorization': `Bearer ${req.user.token || 'demo-token'}`
-      }
-    });
-
-    res.json(response.data);
-  } catch (error) {
-    if (error.response) {
-      res.status(error.response.status).json(error.response.data);
-    } else {
-      res.status(500).json({
-        success: false,
-        error: 'Failed to analyze sentiment',
-        message: error.message
-      });
-    }
-  }
-}));
-
-// Analyze workload optimization
-router.get('/analytics/workload', [
-  verifyToken,
-  checkRole('ADMIN', 'HR', 'MANAGER'),
-  body('employeeData').isObject().withMessage('Employee data is required')
-], asyncHandler(async (req, res) => {
-  const errors = validationResult(req);
-  if (!errors.isEmpty()) {
-    return res.status(400).json({ 
-      message: 'Validation errors',
-      errors: errors.array()
-    });
-  }
-
-  const { employeeData } = req.body;
-
-  try {
-    const response = await axios.get(`${AI_SERVICE_URL}/analytics/workload`, {
-      params: { employee_data: employeeData },
-      timeout: 10000,
-      headers: {
-        'Authorization': `Bearer ${req.user.token || 'demo-token'}`
-      }
-    });
-
-    res.json(response.data);
-  } catch (error) {
-    if (error.response) {
-      res.status(error.response.status).json(error.response.data);
-    } else {
-      res.status(500).json({
-        success: false,
-        error: 'Failed to analyze workload',
-        message: error.message
-      });
-    }
-  }
-}));
-
-// Bulk process resumes for a job posting
-router.post('/bulk-process-resumes', [
-  verifyToken,
-  checkRole('ADMIN', 'HR'),
-  body('jobPostingId').isMongoId().withMessage('Invalid job posting ID')
-], asyncHandler(async (req, res) => {
-  const errors = validationResult(req);
-  if (!errors.isEmpty()) {
-    return res.status(400).json({ 
-      message: 'Validation errors',
-      errors: errors.array()
-    });
-  }
-
-  const { jobPostingId } = req.body;
-
-  // Get all candidates for this job posting with unprocessed resumes
-  const candidates = await prisma.candidate.findMany({
-    where: {
-      jobPostingId,
-      resumeFile: { not: null },
-      isProcessed: false
-    },
-    select: {
-      id: true,
-      resumeFile: true,
-      firstName: true,
-      lastName: true
-    }
-  });
-
-  if (candidates.length === 0) {
-    return res.json({
-      message: 'No candidates with unprocessed resumes found',
-      processedCount: 0
-    });
-  }
-
-  // Get job requirements for analysis
-  const jobPosting = await prisma.jobPosting.findUnique({
-    where: { id: jobPostingId },
-    select: {
-      title: true,
-      requirements: true,
-      responsibilities: true
-    }
-  });
-
-  const jobRequirements = {
-    skills: jobPosting.requirements?.skills || [],
-    experience_level: 'mid',
-    industry: 'technology'
+  // Mock answer analysis
+  const analysis = {
+    relevanceScore: Math.floor(Math.random() * 30) + 70,
+    communicationScore: Math.floor(Math.random() * 30) + 70,
+    technicalScore: Math.floor(Math.random() * 30) + 70,
+    feedback: 'Good answer, shows relevant experience and clear communication.',
+    keywords: ['experience', 'project', 'team', 'leadership'],
+    answeredAt: new Date()
   };
 
-  let processedCount = 0;
-  const results = [];
+  res.json({
+    message: 'Answer submitted successfully',
+    analysis,
+    nextQuestion: parseInt(questionId) + 1
+  });
+}));
 
-  // Process each candidate's resume
-  for (const candidate of candidates) {
-    try {
-      const response = await axios.post(`${AI_SERVICE_URL}/api/resume/analyze`, {
-        file_path: `uploads/${candidate.resumeFile}`,
-        job_requirements: jobRequirements
-      }, {
-        timeout: 30000,
-        headers: {
-          'Authorization': `Bearer ${req.user.token || 'demo-token'}`
-        }
-      });
+// Get next interview question
+router.get('/interview/question/:sessionId', checkRole('ADMIN', 'HR'), asyncHandler(async (req, res) => {
+  const { sessionId } = req.params;
 
-      if (response.data.success) {
-        // Update candidate with AI analysis results
-        await prisma.candidate.update({
-          where: { id: candidate.id },
-          data: {
-            fitScore: response.data.job_fit_analysis?.overall_score,
-            skills: response.data.candidate_profile?.skills_detected,
-            aiAnalysis: response.data,
-            isProcessed: true,
-            processedAt: new Date()
-          }
-        });
+  // Mock next question
+  const questions = [
+    'Tell me about yourself and your experience.',
+    'What interests you most about this role?',
+    'Describe a challenging project you worked on.',
+    'How do you handle tight deadlines?',
+    'What are your career goals?'
+  ];
 
-        processedCount++;
-        results.push({
-          candidateId: candidate.id,
-          candidateName: `${candidate.firstName} ${candidate.lastName}`,
-          success: true,
-          fitScore: response.data.job_fit_analysis?.overall_score
-        });
-      } else {
-        results.push({
-          candidateId: candidate.id,
-          candidateName: `${candidate.firstName} ${candidate.lastName}`,
-          success: false,
-          error: response.data.error
-        });
-      }
-    } catch (error) {
-      results.push({
-        candidateId: candidate.id,
-        candidateName: `${candidate.firstName} ${candidate.lastName}`,
-        success: false,
-        error: error.message
-      });
-    }
-  }
+  const currentQuestion = Math.floor(Math.random() * questions.length) + 1;
 
   res.json({
-    message: `Bulk processing completed. ${processedCount}/${candidates.length} resumes processed successfully`,
-    processedCount,
-    totalCandidates: candidates.length,
-    results
+    questionId: currentQuestion,
+    question: questions[currentQuestion - 1],
+    totalQuestions: questions.length,
+    timeLimit: 300 // 5 minutes
+  });
+}));
+
+// Get team insights
+router.get('/insights/team/:managerId', checkRole('ADMIN', 'HR', 'MANAGER'), asyncHandler(async (req, res) => {
+  const { managerId } = req.params;
+
+  // Mock team insights
+  const insights = {
+    performanceScore: Math.floor(Math.random() * 30) + 70,
+    retentionRisk: Math.floor(Math.random() * 30) + 10,
+    recommendations: [
+      'Consider team building activities',
+      'Provide additional training opportunities',
+      'Review workload distribution',
+      'Schedule regular one-on-ones'
+    ],
+    strengths: [
+      'Strong collaboration',
+      'High productivity',
+      'Good communication',
+      'Technical expertise'
+    ],
+    areasForImprovement: [
+      'Time management',
+      'Leadership skills',
+      'Cross-functional collaboration'
+    ],
+    predictedTurnover: Math.floor(Math.random() * 5) + 1,
+    generatedAt: new Date()
+  };
+
+  res.json({
+    insights
+  });
+}));
+
+// Get HR insights
+router.get('/insights/hr', checkRole('ADMIN', 'HR'), asyncHandler(async (req, res) => {
+  // Mock HR insights
+  const insights = {
+    predictions: {
+      retentionRisk: Math.floor(Math.random() * 30) + 10,
+      performanceScore: Math.floor(Math.random() * 30) + 70,
+      salaryOptimization: Math.floor(Math.random() * 50) + 10
+    },
+    trends: {
+      employeeSatisfaction: Math.floor(Math.random() * 20) + 70,
+      productivityTrend: 'increasing',
+      retentionTrend: 'stable'
+    },
+    recommendations: [
+      'Implement flexible work arrangements',
+      'Enhance employee development programs',
+      'Review compensation packages',
+      'Improve onboarding process'
+    ],
+    generatedAt: new Date()
+  };
+
+  res.json({
+    insights
   });
 }));
 

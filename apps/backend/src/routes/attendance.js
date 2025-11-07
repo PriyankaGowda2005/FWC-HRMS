@@ -1,599 +1,269 @@
 const express = require('express');
-const { body, param, query, validationResult } = require('express-validator');
-const { PrismaClient } = require('@prisma/client');
+const { body, validationResult, param } = require('express-validator');
+const { ObjectId } = require('mongodb');
+const database = require('../database/connection');
 const { verifyToken, checkRole } = require('../middleware/authMiddleware');
 const { asyncHandler } = require('../middleware/errorHandler');
 
 const router = express.Router();
-const prisma = new PrismaClient();
 
 // Apply auth middleware to all routes
 router.use(verifyToken);
 
-// Validation schemas
-const attendanceCreateSchema = [
-  body('employeeId')
-    .isMongoId()
-    .withMessage('Invalid employee ID'),
-  body('date')
-    .isISO8601()
-    .withMessage('Date must be valid ISO 8601 format')
-    .custom((value) => {
-      const date = new Date(value);
-      const today = new Date();
-      const maxDate = new Date(today.getTime() + 30 * 24 * 60 * 60 * 1000); // 30 days in future
-      
-      if (date < new Date('2020-01-01') || date > maxDate) {
-        throw new Error('Date must be between 2020 and 30 days from now');
-      }
-      return true;
-    }),
-  body('clockIn')
-    .optional()
-    .isISO8601()
-    .withMessage('Clock in time must be valid ISO 8601 format'),
-  body('clockOut')
-    .optional()
-    .isISO8601()
-    .withMessage('Clock out time must be valid ISO 8601 format'),
-  body('hoursWorked')
-    .optional()
-    .isFloat({ min: 0, max: 24 })
-    .withMessage('Hours worked必须以be between 0 and 24'),
-  body('overtimeHours')
-    .optional()
-    .isFloat({ min: 0 })
-    .withMessage('Overtime hours must be positive'),
-  body('breakTime')
-    .optional()
-    .isFloat({ min: 0 })
-    .withMessage('Break time must be positive'),
-  body('status')
-    .optional()
-    .isIn(['PRESENT', 'ABSENT', 'LATE', 'HALF_DAY', 'VACATION', 'SICK', 'PERSONAL'])
-    .withMessage('Invalid attendance status'),
-  body('workFromHome')
-    .optional()
-    .isBoolean()
-    .withMessage('Work from home must be boolean'),
-  body('notes')
-    .optional()
-    .isLength({ max: 500 })
-    .withMessage('Notes cannot exceed 500 characters')
-];
+// Get attendance records
+router.get('/', asyncHandler(async (req, res) => {
+  const { date, employeeId } = req.query;
+  const page = parseInt(req.query.page) || 1;
+  const limit = parseInt(req.query.limit) || 10;
+  const skip = (page - 1) * limit;
 
-const attendanceUpdateSchema = [
-  body('clockIn')
-    .optional()
-    .isISO8601()
-    .withMessage('Clock in time must be valid ISO 8601 format'),
-  body('clockOut')
-    .optional()
-    .isISO8601()
-    .withMessage('Clock out time must be valid ISO 8601 format'),
-  body('hoursWorked')
-    .optional()
-    .isFloat({ min: 0, max: 24 })
-    .withMessage('Hours worked must be between 0 and 24'),
-  body('overtimeHours')
-    .optional()
-    .isFloat({ min: 0 })
-    .withMessage('Overtime hours must be positive'),
-  body('breakTime')
-    .optional()
-    .isFloat({ min: 0 })
-    .withMessage('Break time must be positive'),
-  body('status')
-    .optional()
-    .isIn(['PRESENT', 'ABSENT', 'LATE', 'HALF_DAY', 'VACATION', 'SICK', 'PERSONAL'])
-    .withMessage('Invalid attendance status'),
-  body('workFromHome')
-    .optional()
-    .isBoolean()
-    .withMessage('Work from home must be boolean'),
-  body('notes')
-    .optional()
-    .isLength({ max: 500 })
-    .withMessage('Notes cannot exceed 500 characters')
-];
+  let query = {};
+  if (date) query.date = date;
+  if (employeeId) query.employeeId = employeeId;
 
-// Clock In functionality
-router.post('/clock-in', [
-  body('notes').optional().isLength({ max: 200 }).withMessage('Notes too long'),
-  body('workFromHome').optional().isBoolean().withMessage('Work from home must be boolean')
-], asyncHandler(async (req, res) => {
-  const errors = validationResult(req);
-  if (!errors.isEmpty()) {
-    return res.status(400).json({ 
-      message: 'Validation errors',
-      errors: errors.array()
-    });
-  }
-
-  const { notes, workFromHome = false } = req.body;
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-
-  // Check if already clocked in today
-  const existingAttendance = await prisma.attendance.findFirst({
-    where: {
-      employeeId: req.user.employee.id,
-      date: {
-        gte: today,
-        lt: new Date(today.getTime() + 24 * 60 * 60 * 1000)
-      },
-      clockIn: { not: null }
-    }
+  const attendance = await database.find('attendance', query, {
+    skip,
+    limit,
+    sort: { date: -1 }
   });
 
-  if (existingAttendance) {
-    return res.status(400).json({ 
-      message: 'Already clocked in for today' 
-    });
-  }
-
-  const attendance = await prisma.attendance.upsert({
-    where: {
-      employeeId_date: {
-        employeeId: req.user.employee.id,
-        date: today
-      }
-    },
-    update: {
-      clockIn: new Date(),
-      notes,
-      workFromHome,
-      status: workFromHome ? 'PRESENT' : 'PRESENT'
-    },
-    create: {
-      employeeId: req.user.employee.id,
-      date: today,
-      clockIn: new Date(),
-      notes,
-      workFromHome,
-      status: 'PRESENT'
-    },
-    include: {
-      employee: {
-        select: {
-          firstName: true,
-          lastName: true,
-          position: true
-        }
-      }
-    }
-  });
+  const total = await database.count('attendance', query);
 
   res.json({
-    message: 'Clocked in successfully',
-    attendance: {
-      id: attendance.id,
-      clockIn: attendance.clockIn,
-      workFromHome: attendance.workFromHome,
-      notes: attendance.notes
+    attendanceRecords: attendance,
+    pagination: {
+      page,
+      limit,
+      total,
+      pages: Math.ceil(total / limit)
     }
   });
 }));
 
-// Clock Out functionality
-router.post('/clock-out', [
-  body('notes').optional().isLength({ max: 200 }).withMessage('Notes too long')
-], asyncHandler(async (req, res) => {
-  const errors = validationResult(req);
-  if (!errors.isEmpty()) {
-    return res.status(400).json({ 
-      message: 'Validation errors',
-      errors: errors.array()
-    });
+// Get my attendance
+router.get('/my-attendance', asyncHandler(async (req, res) => {
+  const { startDate, endDate, page = 1, limit = 10, status } = req.query;
+  const skip = (page - 1) * limit;
+
+  // Get employee by user ID
+  const employee = await database.findOne('employees', { userId: new ObjectId(req.user.userId) });
+  if (!employee) {
+    return res.status(404).json({ message: 'Employee not found' });
   }
 
-  const { notes } = req.body;
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
+  let query = { employeeId: employee._id.toString() };
+  if (startDate) query.date = { $gte: startDate };
+  if (endDate) query.date = { ...query.date, $lte: endDate };
+  if (status) query.status = status;
 
-  // Find today's attendance
-  const attendance = await prisma.attendance.findFirst({
-    where: {
-      employeeId: req.user.employee.id,
-      date: {
-        gte: today,
-        lt: new Date(today.getTime() + 24 * 60 * 60 * 1000)
-      },
-      clockIn: { not: null }
-    }
+  const attendance = await database.find('attendance', query, {
+    skip,
+    limit,
+    sort: { date: -1 }
   });
 
-  if (!attendance) {
-    return res.status(400).json({ 
-      message: 'No clock in found for today' 
+  // Calculate summary
+  const totalHours = attendance.reduce((sum, record) => sum + (record.hoursWorked || 0), 0);
+  const presentDays = attendance.filter(record => record.status === 'PRESENT').length;
+  const totalDays = attendance.length;
+
+  const total = await database.count('attendance', query);
+
+  res.json({
+    attendanceRecords: attendance,
+    summary: {
+      totalHours: totalHours.toFixed(1),
+      presentDays,
+      totalDays,
+      attendanceRate: totalDays > 0 ? Math.round((presentDays / totalDays) * 100) : 0
+    },
+    pagination: {
+      page: parseInt(page),
+      limit: parseInt(limit),
+      total,
+      pages: Math.ceil(total / limit)
+    }
+  });
+}));
+
+// Clock in
+router.post('/clock-in', asyncHandler(async (req, res) => {
+  const { notes, workFromHome } = req.body;
+
+  // Get employee by user ID
+  const employee = await database.findOne('employees', { userId: new ObjectId(req.user.userId) });
+  if (!employee) {
+    return res.status(404).json({ message: 'Employee not found' });
+  }
+
+  const today = new Date().toISOString().split('T')[0];
+  
+  // Check if already clocked in today
+  const existingRecord = await database.findOne('attendance', {
+    employeeId: employee._id.toString(),
+    date: today
+  });
+
+  if (existingRecord && existingRecord.clockIn) {
+    return res.status(400).json({ message: 'Already clocked in today' });
+  }
+
+  const clockInTime = new Date();
+  
+  if (existingRecord) {
+    // Update existing record
+    await database.updateOne('attendance', 
+      { _id: existingRecord._id },
+      { 
+        $set: { 
+          clockIn: clockInTime,
+          notes: notes || '',
+          workFromHome: workFromHome || false,
+          status: 'PRESENT',
+          updatedAt: new Date()
+        }
+      }
+    );
+  } else {
+    // Create new record
+    await database.insertOne('attendance', {
+      employeeId: employee._id.toString(),
+      date: today,
+      clockIn: clockInTime,
+      notes: notes || '',
+      workFromHome: workFromHome || false,
+      status: 'PRESENT',
+      createdAt: new Date(),
+      updatedAt: new Date()
     });
   }
 
-  if (attendance.clockOut) {
-    return res.status(400).json({ 
-      message: 'Already clocked out for today' 
-    });
+  res.json({ message: 'Clocked in successfully', clockInTime });
+}));
+
+// Clock out
+router.post('/clock-out', asyncHandler(async (req, res) => {
+  const { notes } = req.body;
+
+  // Get employee by user ID
+  const employee = await database.findOne('employees', { userId: new ObjectId(req.user.userId) });
+  if (!employee) {
+    return res.status(404).json({ message: 'Employee not found' });
+  }
+
+  const today = new Date().toISOString().split('T')[0];
+  
+  // Find today's record
+  const record = await database.findOne('attendance', {
+    employeeId: employee._id.toString(),
+    date: today
+  });
+
+  if (!record || !record.clockIn) {
+    return res.status(400).json({ message: 'No clock-in record found for today' });
+  }
+
+  if (record.clockOut) {
+    return res.status(400).json({ message: 'Already clocked out today' });
   }
 
   const clockOutTime = new Date();
-  const clockInTime = attendance.clockIn;
-  
-  // Calculate hours worked
-  const totalMinutes = (clockOutTime - clockInTime) / (1000 * 60);
-  const breakTimeMinutes = (attendance.breakTime || 0) * 60;
-  const hoursWorked = (totalMinutes - breakTimeMinutes) / 60;
-  
-  // Calculate overtime (assuming 8 hour workday)
-  const overtimeHours = Math.max(0, hoursWorked - 8);
+  const hoursWorked = (clockOutTime - record.clockIn) / (1000 * 60 * 60);
 
-  const updatedAttendance = await prisma.attendance.update({
-    where: { id: attendance.id },
-    data: {
-      clockOut: clockOutTime,
-      hoursWorked: Math.max(0, hoursWorked),
-      overtimeHours,
-      ...(notes && { notes })
-    },
-    include: {
-      employee: {
-        select: {
-          firstName: true,
-          lastName: true,
-          position: true
-        }
+  await database.updateOne('attendance', 
+    { _id: record._id },
+    { 
+      $set: { 
+        clockOut: clockOutTime,
+        hoursWorked: Math.round(hoursWorked * 10) / 10,
+        updatedAt: new Date()
       }
     }
-  });
-
-  res.json({
-    message: 'Clocked out successfully',
-    attendance: {
-      id: updatedAttendance.id,
-      clockIn: updatedAttendance.clockIn,
-      clockOut: updatedAttendance.clockOut,
-      hoursWorked: updatedAttendance.hoursWorked,
-      overtimeHours: updatedAttendance.overtimeHours
-    }
-  });
-}));
-
-// Get current employee's attendance with filtering
-router.get('/my-attendance', [
-  query('startDate')
-    .optional()
-    .isISO8601()
-    .withMessage('Start date must be valid ISO 8601 format'),
-  query('endDate')
-    .optional()
-    .isISO8601()
-    .withMessage('End date must be valid ISO 8601 format'),
-  query('page')
-    .optional()
-    .isInt({ min: 1 })
-    .withMessage('Page must be positive integer'),
-  query('limit')
-    .optional()
-    .isInt({ min: 1, max: 100 })
-    .withMessage('Limit must be between 1-100'),
-  query('status')
-    .optional()
-    .isIn(['PRESENT', 'ABSENT', 'LATE', 'HALF_DAY', 'VACATION', 'SICK', 'PERSONAL'])
-    .withMessage('Invalid status')
-], asyncHandler(async (req, res) => {
-  const errors = validationResult(req);
-  if (!errors.isEmpty()) {
-    return res.status(400).json({ 
-      message: 'Validation errors',
-      errors: errors.array()
-    });
-  }
-
-  const {
-    startDate,
-    endDate,
-    page = 1,
-    limit = 20,
-    status
-  } = req.query;
-
-  // Default to current month if no dates provided
-  const start = startDate || new Date(new Date().getFullYear(), new Date().getMonth(), 1);
-  const end = endDate || new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0);
-
-  const where = {
-    employeeId: req.user.employee.id,
-    date: {
-      gte: new Date(start),
-      lte: new Date(end)
-    }
-  };
-
-  if (status) {
-    where.status = status;
-  }
-
-  const skip = (page - 1) * limit;
-
-  const [attendanceRecords, total] = await Promise.all([
-    prisma.attendance.findMany({
-      skip,
-      take: limit,
-      where,
-      orderBy: { date: 'desc' },
-      select: {
-        id: true,
-        date: true,
-        clockIn: true,
-        clockOut: true,
-        hoursWorked: true,
-        overtimeHours: true,
-        status: true,
-        workFromHome: true,
-        notes: true,
-        createdAt: true
-      }
-    }),
-    prisma.attendance.count({ where })
-  ]);
-
-  // Calculate summary statistics
-  const summary = await prisma.attendance.groupBy({
-    by: ['status'],
-    where: {
-      employeeId: req.user.employee.id,
-      date: {
-        gte: new Date(start),
-        lte: new Date(end)
-      }
-    },
-    _sum: {
-      hoursWorked: true,
-      overtimeHours: true
-    },
-    _count: true
-  });
-
-  const totalHours = summary.reduce((sum, item) => sum + (item._sum.hoursWorked || 0), 0);
-  const totalOvertime = summary.reduce((sum, item) => sum + (item._sum.overtimeHours || 0), 0);
-
-  res.json({
-    attendanceRecords,
-    summary: {
-      totalDays: total,
-      totalHours,
-      totalOvertime,
-      statusBreakdown: summary.map(item => ({
-        status: item.status,
-        count: item._count,
-        hours: item._sum.hoursWorked || 0,
-        overtime: item._sum.overtimeHours || 0
-      }))
-    },
-    pagination: {
-      page,
-      limit,
-      total,
-      pages: Math.ceil(total / limit)
-    }
-  });
-}));
-
-// Admin/HR: Get all attendance with filters
-router.get('/', [
-  checkRole('ADMIN', 'HR', 'MANAGER'),
-  query('employeeId').optional().isMongoId().withMessage('Invalid employee ID'),
-  query('departmentId').optional().isMongoId().withMessage('Invalid department ID'),
-  query('startDate').optional().isISO8601().withMessage('Invalid start date'),
-  query('endDate').optional().isISO8601().withMessage('Invalid end date'),
-  query('status').optional().isIn(['PRESENT', 'ABSENT', 'LATE', 'HALF_DAY', 'VACATION', 'SICK', 'PERSONAL']),
-  query('page').optional().isInt({ min: 1 }),
-  query('limit').optional().isInt({ min: 1, max: 100 })
-], asyncHandler(async (req, res) => {
-  const errors = validationResult(req);
-  if (!errors.isEmpty()) {
-    return res.status(400).json({ 
-      message: 'Validation errors',
-      errors: errors.array()
-    });
-  }
-
-  const {
-    employeeId,
-    departmentId,
-    startDate,
-    endDate,
-    status,
-    page = 1,
-    limit = 20
-  } = req.query;
-
-  const where = {};
-
-  // Apply filters
-  if (employeeId) {
-    where.employeeId = employeeId;
-  }
-
-  if (departmentId) {
-    // Get employees in department
-    const departmentEmployeeIds = await prisma.employee.findMany({
-      where: { departmentId },
-      select: { id: true }
-    });
-    where.employeeId = { in: departmentEmployeeIds.map(emp => emp.id) };
-  }
-
-  if (status) {
-    where.status = status;
-  }
-
-  if (startDate && endDate) {
-    where.date = {
-      gte: new Date(startDate),
-      lte: new Date(endDate)
-    };
-  }
-
-  const skip = (page - 1) * limit;
-
-  const [attendanceRecords, total] = await Promise.all([
-    prisma.attendance.findMany({
-      skip,
-      take: limit,
-      where,
-      orderBy: { date: 'desc' },
-      include: {
-        employee: {
-          select: {
-            id: true,
-            firstName: true,
-            lastName: true,
-            position: true,
-            department: {
-              select: {
-                name: true
-              }
-            }
-          }
-        }
-      }
-    }),
-    prisma.attendance.count({ where })
-  ]);
-
-  res.json({
-    attendanceRecords,
-    pagination: {
-      page,
-      limit,
-      total,
-      pages: Math.ceil(total / limit)
-    }
-  });
-}));
-
-// Create attendance record (Admin/HR only)
-router.post('/', [
-  checkRole('ADMIN', 'HR'),
-  ...attendanceCreateSchema
-], asyncHandler(async (req, res) => {
-  const errors = validationResult(req);
-  if (!errors.isEmpty()) {
-    return res.status(400).json({ 
-      message: 'Validation errors',
-      errors: errors.array()
-    });
-  }
-
-  const attendanceData = req.body;
-  const attendanceDate = new Date(attendanceData.date);
-
-  // Check if attendance already exists for this employee and date
-  const existingAttendance = await prisma.attendance.findFirst({
-    where: {
-      employeeId: attendanceData.employeeId,
-      date: {
-        gte: new Date(attendanceDate.getTime()),
-        lt: new Date(attendanceDate.getTime() + 24 * 60 * 60 * 1000)
-      }
-    }
-  });
-
-  if (existingAttendance) {
-    return res.status(400).json({ 
-      message: 'Attendance record already exists for this employee on this date' 
-    });
-  }
-
-  const attendance = await prisma.attendance.create({
-    data: attendanceData,
-    include: {
-      employee: {
-        select: {
-          firstName: true,
-          lastName: true,
-          position: true
-        }
-      }
-    }
-  });
-
-  res.status(201).json({
-    message: 'Attendance record created successfully',
-    attendance
-  });
-}));
-
-// Update attendance record (Admin/HR only)
-router.put('/:id', [
-  checkRole('ADMIN', 'HR'),
-  param('id').isMongoId().withMessage('Invalid attendance ID'),
-  ...attendanceUpdateSchema
-], asyncHandler(async (req, res) => {
-  const errors = validationResult(req);
-  if (!errors.isEmpty()) {
-    return res.status(400).json({ 
-      message: 'Validation errors',
-      errors: errors.array()
-    });
-  }
-
-  const { id } = req.params;
-  const updateData = {};
-
-  // Filter allowed fields
-  const allowedFields = [
-    'clockIn', 'clockOut', 'hoursWorked', 'overtimeHours', 
-    'breakTime', 'status', 'workFromHome', 'notes'
-  ];
-
-  allowedFields.forEach(field => {
-    if (req.body[field] !== undefined) {
-      updateData[field] = req.body[field];
-    }
-  });
-
-  const attendance = await prisma.attendance.update({
-    where: { id },
-    data: updateData,
-    include: {
-      employee: {
-        select: {
-          firstName: true,
-          lastName: true,
-          position: true
-        }
-      }
-    }
-  });
-
-  res.json({
-    message: 'Attendance record updated successfully',
-    attendance
-  });
-}));
-
-// Delete attendance record (Admin only)
-router.delete('/:id', [
-  checkRole('ADMIN'),
-  param('id').isMongoId().withMessage('Invalid attendance ID')
-], asyncHandler(async (req, res) => {
-  const errors = validationResult(req);
-  if (!errors.isEmpty()) {
-    return res.status(400).json({ 
-      message: 'Validation errors',
-      errors: errors.array()
-    });
-  }
-
-  const { id } = req.params;
-
-  await prisma.attendance.delete({
-    where: { id }
-  });
+  );
 
   res.json({ 
-    message: 'Attendance record deleted successfully' 
+    message: 'Clocked out successfully', 
+    clockOutTime,
+    hoursWorked: Math.round(hoursWorked * 10) / 10
+  });
+}));
+
+// Get team attendance
+router.get('/team', checkRole('ADMIN', 'HR', 'MANAGER'), asyncHandler(async (req, res) => {
+  const { managerId, timeRange } = req.query;
+
+  // For now, return all attendance records
+  // In a real system, you'd filter by team members
+  const attendance = await database.find('attendance', {}, {
+    sort: { date: -1 },
+    limit: 50
+  });
+
+  // Calculate team stats
+  const totalRecords = attendance.length;
+  const presentRecords = attendance.filter(record => record.status === 'PRESENT').length;
+  const attendanceRate = totalRecords > 0 ? Math.round((presentRecords / totalRecords) * 100) : 0;
+
+  res.json({
+    attendanceRecords: attendance,
+    stats: {
+      attendanceRate,
+      totalRecords,
+      presentRecords
+    }
+  });
+}));
+
+// Get employee attendance
+router.get('/employee', checkRole('ADMIN', 'HR', 'MANAGER'), asyncHandler(async (req, res) => {
+  const { employeeId, period } = req.query;
+
+  if (!employeeId) {
+    return res.status(400).json({ message: 'Employee ID is required' });
+  }
+
+  let query = { employeeId };
+  
+  // Add period filter if provided
+  if (period) {
+    const now = new Date();
+    let startDate;
+    
+    switch (period) {
+      case 'week':
+        startDate = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+        break;
+      case 'month':
+        startDate = new Date(now.getFullYear(), now.getMonth(), 1);
+        break;
+      case 'quarter':
+        startDate = new Date(now.getFullYear(), Math.floor(now.getMonth() / 3) * 3, 1);
+        break;
+      default:
+        startDate = new Date(now.getFullYear(), 0, 1); // Year start
+    }
+    
+    query.date = { $gte: startDate.toISOString().split('T')[0] };
+  }
+
+  const attendance = await database.find('attendance', query, {
+    sort: { date: -1 },
+    limit: 100
+  });
+
+  // Calculate summary
+  const totalHours = attendance.reduce((sum, record) => sum + (record.hoursWorked || 0), 0);
+  const presentDays = attendance.filter(record => record.status === 'PRESENT').length;
+  const totalDays = attendance.length;
+
+  res.json({
+    attendanceRecords: attendance,
+    summary: {
+      totalHours: totalHours.toFixed(1),
+      presentDays,
+      totalDays,
+      attendanceRate: totalDays > 0 ? Math.round((presentDays / totalDays) * 100) : 0
+    }
   });
 }));
 

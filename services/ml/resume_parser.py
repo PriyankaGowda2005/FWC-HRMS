@@ -496,4 +496,6 @@ def calculate_job_match(candidate_skills: List[str], job_requirements: List[str]
         'score': round(match_score, 1),
         'matched_skills': matched_skills,
         'missing_skills': missing_skills,
-       现在我继续完成剩余实现:
+        'total_requirements': len(job_requirements),
+        'match_percentage': round(match_score, 1)
+    }

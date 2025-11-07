@@ -2,23 +2,23 @@ const express = require('express');
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
 const { body, validationResult } = require('express-validator');
-const { PrismaClient } = require('@prisma/client');
+const { ObjectId } = require('mongodb');
+const database = require('../database/connection');
 const { asyncHandler } = require('../middleware/errorHandler');
 
 const router = express.Router();
-const prisma = new PrismaClient();
 
 // Generate tokens
 const generateTokens = (userId, role) => {
   const token = jwt.sign(
     { userId, role },
-    process.env.JWT_SECRET,
+    process.env.JWT_SECRET || 'fwc-hrms-super-secret-jwt-key-2024',
     { expiresIn: process.env.JWT_EXPIRES_IN || '15m' }
   );
 
   const refreshToken = jwt.sign(
     { userId, type: 'refresh' },
-    process.env.JWT_REFRESH_SECRET,
+    process.env.JWT_REFRESH_SECRET || 'fwc-hrms-super-secret-refresh-key-2024',
     { expiresIn: process.env.JWT_REFRESH_EXPIRES_IN || '7d' }
   );
 
@@ -55,13 +55,11 @@ router.post('/register', [
   const { email, username, password, firstName, lastName, role = 'EMPLOYEE', department, position } = req.body;
 
   // Check if user already exists
-  const existingUser = await prisma.user.findFirst({
-    where: {
-      OR: [
-        { email },
-        { username }
-      ]
-    }
+  const existingUser = await database.findOne('users', {
+    $or: [
+      { email },
+      { username }
+    ]
   });
 
   if (existingUser) {
@@ -75,36 +73,38 @@ router.post('/register', [
   const saltRounds = 12;
   const hashedPassword = await bcrypt.hash(password, saltRounds);
 
-  // Create user and employee in transaction
-  const result = await prisma.$transaction(async (tx) => {
-    const user = await tx.user.create({
-      data: {
-        email,
-        username,
-        password: hashedPassword,
-        role: role.toUpperCase()
-      }
-    });
+  // Create user
+  const userData = {
+    email,
+    username,
+    password: hashedPassword,
+    role: role.toUpperCase(),
+    isActive: true,
+    createdAt: new Date(),
+    updatedAt: new Date()
+  };
 
-    const employee = await tx.employee.create({
-      data: {
-        userId: user.id,
-        firstName,
-        lastName,
-        position,
-        hireDate: new Date(),
-        isActive: true,
-        isOnProbation: false
-      }
-    });
+  const userResult = await database.insertOne('users', userData);
+  const userId = userResult.insertedId;
 
-    return { user, employee };
-  });
+  // Create employee record
+  const employeeData = {
+    userId: userId,
+    firstName,
+    lastName,
+    position: position || 'Employee',
+    department: department || null,
+    hireDate: new Date(),
+    isActive: true,
+    isOnProbation: false,
+    createdAt: new Date(),
+    updatedAt: new Date()
+  };
 
-  const { user, employee } = result;
+  await database.insertOne('employees', employeeData);
 
   // Generate tokens
-  const { token, refreshToken } = generateTokens(user.id, user.role);
+  const { token, refreshToken } = generateTokens(userId.toString(), role.toUpperCase());
 
   // Set cookies
   res.cookie('token', token, getCookieOptions());
@@ -113,24 +113,21 @@ router.post('/register', [
   res.status(201).json({
     message: 'User registered successfully',
     user: {
-      id: user.id,
-      email: user.email,
-      username: user.username,
-      role: user.role
+      id: userId,
+      email,
+      username,
+      role: role.toUpperCase(),
+      firstName,
+      lastName
     },
-    employee: {
-      id: employee.id,
-      firstName: employee.firstName,
-      lastName: employee.lastName,
-      department: employee.department,
-      position: employee.position
-    }
+    token,
+    refreshToken
   });
 }));
 
 // Login
 router.post('/login', [
-  body('email').notEmpty().withMessage('Email required'),
+  body('email').isEmail().normalizeEmail().withMessage('Valid email required'),
   body('password').notEmpty().withMessage('Password required')
 ], asyncHandler(async (req, res) => {
   const errors = validationResult(req);
@@ -143,16 +140,15 @@ router.post('/login', [
 
   const { email, password } = req.body;
 
-  // Find user with employee data
-  const user = await prisma.user.findUnique({
-    where: { email },
-    include: {
-      employee: true
-    }
-  });
-
+  // Find user
+  const user = await database.findOne('users', { email });
   if (!user) {
     return res.status(401).json({ message: 'Invalid credentials' });
+  }
+
+  // Check if user is active
+  if (!user.isActive) {
+    return res.status(401).json({ message: 'Account is deactivated' });
   }
 
   // Verify password
@@ -161,8 +157,11 @@ router.post('/login', [
     return res.status(401).json({ message: 'Invalid credentials' });
   }
 
+  // Get employee data
+  const employee = await database.findOne('employees', { userId: user._id });
+
   // Generate tokens
-  const { token, refreshToken } = generateTokens(user.id, user.role);
+  const { token, refreshToken } = generateTokens(user._id.toString(), user.role);
 
   // Set cookies
   res.cookie('token', token, getCookieOptions());
@@ -171,109 +170,94 @@ router.post('/login', [
   res.json({
     message: 'Login successful',
     user: {
-      id: user.id,
+      id: user._id,
       email: user.email,
       username: user.username,
-      role: user.role
+      role: user.role,
+      firstName: employee?.firstName,
+      lastName: employee?.lastName,
+      position: employee?.position,
+      department: employee?.department
     },
-    employee: user.employee ? {
-      id: user.employee.id,
-      firstName: user.employee.firstName,
-      lastName: user.employee.lastName,
-      department: user.employee.department,
-      position: user.employee.position
-    } : null
+    token,
+    refreshToken
   });
+}));
+
+// Logout
+router.post('/logout', asyncHandler(async (req, res) => {
+  res.clearCookie('token');
+  res.clearCookie('refreshToken');
+  res.json({ message: 'Logout successful' });
 }));
 
 // Refresh token
 router.post('/refresh', asyncHandler(async (req, res) => {
-  const refreshToken = req.cookies.refreshToken || req.body.refreshToken;
-
+  const { refreshToken } = req.cookies;
+  
   if (!refreshToken) {
     return res.status(401).json({ message: 'Refresh token required' });
   }
 
   try {
-    const decoded = jwt.verify(refreshToken, process.env.JWT_REFRESH_SECRET);
+    const decoded = jwt.verify(refreshToken, process.env.JWT_REFRESH_SECRET || 'fwc-hrms-super-secret-refresh-key-2024');
     
     if (decoded.type !== 'refresh') {
       return res.status(401).json({ message: 'Invalid refresh token' });
     }
 
-    const user = await prisma.user.findUnique({
-      where: { id: decoded.userId },
-      select: { id: true, role: true, isActive: true }
-    });
-
+    // Find user
+    const user = await database.findOne('users', { _id: new ObjectId(decoded.userId) });
     if (!user || !user.isActive) {
-      return res.status(401).json({ message: 'Invalid refresh token' });
+      return res.status(401).json({ message: 'User not found or inactive' });
     }
 
-    const { token: newToken, refreshToken: newRefreshToken } = generateTokens(user.id, user.role);
+    // Generate new tokens
+    const { token, refreshToken: newRefreshToken } = generateTokens(user._id.toString(), user.role);
 
-    res.cookie('token', newToken, getCookieOptions());
+    // Set new cookies
+    res.cookie('token', token, getCookieOptions());
     res.cookie('refreshToken', newRefreshToken, getCookieOptions(true));
 
-    res.json({ message: 'Token refreshed successfully' });
+    res.json({
+      message: 'Token refreshed successfully',
+      token,
+      refreshToken: newRefreshToken
+    });
   } catch (error) {
-    console.error('Refresh token error:', error);
     res.status(401).json({ message: 'Invalid refresh token' });
   }
 }));
 
-// Logout
-router.post('/logout', (req, res) => {
-  res.clearCookie('token');
-  res.clearCookie('refreshToken');
-  res.json({ message: 'Logout successful' });
-});
-
 // Get current user
 router.get('/me', asyncHandler(async (req, res) => {
-  const token = req.cookies.token || req.headers.authorization?.split(' ')[1];
-
+  const token = req.cookies.token || req.headers.authorization?.replace('Bearer ', '');
+  
   if (!token) {
-    return res.status(401).json({ message: 'Authentication required' });
+    return res.status(401).json({ message: 'No token provided' });
   }
 
   try {
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    const decoded = jwt.verify(token, process.env.JWT_SECRET || 'fwc-hrms-super-secret-jwt-key-2024');
     
-    const user = await prisma.user.findUnique({
-      where: { id: decoded.userId },
-      select: {
-        id: true,
-        email: true,
-        username: true,
-        role: true,
-        employee: {
-          select: {
-            id: true,
-            firstName: true,
-            lastName: true,
-            department: true,
-            position: true,
-            phoneNumber: true,
-            salary: true,
-            hireDate: true
-          }
-        }
-      }
-    });
-
-    if (!user) {
-      return res.status(401).json({ message: 'Invalid token' });
+    const user = await database.findOne('users', { _id: new ObjectId(decoded.userId) });
+    if (!user || !user.isActive) {
+      return res.status(401).json({ message: 'User not found or inactive' });
     }
+
+    const employee = await database.findOne('employees', { userId: user._id });
 
     res.json({
       user: {
-        id: user.id,
+        id: user._id,
         email: user.email,
         username: user.username,
-        role: user.role
-      },
-      employee: user.employee
+        role: user.role,
+        firstName: employee?.firstName,
+        lastName: employee?.lastName,
+        position: employee?.position,
+        department: employee?.department
+      }
     });
   } catch (error) {
     res.status(401).json({ message: 'Invalid token' });

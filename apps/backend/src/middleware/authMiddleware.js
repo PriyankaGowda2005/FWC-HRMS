@@ -1,7 +1,6 @@
 const jwt = require('jsonwebtoken');
-const { PrismaClient } = require('@prisma/client');
-
-const prisma = new PrismaClient();
+const { ObjectId } = require('mongodb');
+const database = require('../database/connection');
 
 // Role hierarchy and permissions
 const ROLE_HIERARCHY = {
@@ -61,39 +60,31 @@ const verifyToken = async (req, res, next) => {
       return res.status(401).json({ message: 'Access token required' });
     }
 
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    const decoded = jwt.verify(token, process.env.JWT_SECRET || 'fwc-hrms-super-secret-jwt-key-2024');
     
     // Get user from database with enhanced information
-    const user = await prisma.user.findUnique({
-      where: { id: decoded.userId },
-      select: {
-        id: true,
-        email: true,
-        username: true,
-        role: true,
-        isActive: true,
-        employee: {
-          select: {
-            id: true,
-            firstName: true,
-            lastName: true,
-            department: true,
-            position: true,
-            employeeId: true,
-            hireDate: true,
-            isOnProbation: true
-          }
-        }
-      }
-    });
-
+    const user = await database.findOne('users', { _id: new ObjectId(decoded.userId) });
+    
     if (!user || !user.isActive) {
       return res.status(401).json({ message: 'Invalid or inactive user' });
     }
 
+    // Get employee data
+    const employee = await database.findOne('employees', { userId: user._id });
+
     // Add permissions and role level to user object
     user.permissions = ROLE_PERMISSIONS[user.role] || [];
     user.roleLevel = ROLE_HIERARCHY[user.role] || 0;
+    user.employee = employee ? {
+      id: employee._id,
+      firstName: employee.firstName,
+      lastName: employee.lastName,
+      department: employee.department,
+      position: employee.position,
+      employeeId: employee.employeeId,
+      hireDate: employee.hireDate,
+      isOnProbation: employee.isOnProbation
+    } : null;
 
     req.user = user;
     next();
@@ -185,7 +176,7 @@ const checkResourceAccess = (resourceUserIdField = 'userId') => {
 
     // Check if user is accessing their own resource
     const resourceUserId = req.params[resourceUserIdField] || req.body[resourceUserIdField];
-    if (resourceUserId && resourceUserId === req.user.id) {
+    if (resourceUserId && resourceUserId === req.user._id.toString()) {
       return next();
     }
 
@@ -199,7 +190,7 @@ const checkResourceAccess = (resourceUserIdField = 'userId') => {
     return res.status(403).json({ 
       message: 'Access denied to this resource',
       resourceUserId,
-      currentUserId: req.user.id
+      currentUserId: req.user._id
     });
   };
 };
@@ -210,30 +201,22 @@ const optionalAuth = async (req, res, next) => {
     const token = req.cookies.token || req.headers.authorization?.split(' ')[1];
 
     if (token) {
-      const decoded = jwt.verify(token, process.env.JWT_SECRET);
-      const user = await prisma.user.findUnique({
-        where: { id: decoded.userId },
-        select: {
-          id: true,
-          email: true,
-          username: true,
-          role: true,
-          isActive: true,
-          employee: {
-            select: {
-              id: true,
-              firstName: true,
-              lastName: true,
-              department: true,
-              position: true
-            }
-          }
-        }
-      });
-
+      const decoded = jwt.verify(token, process.env.JWT_SECRET || 'fwc-hrms-super-secret-jwt-key-2024');
+      const user = await database.findOne('users', { _id: new ObjectId(decoded.userId) });
+      
       if (user && user.isActive) {
+        const employee = await database.findOne('employees', { userId: user._id });
+        
         user.permissions = ROLE_PERMISSIONS[user.role] || [];
         user.roleLevel = ROLE_HIERARCHY[user.role] || 0;
+        user.employee = employee ? {
+          id: employee._id,
+          firstName: employee.firstName,
+          lastName: employee.lastName,
+          department: employee.department,
+          position: employee.position
+        } : null;
+        
         req.user = user;
       }
     }
@@ -250,7 +233,7 @@ const createRateLimit = (maxAttempts = 5, windowMs = 15 * 60 * 1000) => {
   const attempts = new Map();
 
   return (req, res, next) => {
-    const key = req.ip + (req.user?.id || 'anonymous');
+    const key = req.ip + (req.user?._id || 'anonymous');
     const now = Date.now();
     const windowStart = now - windowMs;
 

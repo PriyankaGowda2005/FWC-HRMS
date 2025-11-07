@@ -22,11 +22,31 @@ export const AuthProvider = ({ children }) => {
 
   const checkAuth = async () => {
     try {
-      const response = await authAPI.getCurrentUser()
+      // Check if we have a token in localStorage first
+      const token = localStorage.getItem('token')
+      if (!token) {
+        setUser(null)
+        setLoading(false)
+        return
+      }
+
+      // Add timeout to prevent hanging
+      const timeoutPromise = new Promise((_, reject) => 
+        setTimeout(() => reject(new Error('Auth check timeout')), 3000)
+      )
+      
+      const response = await Promise.race([
+        authAPI.getCurrentUser(),
+        timeoutPromise
+      ])
+      
       setUser(response.data.user)
     } catch (error) {
-      // Clear user data on auth failure
+      console.log('Auth check failed (this is normal for new users):', error.message)
+      // Clear user data and token on auth failure
       setUser(null)
+      localStorage.removeItem('token')
+      localStorage.removeItem('refreshToken')
     } finally {
       setLoading(false)
     }
@@ -35,9 +55,20 @@ export const AuthProvider = ({ children }) => {
   const login = async (credentials) => {
     try {
       const response = await authAPI.login(credentials)
+      console.log('Login response:', response.data) // Debug log
+      
+      // Store tokens in localStorage
+      if (response.data.token) {
+        localStorage.setItem('token', response.data.token)
+      }
+      if (response.data.refreshToken) {
+        localStorage.setItem('refreshToken', response.data.refreshToken)
+      }
+      
       setUser(response.data.user)
       return response.data
     } catch (error) {
+      console.error('Login error:', error) // Debug log
       throw error
     }
   }
@@ -48,7 +79,10 @@ export const AuthProvider = ({ children }) => {
     } catch (error) {
       console.error('Logout error:', error)
     } finally {
+      // Clear user data and tokens
       setUser(null)
+      localStorage.removeItem('token')
+      localStorage.removeItem('refreshToken')
     }
   }
 

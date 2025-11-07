@@ -137,3 +137,20 @@ venv.bak/
 # Build outputs
 build/
 dist/
+
+# Documentation files (except README.md)
+*.md
+!README.md
+
+# PowerPoint files
+*.ppt
+*.pptx
+*.pps
+*.ppsx
+
+# Additional documentation
+docs/
+*.txt
+!requirements.txt
+!package.json
+!package-lock.json

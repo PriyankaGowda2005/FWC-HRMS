@@ -1,13 +1,16 @@
 import React, { useState } from 'react'
-import { Outlet, useNavigate } from 'react-router-dom'
+import { Outlet, useNavigate, useLocation } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
 import Sidebar from './Sidebar'
 import MobileSidebar from './MobileSidebar'
+import PageHeader from './PageHeader'
+import PageTransition from './PageTransition'
 import toast from 'react-hot-toast'
 
 const Layout = () => {
   const { user, logout } = useAuth()
   const navigate = useNavigate()
+  const location = useLocation()
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
 
   const handleLogout = async () => {
@@ -18,6 +21,29 @@ const Layout = () => {
 
   const toggleMobileMenu = () => {
     setMobileMenuOpen(!mobileMenuOpen)
+  }
+
+  // Get page title based on current route
+  const getPageTitle = () => {
+    const path = location.pathname
+    if (path.includes('/admin')) return 'Admin Dashboard'
+    if (path.includes('/dashboard')) return 'Dashboard'
+    if (path.includes('/hr')) return 'HR Dashboard'
+    if (path.includes('/manager')) return 'Manager Dashboard'
+    if (path.includes('/attendance')) return 'Attendance Management'
+    if (path.includes('/leave')) return 'Leave Management'
+    if (path.includes('/payroll')) return 'Payroll Management'
+    if (path.includes('/recruitment')) return 'Recruitment Management'
+    if (path.includes('/smarthire')) return 'SmartHire AI'
+    if (path.includes('/resume-analysis')) return 'Resume Analysis'
+    if (path.includes('/ai-interview')) return 'AI Interview'
+    if (path.includes('/assessments')) return 'Assessment Management'
+    if (path.includes('/zoom-interview')) return 'Zoom Interview'
+    return 'Dashboard'
+  }
+
+  const getPageSubtitle = () => {
+    return `${user?.role} • ${user?.employee?.position || 'Employee'}`
   }
 
   return (
@@ -62,42 +88,37 @@ const Layout = () => {
           </div>
         </header>
 
-        {/* Desktop Header */}
-        <header className="bg-white shadow hidden md:block">
-          <div className="px-4 sm:px-6 lg:px-8">
-            <div className="flex justify-between items-center py-4">
-              <div>
-                <h1 className="text-2xl font-bold text-gray-900">
-                  Welcome back, {user?.employee?.firstName} {user?.employee?.lastName}
-                </h1>
-                <p className="text-sm text-gray-500">
-                  {user?.role} • {user?.employee?.position || 'Employee'}
-                </p>
-              </div>
-              <div className="flex items-center space-x-4">
-                <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                  user?.role === 'ADMIN' ? 'bg-red-100 text-red-800' :
-                  user?.role === 'HR' ? 'bg-blue-100 text-blue-800' :
-                  user?.role === 'MANAGER' ? 'bg-purple-100 text-purple-800' :
-                  'bg-green-100 text-green-800'
-                }`}>
-                  {user?.role}
-                </span>
-                <button
-                  onClick={handleLogout}
-                  className="btn-secondary"
-                >
-                  Logout
-                </button>
-              </div>
-            </div>
+        {/* Page Header */}
+        <PageHeader
+          title={getPageTitle()}
+          subtitle={getPageSubtitle()}
+          showBackButton={location.pathname !== '/dashboard' && location.pathname !== '/admin' && location.pathname !== '/hr' && location.pathname !== '/manager'}
+          backButtonVariant="ghost"
+        >
+          <div className="flex items-center space-x-4">
+            <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+              user?.role === 'ADMIN' ? 'bg-red-100 text-red-800' :
+              user?.role === 'HR' ? 'bg-blue-100 text-blue-800' :
+              user?.role === 'MANAGER' ? 'bg-purple-100 text-purple-800' :
+              'bg-green-100 text-green-800'
+            }`}>
+              {user?.role}
+            </span>
+            <button
+              onClick={handleLogout}
+              className="btn-secondary"
+            >
+              Logout
+            </button>
           </div>
-        </header>
+        </PageHeader>
 
         <main className="flex-1 relative overflow-y-auto focus:outline-none">
           <div className="py-6">
             <div className="container-responsive">
-              <Outlet />
+              <PageTransition>
+                <Outlet />
+              </PageTransition>
             </div>
           </div>
         </main>

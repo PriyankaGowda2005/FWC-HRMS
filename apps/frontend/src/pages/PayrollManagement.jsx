@@ -53,7 +53,7 @@ const PayrollManagement = () => {
     )
   }
 
-  const payrollRecords = payrollData?.data || []
+  const payrollRecords = payrollData?.payrollRecords || []
   const totalGross = payrollRecords.reduce((sum, record) => sum + (record.grossSalary || 0), 0)
   const totalNet = payrollRecords.reduce((sum, record) => sum + (record.netSalary || 0), 0)
   const totalDeductions = totalGross - totalNet
