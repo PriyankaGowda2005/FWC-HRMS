@@ -8,6 +8,9 @@ const AIInsights = ({ type = 'hr', managerId = null, className = '' }) => {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
 
+  // Debug logging
+  console.log('AIInsights - type:', type, 'managerId:', managerId, 'typeof managerId:', typeof managerId)
+
   // Fetch AI insights based on type
   const { data: aiData, isLoading, error: queryError } = useQuery(
     ['ai-insights', type, managerId],
@@ -20,7 +23,7 @@ const AIInsights = ({ type = 'hr', managerId = null, className = '' }) => {
       return Promise.resolve({ insights: null })
     },
     {
-      enabled: type === 'hr' || (type === 'team' && managerId),
+      enabled: Boolean(type === 'hr' || (type === 'team' && managerId)),
       refetchInterval: 300000, // Refetch every 5 minutes
     }
   )

@@ -215,6 +215,30 @@ const RecruitmentManagement = () => {
     }
   )
 
+  // Update real-time status - moved to top to fix hooks order
+  useEffect(() => {
+    const jobPostings = jobPostingsData?.jobPostings || []
+    const candidates = candidatesData?.candidates || []
+    
+    const stats = {
+      totalJobs: jobPostings.length,
+      activeJobs: jobPostings.filter(job => job.status === 'PUBLISHED').length,
+      totalCandidates: candidates.length,
+      newApplications: candidates.filter(candidate => 
+        new Date(candidate.appliedAt).toDateString() === new Date().toDateString()
+      ).length,
+      aiInterviews: candidates.filter(candidate => candidate.aiInterviewCompleted).length,
+      averageFitScore: candidates.length > 0 ? 
+        (candidates.reduce((sum, c) => sum + (c.fitScore || 0), 0) / candidates.length).toFixed(1) : 0
+    }
+
+    setRealTimeStatus(prev => ({
+      ...prev,
+      applicationsToday: stats.newApplications,
+      activeInterviews: candidates.filter(c => c.status === 'INTERVIEWED').length
+    }))
+  }, [jobPostingsData, candidatesData])
+
   // Handlers
   const handleCreateJob = (jobData) => {
     createJobMutation.mutate(jobData)
@@ -261,35 +285,6 @@ const RecruitmentManagement = () => {
   // Error state
   const hasErrors = jobsError || candidatesError || aiError
 
-  if (isLoading && !hasErrors) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="text-center">
-          <LoadingSpinner />
-          <p className="mt-4 text-gray-600">Loading recruitment management...</p>
-        </div>
-      </div>
-    )
-  }
-
-  if (hasErrors) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="text-center max-w-md mx-auto">
-          <XCircleIcon className="w-16 h-16 text-red-500 mx-auto mb-4" />
-          <h2 className="text-2xl font-bold text-gray-900 mb-2">Error Loading Recruitment Data</h2>
-          <p className="text-gray-600 mb-4">Unable to load recruitment management data. Please check your connection and try again.</p>
-          <button 
-            onClick={() => window.location.reload()} 
-            className="btn-primary"
-          >
-            Retry
-          </button>
-        </div>
-      </div>
-    )
-  }
-
   // Data extraction with fallbacks
   const jobPostings = jobPostingsData?.jobPostings || []
   const candidates = candidatesData?.candidates || []
@@ -309,14 +304,36 @@ const RecruitmentManagement = () => {
       (candidates.reduce((sum, c) => sum + (c.fitScore || 0), 0) / candidates.length).toFixed(1) : 0
   }
 
-  // Update real-time status
-  useEffect(() => {
-    setRealTimeStatus(prev => ({
-      ...prev,
-      applicationsToday: stats.newApplications,
-      activeInterviews: candidates.filter(c => c.status === 'INTERVIEWED').length
-    }))
-  }, [stats.newApplications, candidates])
+  // Handle loading state
+  if (isLoading && !hasErrors) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-center">
+          <LoadingSpinner />
+          <p className="mt-4 text-gray-600">Loading recruitment management...</p>
+        </div>
+      </div>
+    )
+  }
+
+  // Handle error state
+  if (hasErrors) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-center max-w-md mx-auto">
+          <XCircleIcon className="w-16 h-16 text-red-500 mx-auto mb-4" />
+          <h2 className="text-2xl font-bold text-gray-900 mb-2">Error Loading Recruitment Data</h2>
+          <p className="text-gray-600 mb-4">Unable to load recruitment management data. Please check your connection and try again.</p>
+          <button 
+            onClick={() => window.location.reload()} 
+            className="btn-primary"
+          >
+            Retry
+          </button>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className="min-h-screen bg-gray-50">

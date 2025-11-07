@@ -8,21 +8,34 @@ const AIServicesStatus = ({ className = '' }) => {
   const [lastUpdated, setLastUpdated] = useState(null)
 
   // Fetch AI services status
-  const { data: statusData, isLoading, error } = useQuery(
+  const { data: statusData, isLoading, error, refetch } = useQuery(
     'ai-services-status',
-    () => aiAPI.getServicesStatus(),
+    async () => {
+      const response = await aiAPI.getServicesStatus()
+      console.log('Raw API response:', response)
+      console.log('Response data:', response.data)
+      return response.data
+    },
     {
       refetchInterval: 60000, // Refetch every minute
       refetchOnWindowFocus: true,
+      staleTime: 0, // Always consider data stale
+      cacheTime: 0, // Don't cache the data
     }
   )
 
   useEffect(() => {
+    console.log('AIServicesStatus - statusData:', statusData)
+    console.log('AIServicesStatus - error:', error)
+    console.log('AIServicesStatus - statusData?.available:', statusData?.available)
+    console.log('AIServicesStatus - isLoading:', isLoading)
+    console.log('AIServicesStatus - typeof statusData:', typeof statusData)
+    console.log('AIServicesStatus - statusData keys:', statusData ? Object.keys(statusData) : 'null')
     if (statusData) {
       setServices(statusData.services)
       setLastUpdated(statusData.lastUpdated)
     }
-  }, [statusData])
+  }, [statusData, error, isLoading])
 
   if (isLoading) {
     return (
@@ -35,7 +48,7 @@ const AIServicesStatus = ({ className = '' }) => {
     )
   }
 
-  if (error || !services) {
+  if (error || !statusData?.available) {
     return (
       <div className={`card ${className}`}>
         <div className="text-center py-8">
@@ -48,6 +61,17 @@ const AIServicesStatus = ({ className = '' }) => {
           <p className="mt-2 text-gray-600">
             Unable to connect to AI services. Some features may be limited.
           </p>
+          {error && (
+            <p className="mt-2 text-sm text-red-500">
+              Error: {error.message || 'Unknown error'}
+            </p>
+          )}
+          <button 
+            onClick={() => refetch()}
+            className="mt-4 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+          >
+            Retry Connection
+          </button>
         </div>
       </div>
     )
@@ -138,6 +162,18 @@ const AIServicesStatus = ({ className = '' }) => {
     }
   }
 
+  // Don't render the success state until we have services data
+  if (!services) {
+    return (
+      <div className={`card ${className}`}>
+        <div className="flex items-center justify-center py-8">
+          <LoadingSpinner />
+          <span className="ml-2 text-gray-600">Loading AI services...</span>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className={`card ${className}`}>
       <div className="flex items-center justify-between mb-6">
@@ -153,7 +189,7 @@ const AIServicesStatus = ({ className = '' }) => {
 
       <div className="space-y-4">
         {serviceList.map((service) => {
-          const serviceData = services[service.key]
+          const serviceData = services?.[service.key]
           const isActive = serviceData?.status === 'active'
           
           return (

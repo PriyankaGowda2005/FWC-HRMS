@@ -126,6 +126,25 @@ const DepartmentManagement = () => {
     }
   )
 
+  // Update real-time status
+  useEffect(() => {
+    if (departmentsData && employeesData) {
+      const departments = departmentsData?.departments || []
+      const stats = {
+        totalDepartments: departments.length,
+        activeDepartments: departments.filter(dept => dept.isActive).length,
+        totalEmployees: departments.reduce((sum, dept) => sum + (dept.employeeCount || 0), 0)
+      }
+      
+      setRealTimeStatus(prev => ({
+        ...prev,
+        totalDepartments: stats.totalDepartments,
+        activeDepartments: stats.activeDepartments,
+        totalEmployees: stats.totalEmployees
+      }))
+    }
+  }, [departmentsData, employeesData])
+
   // Handlers
   const handleCreateDepartment = (formData) => {
     createDepartmentMutation.mutate(formData)
@@ -199,16 +218,6 @@ const DepartmentManagement = () => {
       (departments.reduce((sum, dept) => sum + (dept.employeeCount || 0), 0) / departments.length).toFixed(1) : 0,
     totalBudget: departments.reduce((sum, dept) => sum + (dept.budget || 0), 0)
   }
-
-  // Update real-time status
-  useEffect(() => {
-    setRealTimeStatus(prev => ({
-      ...prev,
-      totalDepartments: stats.totalDepartments,
-      activeDepartments: stats.activeDepartments,
-      totalEmployees: stats.totalEmployees
-    }))
-  }, [stats])
 
   return (
     <div className="min-h-screen bg-gray-50">

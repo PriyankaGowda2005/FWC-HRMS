@@ -72,12 +72,16 @@ const Login = () => {
         </div>
 
         {/* Back Button */}
-        <div className="absolute top-6 left-6 z-10">
-          <BackButton 
-            variant="ghost" 
-            customPath="/"
-            className="bg-slate-800/80 backdrop-blur-sm border-slate-700 text-white hover:bg-slate-700/80"
-          />
+        <div className="absolute top-6 left-6 z-50">
+          <button 
+            onClick={() => navigate('/')}
+            className="inline-flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium bg-slate-800/80 backdrop-blur-sm border border-slate-700 text-white hover:bg-slate-700/80 transition-all duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-offset-2"
+          >
+            <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <polyline points="15,18 9,12 15,6"/>
+            </svg>
+            <span>Back</span>
+          </button>
         </div>
         
         <div className="relative z-10 min-h-screen flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8">
