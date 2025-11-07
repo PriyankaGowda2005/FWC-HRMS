@@ -161,6 +161,19 @@ router.get('/', checkRole('ADMIN', 'HR', 'MANAGER'), asyncHandler(async (req, re
 
   const total = await database.count('job_postings', query);
 
+  // Get applications count for each job
+  const jobPostingsWithApplications = await Promise.all(
+    jobPostings.map(async (job) => {
+      const applicationsCount = await database.count('candidate_applications', {
+        jobPostingId: job._id
+      });
+      return {
+        ...job,
+        applications_count: applicationsCount || job.currentApplications || 0
+      };
+    })
+  );
+
   // Disable caching for job postings
   res.set({
     'Cache-Control': 'no-cache, no-store, must-revalidate',
@@ -169,7 +182,7 @@ router.get('/', checkRole('ADMIN', 'HR', 'MANAGER'), asyncHandler(async (req, re
   });
 
   res.json({
-    jobPostings,
+    jobPostings: jobPostingsWithApplications,
     pagination: {
       page: parseInt(page),
       limit: parseInt(limit),

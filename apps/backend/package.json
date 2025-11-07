@@ -9,9 +9,17 @@
     "test": "jest",
     "test:watch": "jest --watch",
     "db:init": "node src/scripts/init-db.js",
-    "db:seed": "node -e \"require('./src/seeds/seedData.js').seedData().then(() => process.exit(0)).catch(() => process.exit(1))\""
+    "db:seed": "node -e \"require('./src/seeds/seedData.js').seedData().then(() => process.exit(0)).catch(() => process.exit(1))\"",
+    "db:create-demo-users": "node src/scripts/createAllDemoUsers.js",
+    "db:create-demo-candidate": "node src/scripts/createDemoCandidate.js",
+    "db:test-logins": "node src/scripts/testAllLogins.js",
+    "db:test-passwords": "node src/scripts/testPasswordVerification.js",
+    "db:ensure-employees": "node src/scripts/ensureEmployeeRecords.js",
+    "db:seed-comprehensive": "node src/seeds/comprehensiveSeedData.js",
+    "db:seed-recruitment": "node src/seeds/recruitmentSeedData.js"
   },
   "dependencies": {
+    "@emailjs/nodejs": "^5.0.2",
     "@types/multer": "^1.4.11",
     "axios": "^1.12.2",
     "bcrypt": "^5.1.1",

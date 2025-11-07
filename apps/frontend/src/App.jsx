@@ -12,6 +12,7 @@ import CandidateLayout from './components/CandidateLayout'
 import LoadingSpinner from './components/LoadingSpinner'
 import ScrollToTop from './components/ScrollToTop'
 import Chatbot from './components/Chatbot'
+import SessionExpiryWarning from './components/SessionExpiryWarning'
 
 // Pages
 import Home from './pages/Home'
@@ -40,8 +41,10 @@ import Support from './pages/Support'
 import StyleGuide from './pages/StyleGuide'
 import Privacy from './pages/Privacy'
 import TermsOfService from './pages/TermsOfService'
+import OurOffices from './pages/OurOffices'
 import NavigationTest from './pages/NavigationTest'
 import DebugPage from './pages/DebugPage'
+import Portfolio from './pages/Portfolio'
 import CandidateRegister from './pages/CandidateRegister'
 import CandidateDashboard from './pages/CandidateDashboard'
 import CandidateResumeUpload from './pages/CandidateResumeUpload'
@@ -123,6 +126,9 @@ function App() {
               {/* Global Chatbot - appears on all pages */}
               <Chatbot />
               
+              {/* Session Expiry Warning - monitors token expiration */}
+              <SessionExpiryWarning />
+              
               <Routes>
                 {/* Public routes */}
                 <Route path="/" element={<Home />} />
@@ -132,6 +138,7 @@ function App() {
                 <Route path="/why-choose-us" element={<WhyChooseUs />} />
                 <Route path="/careers" element={<Careers />} />
                 <Route path="/contact" element={<Contact />} />
+                <Route path="/portfolio" element={<Portfolio />} />
                 
                 {/* Footer link routes - Product */}
                 <Route path="/features" element={<Features />} />
@@ -157,6 +164,7 @@ function App() {
                 {/* Footer link routes - Legal */}
                 <Route path="/privacy" element={<Privacy />} />
                 <Route path="/terms" element={<TermsOfService />} />
+                <Route path="/our-offices" element={<OurOffices />} />
                 <Route path="/navigation-test" element={<NavigationTest />} />
                 <Route path="/debug" element={<DebugPage />} />
                 

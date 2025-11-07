@@ -42,6 +42,117 @@ const PayrollManagement = () => {
     })
   }
 
+  // Helper function to generate CSV
+  const generatePayrollCSV = (records) => {
+    const headers = ['Employee', 'Basic Salary', 'Allowances', 'Overtime', 'Gross Salary', 'Deductions', 'Net Salary', 'Status']
+    const csvRows = [headers.join(',')]
+    
+    records.forEach(record => {
+      const allowances = typeof record.allowances === 'object' 
+        ? Object.values(record.allowances).reduce((sum, val) => sum + (val || 0), 0)
+        : record.allowances || 0
+      
+      const deductions = typeof record.deductions === 'object'
+        ? Object.values(record.deductions).reduce((sum, val) => sum + (val || 0), 0)
+        : record.deductions || 0
+
+      const row = [
+        record.employeeName || `${record.employee?.firstName || ''} ${record.employee?.lastName || ''}`.trim() || 'N/A',
+        record.basicSalary || 0,
+        allowances,
+        record.overtimePay || 0,
+        record.grossSalary || 0,
+        deductions || record.totalDeductions || 0,
+        record.netSalary || 0,
+        record.status || 'N/A'
+      ]
+      csvRows.push(row.join(','))
+    })
+    
+    return csvRows.join('\n')
+  }
+
+  // Helper function to generate payslip HTML
+  const generatePayslipHTML = (records, month) => {
+    return `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <title>Payslips - ${month}</title>
+        <style>
+          body { font-family: Arial, sans-serif; margin: 20px; }
+          .payslip { page-break-after: always; margin-bottom: 30px; border: 1px solid #ccc; padding: 20px; }
+          .header { text-align: center; margin-bottom: 20px; }
+          .details { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+          .section { margin-bottom: 15px; }
+          .section h3 { margin-bottom: 10px; color: #333; }
+          .row { display: flex; justify-content: space-between; margin-bottom: 5px; }
+          .total { font-weight: bold; border-top: 1px solid #ccc; padding-top: 10px; }
+        </style>
+      </head>
+      <body>
+        ${records.map(record => {
+          const employeeName = record.employeeName || `${record.employee?.firstName || ''} ${record.employee?.lastName || ''}`.trim() || 'N/A'
+          const employeeId = record.employeeId || record.employee?.id || 'N/A'
+          const allowances = typeof record.allowances === 'object' 
+            ? Object.values(record.allowances).reduce((sum, val) => sum + (val || 0), 0)
+            : record.allowances || 0
+          const deductions = typeof record.deductions === 'object'
+            ? Object.values(record.deductions).reduce((sum, val) => sum + (val || 0), 0)
+            : record.deductions || record.totalDeductions || 0
+          
+          return `
+          <div class="payslip">
+            <div class="header">
+              <h1>PAYSLIP</h1>
+              <p>Period: ${month}</p>
+            </div>
+            <div class="details">
+              <div>
+                <div class="section">
+                  <h3>Employee Details</h3>
+                  <p><strong>Name:</strong> ${employeeName}</p>
+                  <p><strong>Employee ID:</strong> ${employeeId}</p>
+                </div>
+              </div>
+              <div>
+                <div class="section">
+                  <h3>Pay Details</h3>
+                  <div class="row">
+                    <span>Basic Salary:</span>
+                    <span>$${record.basicSalary || 0}</span>
+                  </div>
+                  <div class="row">
+                    <span>Allowances:</span>
+                    <span>$${allowances}</span>
+                  </div>
+                  <div class="row">
+                    <span>Overtime:</span>
+                    <span>$${record.overtimePay || 0}</span>
+                  </div>
+                  <div class="row total">
+                    <span>Gross Salary:</span>
+                    <span>$${record.grossSalary || 0}</span>
+                  </div>
+                  <div class="row">
+                    <span>Deductions:</span>
+                    <span>$${deductions}</span>
+                  </div>
+                  <div class="row total">
+                    <span>Net Salary:</span>
+                    <span>$${record.netSalary || 0}</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        `
+        }).join('')}
+      </body>
+      </html>
+    `
+  }
+
   if (isLoading) return <LoadingSpinner />
 
   if (error) {
@@ -57,6 +168,39 @@ const PayrollManagement = () => {
   const totalGross = payrollRecords.reduce((sum, record) => sum + (record.grossSalary || 0), 0)
   const totalNet = payrollRecords.reduce((sum, record) => sum + (record.netSalary || 0), 0)
   const totalDeductions = totalGross - totalNet
+
+  // Export payroll data
+  const exportPayroll = () => {
+    try {
+      const csvContent = generatePayrollCSV(payrollRecords)
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' })
+      const link = document.createElement('a')
+      const url = URL.createObjectURL(blob)
+      link.setAttribute('href', url)
+      link.setAttribute('download', `payroll_${selectedMonth}.csv`)
+      link.style.visibility = 'hidden'
+      document.body.appendChild(link)
+      link.click()
+      document.body.removeChild(link)
+      toast.success('Payroll data exported successfully')
+    } catch (error) {
+      toast.error('Failed to export payroll data')
+    }
+  }
+
+  // Print payslips
+  const printPayslips = () => {
+    try {
+      const printContent = generatePayslipHTML(payrollRecords, selectedMonth)
+      const printWindow = window.open('', '_blank')
+      printWindow.document.write(printContent)
+      printWindow.document.close()
+      printWindow.print()
+      toast.success('Payslips ready for printing')
+    } catch (error) {
+      toast.error('Failed to generate payslips')
+    }
+  }
 
   return (
     <div className="space-y-6">
@@ -82,7 +226,11 @@ const PayrollManagement = () => {
               Generate Payroll
             </button>
           )}
-          <button className="btn-secondary">
+          <button 
+            onClick={exportPayroll}
+            className="btn-secondary"
+            disabled={payrollRecords.length === 0}
+          >
             Export Payroll
           </button>
         </div>
@@ -166,8 +314,20 @@ const PayrollManagement = () => {
         <div className="flex justify-between items-center mb-6">
           <h3 className="text-lg font-medium text-gray-900">Payroll Records</h3>
           <div className="flex space-x-2">
-            <button className="btn-secondary">Export CSV</button>
-            <button className="btn-secondary">Print Payslips</button>
+            <button 
+              onClick={exportPayroll}
+              className="btn-secondary"
+              disabled={payrollRecords.length === 0}
+            >
+              Export CSV
+            </button>
+            <button 
+              onClick={printPayslips}
+              className="btn-secondary"
+              disabled={payrollRecords.length === 0}
+            >
+              Print Payslips
+            </button>
           </div>
         </div>
 
@@ -264,7 +424,16 @@ const PayrollManagement = () => {
                       </span>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                      <button className="text-primary-600 hover:text-primary-900 mr-4">
+                      <button 
+                        onClick={() => {
+                          const printContent = generatePayslipHTML([record], selectedMonth)
+                          const printWindow = window.open('', '_blank')
+                          printWindow.document.write(printContent)
+                          printWindow.document.close()
+                          printWindow.print()
+                        }}
+                        className="text-primary-600 hover:text-primary-900 mr-4"
+                      >
                         View Payslip
                       </button>
                       {(user?.role === 'ADMIN' || user?.role === 'HR') && (

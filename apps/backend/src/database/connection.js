@@ -185,6 +185,11 @@ class Database {
       await this.createIndexIfNotExists('resume_screenings', { status: 1 });
       await this.createIndexIfNotExists('resume_screenings', { screeningDate: -1 });
 
+      // Revoked tokens indexes
+      await this.createIndexIfNotExists('revoked_tokens', { token: 1 }, { unique: true });
+      await this.createIndexIfNotExists('revoked_tokens', { userId: 1 });
+      await this.createIndexIfNotExists('revoked_tokens', { expiresAt: 1 }, { expireAfterSeconds: 0 });
+
       console.log('✅ Database indexes ready');
     } catch (error) {
       console.log('⚠️ Index creation completed with warnings (some indexes may already exist)');

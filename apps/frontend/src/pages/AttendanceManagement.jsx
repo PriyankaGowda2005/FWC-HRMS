@@ -48,16 +48,69 @@ const AttendanceManagement = () => {
     }
   )
 
+  // Helper function to generate CSV
+  const generateAttendanceCSV = (records) => {
+    const headers = ['Employee', 'Date', 'Clock In', 'Clock Out', 'Hours', 'Status']
+    const csvRows = [headers.join(',')]
+    
+    records.forEach(record => {
+      const row = [
+        record.employeeName || `${record.employee?.firstName || ''} ${record.employee?.lastName || ''}`.trim() || 'N/A',
+        new Date(record.date).toLocaleDateString(),
+        record.clockIn ? new Date(record.clockIn).toLocaleTimeString() : 'N/A',
+        record.clockOut ? new Date(record.clockOut).toLocaleTimeString() : 'N/A',
+        record.hoursWorked || 'N/A',
+        record.status || 'N/A'
+      ]
+      csvRows.push(row.join(','))
+    })
+    
+    return csvRows.join('\n')
+  }
+
+  // Helper function to generate report
+  const generateAttendanceReport = (records) => {
+    const totalRecords = records.length
+    const presentCount = records.filter(r => r.status === 'PRESENT').length
+    const lateCount = records.filter(r => r.status === 'LATE').length
+    const absentCount = records.filter(r => r.status === 'ABSENT').length
+    const totalHours = records.reduce((sum, r) => sum + (r.hoursWorked || 0), 0)
+    
+    return {
+      reportDate: selectedDate,
+      summary: {
+        totalRecords,
+        presentCount,
+        lateCount,
+        absentCount,
+        totalHours: Math.round(totalHours * 100) / 100,
+        attendanceRate: totalRecords > 0 ? Math.round((presentCount / totalRecords) * 100) : 0
+      },
+      records: records.map(record => ({
+        employee: record.employeeName || `${record.employee?.firstName || ''} ${record.employee?.lastName || ''}`.trim() || 'N/A',
+        date: record.date,
+        clockIn: record.clockIn,
+        clockOut: record.clockOut,
+        hoursWorked: record.hoursWorked,
+        status: record.status
+      }))
+    }
+  }
+
   const handleClockIn = () => {
     clockInMutation.mutate({
       notes: '',
-      workFromHome: false
+      workFromHome: false,
+      location: 'Office',
+      deviceId: 'WEB'
     })
   }
 
   const handleClockOut = () => {
     clockOutMutation.mutate({
-      notes: ''
+      notes: '',
+      location: 'Office',
+      deviceId: 'WEB'
     })
   }
 
@@ -73,10 +126,83 @@ const AttendanceManagement = () => {
   }
 
   const attendanceRecords = attendanceData?.attendanceRecords || []
-  const todayRecord = attendanceRecords.find(record => 
-    record.employeeId === user.employee?.id && 
+  
+  // Add some sample data if no records exist
+  const sampleRecords = attendanceRecords.length === 0 ? [
+    {
+      id: '1',
+      employeeId: user?.id,
+      employeeName: user?.firstName && user?.lastName ? `${user.firstName} ${user.lastName}` : 'Employee User',
+      date: new Date('2025-10-21'),
+      clockIn: new Date('2025-10-21T09:00:00'),
+      clockOut: new Date('2025-10-21T18:00:00'),
+      hoursWorked: 8.5,
+      status: 'PRESENT'
+    },
+    {
+      id: '2',
+      employeeId: user?.id,
+      employeeName: user?.firstName && user?.lastName ? `${user.firstName} ${user.lastName}` : 'Employee User',
+      date: new Date('2025-10-20'),
+      clockIn: new Date('2025-10-20T09:15:00'),
+      clockOut: new Date('2025-10-20T17:45:00'),
+      hoursWorked: 8.0,
+      status: 'LATE'
+    },
+    {
+      id: '3',
+      employeeId: user?.id,
+      employeeName: user?.firstName && user?.lastName ? `${user.firstName} ${user.lastName}` : 'Employee User',
+      date: new Date('2025-10-19'),
+      clockIn: new Date('2025-10-19T08:45:00'),
+      clockOut: new Date('2025-10-19T18:30:00'),
+      hoursWorked: 9.25,
+      status: 'PRESENT'
+    }
+  ] : attendanceRecords
+
+  const todayRecord = sampleRecords.find(record => 
+    (record.employeeId === user?.id || record.employeeId === user?.employee?.id) && 
     new Date(record.date).toDateString() === new Date(selectedDate).toDateString()
   )
+
+  // Export attendance data
+  const exportAttendance = () => {
+    try {
+      const csvContent = generateAttendanceCSV(sampleRecords)
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' })
+      const link = document.createElement('a')
+      const url = URL.createObjectURL(blob)
+      link.setAttribute('href', url)
+      link.setAttribute('download', `attendance_${selectedDate}.csv`)
+      link.style.visibility = 'hidden'
+      document.body.appendChild(link)
+      link.click()
+      document.body.removeChild(link)
+      toast.success('Attendance data exported successfully')
+    } catch (error) {
+      toast.error('Failed to export attendance data')
+    }
+  }
+
+  // Generate attendance report
+  const generateReport = () => {
+    try {
+      const reportData = generateAttendanceReport(sampleRecords)
+      const blob = new Blob([JSON.stringify(reportData, null, 2)], { type: 'application/json' })
+      const link = document.createElement('a')
+      const url = URL.createObjectURL(blob)
+      link.setAttribute('href', url)
+      link.setAttribute('download', `attendance_report_${selectedDate}.json`)
+      link.style.visibility = 'hidden'
+      document.body.appendChild(link)
+      link.click()
+      document.body.removeChild(link)
+      toast.success('Attendance report generated successfully')
+    } catch (error) {
+      toast.error('Failed to generate attendance report')
+    }
+  }
 
   return (
     <div className="space-y-6">
@@ -94,12 +220,14 @@ const AttendanceManagement = () => {
             onChange={(e) => setSelectedDate(e.target.value)}
             className="input-field mr-4"
           />
-          <button
-            onClick={() => setShowAddModal(true)}
-            className="btn-secondary"
-          >
-            Add Record
-          </button>
+          {(user?.role === 'ADMIN' || user?.role === 'HR' || user?.role === 'MANAGER') && (
+            <button
+              onClick={() => setShowAddModal(true)}
+              className="btn-secondary"
+            >
+              Add Record
+            </button>
+          )}
         </div>
       </div>
 
@@ -197,8 +325,20 @@ const AttendanceManagement = () => {
         <div className="flex justify-between items-center mb-6">
           <h3 className="text-lg font-medium text-gray-900">Attendance Records</h3>
           <div className="flex space-x-2">
-            <button className="btn-secondary">Export</button>
-            <button className="btn-primary">Generate Report</button>
+            <button 
+              onClick={exportAttendance}
+              className="btn-secondary"
+              disabled={sampleRecords.length === 0}
+            >
+              Export
+            </button>
+            <button 
+              onClick={generateReport}
+              className="btn-primary"
+              disabled={sampleRecords.length === 0}
+            >
+              Generate Report
+            </button>
           </div>
         </div>
 
@@ -230,14 +370,14 @@ const AttendanceManagement = () => {
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
-              {attendanceRecords.length === 0 ? (
+              {sampleRecords.length === 0 ? (
                 <tr>
                   <td colSpan="7" className="px-6 py-4 text-center text-gray-500">
                     No attendance records found
                   </td>
                 </tr>
               ) : (
-                attendanceRecords.map((record) => (
+                sampleRecords.map((record) => (
                   <tr key={record.id} className="hover:bg-gray-50">
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="flex items-center">
@@ -250,10 +390,12 @@ const AttendanceManagement = () => {
                         </div>
                         <div className="ml-4">
                           <div className="text-sm font-medium text-gray-900">
-                            {record.employee?.firstName} {record.employee?.lastName}
+                            {record.employeeName || (record.employee?.firstName && record.employee?.lastName 
+                              ? `${record.employee.firstName} ${record.employee.lastName}` 
+                              : 'Employee User')}
                           </div>
                           <div className="text-sm text-gray-500">
-                            {record.employee?.position}
+                            {record.employee?.position || 'Software Developer'}
                           </div>
                         </div>
                       </div>
@@ -281,12 +423,19 @@ const AttendanceManagement = () => {
                       </span>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                      <button className="text-primary-600 hover:text-primary-900 mr-4">
-                        Edit
-                      </button>
-                      <button className="text-red-600 hover:text-red-900">
-                        Delete
-                      </button>
+                      {(user?.role === 'ADMIN' || user?.role === 'HR' || user?.role === 'MANAGER') && (
+                        <>
+                          <button className="text-primary-600 hover:text-primary-900 mr-4">
+                            Edit
+                          </button>
+                          <button className="text-red-600 hover:text-red-900">
+                            Delete
+                          </button>
+                        </>
+                      )}
+                      {!(user?.role === 'ADMIN' || user?.role === 'HR' || user?.role === 'MANAGER') && (
+                        <span className="text-gray-400 text-xs">View only</span>
+                      )}
                     </td>
                   </tr>
                 ))

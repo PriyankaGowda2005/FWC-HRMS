@@ -52,43 +52,63 @@ const upload = multer({
   }
 });
 
-// AI Content Generation Helper
+// AI Content Generation Helper - Enhanced with better prompts
 function generateJobDescription(jobData) {
-  const { title, department, location, type, summary } = jobData;
+  const { title, department, location, type, summary, requirements = [], responsibilities = [] } = jobData;
   
   // Generate AI-driven job description (80-150 words)
-  const descriptions = {
-    responsibilities: [
-      `As a ${title} in our ${department} department, you'll play a crucial role in driving innovation and excellence.`,
-      `You'll collaborate with cross-functional teams to deliver high-quality solutions that exceed expectations.`,
-      `Your expertise will contribute to our mission of creating cutting-edge products and services.`,
-      `You'll have the opportunity to mentor junior team members and shape the future of our technology stack.`
-    ],
-    skills: [
-      `We're looking for someone with strong problem-solving abilities and excellent communication skills.`,
-      `Experience with modern development practices and a passion for continuous learning is essential.`,
-      `The ideal candidate thrives in a fast-paced environment and embraces challenges with enthusiasm.`
-    ],
-    culture: [
-      `At our company, we foster a culture of collaboration, innovation, and personal growth.`,
-      `We believe in work-life balance and provide the flexibility you need to excel both professionally and personally.`,
-      `Join a team that values diversity, inclusion, and the unique perspectives each member brings.`
-    ]
-  };
-
-  const description = [
-    descriptions.responsibilities[0],
-    descriptions.responsibilities[1],
-    descriptions.skills[0],
-    descriptions.skills[1],
-    descriptions.culture[0],
-    descriptions.culture[1]
-  ].join(' ');
-
-  return description.substring(0, 150); // Ensure 80-150 words
+  const companyName = process.env.COMPANY_NAME || 'Mastersolis Infotech';
+  const locationText = location ? ` in ${location}` : ' (Remote/Hybrid)';
+  const typeText = type === 'FULL_TIME' ? 'full-time' : type === 'PART_TIME' ? 'part-time' : type?.toLowerCase() || 'full-time';
+  
+  // Build comprehensive description
+  let description = `Join ${companyName} as a ${title}${locationText}! `;
+  
+  // Add role overview
+  if (summary) {
+    description += summary.substring(0, 50) + '. ';
+  } else {
+    description += `We're seeking a talented ${title} to join our ${department} team and drive innovation. `;
+  }
+  
+  // Add key responsibilities (if provided)
+  if (responsibilities && responsibilities.length > 0) {
+    const keyResponsibility = responsibilities[0].substring(0, 60);
+    description += `In this ${typeText} role, you'll ${keyResponsibility.toLowerCase()}. `;
+  } else {
+    description += `You'll collaborate with cross-functional teams to deliver exceptional results and contribute to our mission of excellence. `;
+  }
+  
+  // Add key requirements (if provided)
+  if (requirements && requirements.length > 0) {
+    const keyRequirement = requirements[0].substring(0, 50);
+    description += `We're looking for candidates with ${keyRequirement.toLowerCase()}. `;
+  } else {
+    description += `The ideal candidate brings strong problem-solving skills, relevant experience, and a passion for continuous learning. `;
+  }
+  
+  // Add culture/benefits
+  description += `At ${companyName}, we foster a collaborative, inclusive environment where innovation thrives. `;
+  description += `We offer competitive compensation, flexible work arrangements, and opportunities for professional growth. `;
+  description += `If you're ready to make an impact and grow your career with a forward-thinking team, we'd love to hear from you!`;
+  
+  // Ensure word count is between 80-150 words
+  const words = description.split(' ');
+  if (words.length < 80) {
+    // Add more content
+    description += ` This position offers excellent career advancement opportunities and the chance to work on cutting-edge projects. `;
+    description += `We value diversity and welcome applications from all qualified candidates. `;
+    description += `Join us in shaping the future of technology and making a meaningful difference.`;
+  } else if (words.length > 150) {
+    // Trim to 150 words
+    description = words.slice(0, 150).join(' ') + '...';
+  }
+  
+  return description.trim();
 }
 
 // AI Email Generation Functions - Mastersolis Infotech
+// Professional, warm, and informative tone for candidate communication
 function generateAcknowledgmentEmail(companyName, jobTitle, candidateName) {
   return {
     subject: `Thank You for Applying to ${jobTitle} at ${companyName}`,
@@ -96,9 +116,7 @@ function generateAcknowledgmentEmail(companyName, jobTitle, candidateName) {
 
 Thank you for applying for the ${jobTitle} position at ${companyName}. We've received your application and our AI-powered screening system is reviewing your resume.
 
-We appreciate your interest in joining our team and will update you on the next steps soon. Our recruitment team typically reviews applications within 2-3 business days.
-
-If you have any questions, please don't hesitate to reach out to our HR team.
+We appreciate your interest in joining our team and will update you on the next steps soon.
 
 Best regards,
 ${companyName} HR Team`
@@ -117,13 +135,9 @@ function generateInterviewInvitationEmail(companyName, jobTitle, candidateName, 
 
 Congratulations! Based on our AI screening, you've been shortlisted for the ${jobTitle} role at ${companyName}.${dateTimeInfo}
 
-We're excited to learn more about you and your experience. Please use the following link to schedule or join your interview:
+Please use the following link to schedule or join your interview: ${interviewLink}
 
-${interviewLink}
-
-This interview will help us understand your skills, experience, and how you can contribute to our team. Please come prepared to discuss your background and why you're interested in this role.
-
-If you need to reschedule or have any questions, please contact us as soon as possible.
+We're excited to learn more about you and your experience.
 
 Best of luck,
 ${companyName} Recruitment Team`
@@ -135,18 +149,16 @@ function generateSelectionEmail(companyName, jobTitle, candidateName, nextSteps 
   if (nextSteps) {
     nextStepsInfo = `\n\n${nextSteps}`;
   } else {
-    nextStepsInfo = `\n\nOur HR team will reach out to you within the next 2-3 business days with details regarding your onboarding process, including start date, benefits package, and any required documentation.`;
+    nextStepsInfo = `\n\nOur HR team will reach out soon with details regarding your onboarding process.`;
   }
   
   return {
     subject: `Congratulations! You've Been Selected for ${jobTitle}`,
     body: `Hi ${candidateName},
 
-We're thrilled to inform you that you've been selected for the ${jobTitle} position at ${companyName}!
+We're thrilled to inform you that you've been selected for the ${jobTitle} position at ${companyName}.${nextStepsInfo}
 
-After careful consideration of all candidates, we believe your skills, experience, and enthusiasm make you the perfect fit for our team. We're excited to have you join us and contribute to our mission of delivering innovative AI-driven solutions.${nextStepsInfo}
-
-Welcome aboard and congratulations once again! We look forward to working with you.
+Welcome aboard and congratulations once again!
 
 Warm regards,
 ${companyName} HR Team`
@@ -158,20 +170,74 @@ function generateRejectionEmail(companyName, jobTitle, candidateName, feedback =
   if (feedback) {
     feedbackInfo = `\n\n${feedback}`;
   } else {
-    feedbackInfo = `\n\nWhile we were impressed with your qualifications, we've decided to move forward with other candidates whose experience more closely matches our current needs.`;
+    feedbackInfo = `\n\nAfter careful consideration, we've decided to move forward with other candidates.`;
   }
   
   return {
     subject: `Update on Your Application for ${jobTitle}`,
     body: `Hi ${candidateName},
 
-Thank you for taking the time to interview for the ${jobTitle} position at ${companyName}. We truly appreciate your interest in joining our team.${feedbackInfo}
+Thank you for taking the time to interview for the ${jobTitle} position at ${companyName}.${feedbackInfo}
 
-We encourage you to apply for future opportunities that match your skills. We keep all applications on file and will reach out if a suitable position becomes available.
-
-Thank you again for your time and interest in ${companyName}.
+We truly appreciate your interest and encourage you to apply for future opportunities that match your skills.
 
 Best wishes,
+${companyName} Recruitment Team`
+  };
+}
+
+// Generate interview reminder email
+function generateInterviewReminderEmail(companyName, jobTitle, candidateName, interviewDate, interviewTime, meetingLink, interviewType = 'AI') {
+  const dateFormatted = new Date(interviewDate).toLocaleDateString('en-US', { 
+    weekday: 'long', 
+    year: 'numeric', 
+    month: 'long', 
+    day: 'numeric' 
+  });
+  
+  return {
+    subject: `Reminder: Your ${jobTitle} Interview Tomorrow`,
+    body: `Hi ${candidateName},
+
+This is a friendly reminder that you have an ${interviewType} interview scheduled for the ${jobTitle} position at ${companyName}.
+
+Interview Details:
+Date: ${dateFormatted}
+Time: ${interviewTime || 'As scheduled'}
+Type: ${interviewType} Interview
+${meetingLink ? `Meeting Link: ${meetingLink}` : ''}
+
+Please ensure you have a stable internet connection and a quiet environment for the interview. We recommend testing your audio and video equipment beforehand.
+
+If you have any questions or need to reschedule, please contact us as soon as possible.
+
+We look forward to speaking with you!
+
+Best regards,
+${companyName} Recruitment Team`
+  };
+}
+
+// Generate shortlisting notification email
+function generateShortlistingEmail(companyName, jobTitle, candidateName, nextSteps = null) {
+  let nextStepsInfo = '';
+  if (nextSteps) {
+    nextStepsInfo = `\n\n${nextSteps}`;
+  } else {
+    nextStepsInfo = `\n\nOur recruitment team will be in touch shortly to schedule the next steps in our hiring process. This may include an AI-powered screening interview or a conversation with our hiring team.`;
+  }
+  
+  return {
+    subject: `Congratulations! You've Been Shortlisted for ${jobTitle}`,
+    body: `Hi ${candidateName},
+
+Great news! After reviewing your application for the ${jobTitle} position at ${companyName}, we're excited to inform you that you've been shortlisted for the next stage of our recruitment process.${nextStepsInfo}
+
+We were particularly impressed with your qualifications and believe you could be a great fit for our team.
+
+Thank you for your interest in ${companyName}, and we look forward to learning more about you.
+
+Best regards,
 ${companyName} Recruitment Team`
   };
 }
@@ -338,6 +404,42 @@ router.post('/apply', upload.single('resume'), [
     } catch (emailError) {
       console.error('❌ Failed to send acknowledgment email:', emailError);
       // Don't fail the application if email fails
+    }
+  }
+
+  // Send EmailJS auto-reply (as backup or additional confirmation)
+  const EMAILJS_SERVICE_ID = process.env.EMAILJS_SERVICE_ID;
+  const EMAILJS_TEMPLATE_ID = process.env.EMAILJS_TEMPLATE_ID;
+  const EMAILJS_PUBLIC_KEY = process.env.EMAILJS_PUBLIC_KEY;
+  
+  if (EMAILJS_SERVICE_ID && EMAILJS_TEMPLATE_ID && EMAILJS_PUBLIC_KEY) {
+    try {
+      const axios = require('axios');
+      const emailjsPayload = {
+        service_id: EMAILJS_SERVICE_ID,
+        template_id: EMAILJS_TEMPLATE_ID,
+        user_id: EMAILJS_PUBLIC_KEY,
+        template_params: {
+          to_name: name,
+          to_email: email,
+          job_applied: job.title,
+          application_id: result.insertedId.toString(),
+          summary: `Thank you for applying to ${job.title} at ${companyName}. We have received your application and will review it shortly.`
+        }
+      };
+
+      await axios.post('https://api.emailjs.com/api/v1.0/email/send', emailjsPayload, {
+        headers: {
+          'Content-Type': 'application/json',
+          'Origin': 'http://localhost',
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+        }
+      });
+
+      console.log('✅ EmailJS auto-reply sent to:', email);
+    } catch (emailjsError) {
+      console.error('❌ Failed to send EmailJS auto-reply:', emailjsError.message);
+      // Don't fail the application if EmailJS fails
     }
   }
 
@@ -657,5 +759,125 @@ router.post('/send-decision-email', verifyToken, checkRole('ADMIN', 'HR'), [
   }
 }));
 
+// Send interview reminder email (Admin/HR only)
+router.post('/send-interview-reminder', verifyToken, checkRole('ADMIN', 'HR'), [
+  body('interviewId').notEmpty().withMessage('Interview ID is required')
+], asyncHandler(async (req, res) => {
+  const errors = validationResult(req);
+  if (!errors.isEmpty()) {
+    return res.status(400).json({ 
+      success: false,
+      message: 'Validation errors',
+      errors: errors.array()
+    });
+  }
+
+  const { interviewId } = req.body;
+  const companyName = process.env.COMPANY_NAME || 'Mastersolis Infotech';
+
+  // Get interview details
+  if (!ObjectId.isValid(interviewId)) {
+    return res.status(400).json({ 
+      success: false,
+      message: 'Invalid interview ID' 
+    });
+  }
+
+  const interview = await database.findOne('interviews', { 
+    _id: new ObjectId(interviewId) 
+  });
+
+  if (!interview) {
+    return res.status(404).json({ 
+      success: false,
+      message: 'Interview not found' 
+    });
+  }
+
+  // Get candidate and job posting details
+  const candidate = await database.findOne('candidates', { _id: interview.candidateId });
+  const jobPosting = await database.findOne('job_postings', { _id: interview.jobPostingId });
+
+  if (!candidate || !jobPosting) {
+    return res.status(404).json({ 
+      success: false,
+      message: 'Candidate or job posting not found' 
+    });
+  }
+
+  // Generate reminder email
+  const emailData = generateInterviewReminderEmail(
+    companyName,
+    jobPosting.title,
+    candidate.name || `${candidate.firstName || ''} ${candidate.lastName || ''}`.trim(),
+    interview.scheduledAt,
+    new Date(interview.scheduledAt).toLocaleTimeString(),
+    interview.meetingLink,
+    interview.interviewType || 'AI'
+  );
+
+  // Send email
+  if (resend) {
+    try {
+      const htmlBody = emailToHTML(emailData.body, companyName);
+
+      await resend.emails.send({
+        from: process.env.RESEND_FROM || 'Careers <onboarding@resend.dev>',
+        to: [candidate.email],
+        subject: emailData.subject,
+        html: `
+          <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; background-color: #ffffff;">
+            <div style="text-align: center; margin-bottom: 30px; padding-bottom: 20px; border-bottom: 2px solid #e5e7eb;">
+              <h1 style="color: #2563eb; margin: 0; font-size: 28px;">${companyName}</h1>
+              <p style="color: #6b7280; margin: 5px 0; font-size: 14px;">AI-Driven HRMS Solutions</p>
+            </div>
+            
+            <div style="margin: 20px 0;">
+              ${htmlBody}
+            </div>
+            
+            <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 30px 0;">
+            <p style="color: #6b7280; font-size: 12px; text-align: center; margin: 0;">
+              This is an automated reminder. For inquiries, contact: ${process.env.HR_EMAIL || 'hr@mastersolis.com'}
+            </p>
+          </div>
+        `
+      });
+
+      console.log('✅ Interview reminder email sent to:', candidate.email);
+
+      res.json({
+        success: true,
+        message: 'Interview reminder email sent successfully',
+        data: {
+          email: candidate.email,
+          candidateName: candidate.name || `${candidate.firstName || ''} ${candidate.lastName || ''}`.trim(),
+          interviewDate: interview.scheduledAt
+        }
+      });
+    } catch (emailError) {
+      console.error('❌ Failed to send interview reminder email:', emailError);
+      res.status(500).json({
+        success: false,
+        message: 'Failed to send interview reminder email',
+        error: emailError.message
+      });
+    }
+  } else {
+    res.status(500).json({
+      success: false,
+      message: 'Email service not configured'
+    });
+  }
+}));
+
+// Export email generation functions for use in other routes
 module.exports = router;
+module.exports.generateAcknowledgmentEmail = generateAcknowledgmentEmail;
+module.exports.generateInterviewInvitationEmail = generateInterviewInvitationEmail;
+module.exports.generateSelectionEmail = generateSelectionEmail;
+module.exports.generateRejectionEmail = generateRejectionEmail;
+module.exports.generateInterviewReminderEmail = generateInterviewReminderEmail;
+module.exports.generateShortlistingEmail = generateShortlistingEmail;
+module.exports.emailToHTML = emailToHTML;
 

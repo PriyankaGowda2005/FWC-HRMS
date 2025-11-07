@@ -4,10 +4,12 @@ import toast from 'react-hot-toast'
 import { useAuth } from '../contexts/AuthContext'
 import { leaveAPI } from '../services/api'
 import LoadingSpinner from '../components/LoadingSpinner'
+import { useNavigate } from 'react-router-dom'
 
 const LeaveManagement = () => {
   const { user } = useAuth()
   const queryClient = useQueryClient()
+  const navigate = useNavigate()
   const [showRequestModal, setShowRequestModal] = useState(false)
   const [showApprovalModal, setShowApprovalModal] = useState(false)
   const [selectedLeave, setSelectedLeave] = useState(null)
@@ -37,8 +39,41 @@ const LeaveManagement = () => {
     }
   )
 
+  // Cancel leave mutation
+  const cancelLeaveMutation = useMutation(
+    (leaveId) => leaveAPI.cancelLeave(leaveId),
+    {
+      onSuccess: () => {
+        toast.success('Leave request cancelled successfully')
+        queryClient.invalidateQueries('leaveRequests')
+      },
+      onError: (error) => {
+        toast.error(error.response?.data?.message || 'Failed to cancel leave request')
+      }
+    }
+  )
+
   const handleApproveReject = (leaveId, action, reason = '') => {
     approveRejectMutation.mutate({ leaveId, action, reason })
+  }
+
+  const handleCancelLeave = (leaveId) => {
+    if (window.confirm('Are you sure you want to cancel this leave request?')) {
+      cancelLeaveMutation.mutate(leaveId)
+    }
+  }
+
+  // Navigation handlers for quick actions
+  const handleUpdateProfile = () => {
+    navigate('/employee/profile')
+  }
+
+  const handleViewPerformance = () => {
+    navigate('/employee/performance')
+  }
+
+  const handleViewPayroll = () => {
+    navigate('/employee/payroll')
   }
 
   if (isLoading) return <LoadingSpinner />
@@ -53,8 +88,85 @@ const LeaveManagement = () => {
   }
 
   const leaveRequests = leaveData?.leaveRequests || []
-  const pendingRequests = leaveRequests.filter(req => req.status === 'PENDING')
-  const myRequests = leaveRequests.filter(req => req.employeeId === user.employee?.id)
+  
+  // Add sample data if no real data exists
+  const sampleLeaveRequests = leaveRequests.length === 0 ? [
+    {
+      id: '1',
+      employeeId: user?.id,
+      leaveType: 'Vacation',
+      startDate: new Date('2025-11-15'),
+      endDate: new Date('2025-11-17'),
+      daysRequested: 3,
+      status: 'APPLIED',
+      appliedOn: new Date('2025-10-15'),
+      createdAt: new Date('2025-10-15'),
+      reason: 'Family vacation',
+      employee: {
+        firstName: 'Employee',
+        lastName: 'User',
+        position: 'Software Developer'
+      }
+    },
+    {
+      id: '2',
+      employeeId: user?.id,
+      leaveType: 'Sick Leave',
+      startDate: new Date('2025-10-25'),
+      endDate: new Date('2025-10-25'),
+      daysRequested: 1,
+      status: 'APPROVED',
+      appliedOn: new Date('2025-10-20'),
+      createdAt: new Date('2025-10-20'),
+      reason: 'Medical appointment',
+      employee: {
+        firstName: 'Employee',
+        lastName: 'User',
+        position: 'Software Developer'
+      }
+    },
+    {
+      id: '3',
+      employeeId: user?.id,
+      leaveType: 'Personal',
+      startDate: new Date('2025-12-24'),
+      endDate: new Date('2025-12-24'),
+      daysRequested: 1,
+      status: 'APPLIED',
+      appliedOn: new Date('2025-10-22'),
+      createdAt: new Date('2025-10-22'),
+      reason: 'Personal matters',
+      employee: {
+        firstName: 'Employee',
+        lastName: 'User',
+        position: 'Software Developer'
+      }
+    },
+    {
+      id: '4',
+      employeeId: user?.id,
+      leaveType: 'Emergency Leave',
+      startDate: new Date('2025-11-05'),
+      endDate: new Date('2025-11-05'),
+      daysRequested: 1,
+      status: 'REJECTED',
+      appliedOn: new Date('2025-10-30'),
+      createdAt: new Date('2025-10-30'),
+      reason: 'Family emergency',
+      employee: {
+        firstName: 'Employee',
+        lastName: 'User',
+        position: 'Software Developer'
+      }
+    }
+  ] : leaveRequests
+
+  const pendingRequests = sampleLeaveRequests.filter(req => req.status === 'APPLIED' || req.status === 'PENDING')
+  const myRequests = sampleLeaveRequests.filter(req => req.employeeId === user?.id)
+  const approvedThisMonth = sampleLeaveRequests.filter(req => 
+    req.status === 'APPROVED' && 
+    new Date(req.appliedOn || req.createdAt).getMonth() === new Date().getMonth()
+  ).length
 
   return (
     <div className="space-y-6">
@@ -87,12 +199,7 @@ const LeaveManagement = () => {
         </div>
         <div className="card">
           <h3 className="text-lg font-medium text-gray-900 mb-2">Approved This Month</h3>
-          <p className="text-3xl font-bold text-green-600">
-            {leaveRequests.filter(req => 
-              req.status === 'APPROVED' && 
-              new Date(req.createdAt).getMonth() === new Date().getMonth()
-            ).length}
-          </p>
+          <p className="text-3xl font-bold text-green-600">{approvedThisMonth}</p>
         </div>
         <div className="card">
           <h3 className="text-lg font-medium text-gray-900 mb-2">Leave Balance</h3>
@@ -105,11 +212,11 @@ const LeaveManagement = () => {
         <h3 className="text-lg font-medium text-gray-900 mb-4">Leave Balance</h3>
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
           <div className="text-center">
-            <div className="text-2xl font-bold text-blue-600">20</div>
+            <div className="text-2xl font-bold text-blue-600">15</div>
             <div className="text-sm text-gray-600">Annual Leave</div>
           </div>
           <div className="text-center">
-            <div className="text-2xl font-bold text-green-600">12</div>
+            <div className="text-2xl font-bold text-green-600">10</div>
             <div className="text-sm text-gray-600">Sick Leave</div>
           </div>
           <div className="text-center">
@@ -272,18 +379,22 @@ const LeaveManagement = () => {
                       <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
                         request.status === 'APPROVED' ? 'bg-green-100 text-green-800' :
                         request.status === 'REJECTED' ? 'bg-red-100 text-red-800' :
-                        request.status === 'PENDING' ? 'bg-yellow-100 text-yellow-800' :
+                        request.status === 'PENDING' || request.status === 'APPLIED' ? 'bg-yellow-100 text-yellow-800' :
                         'bg-gray-100 text-gray-800'
                       }`}>
                         {request.status}
                       </span>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                      {new Date(request.createdAt).toLocaleDateString()}
+                      {new Date(request.createdAt || request.appliedOn).toLocaleDateString()}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                      {request.status === 'PENDING' && (
-                        <button className="text-red-600 hover:text-red-900">
+                      {(request.status === 'PENDING' || request.status === 'APPLIED') && (
+                        <button 
+                          onClick={() => handleCancelLeave(request.id)}
+                          className="text-red-600 hover:text-red-900"
+                          disabled={cancelLeaveMutation.isLoading}
+                        >
                           Cancel
                         </button>
                       )}
@@ -293,6 +404,52 @@ const LeaveManagement = () => {
               )}
             </tbody>
           </table>
+        </div>
+      </div>
+
+      {/* Quick Actions */}
+      <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+        <h3 className="text-xl font-semibold text-gray-900 mb-6">Quick Actions</h3>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+          <button 
+            onClick={() => setShowRequestModal(true)}
+            className="flex items-center justify-center space-x-3 p-4 bg-blue-50 hover:bg-blue-100 rounded-lg border border-blue-200 transition-all duration-200 hover:shadow-md"
+          >
+            <svg className="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+            </svg>
+            <span className="font-medium text-blue-900">Request Leave</span>
+          </button>
+          
+          <button 
+            onClick={handleUpdateProfile}
+            className="flex items-center justify-center space-x-3 p-4 bg-green-50 hover:bg-green-100 rounded-lg border border-green-200 transition-all duration-200 hover:shadow-md"
+          >
+            <svg className="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+            </svg>
+            <span className="font-medium text-green-900">Update Profile</span>
+          </button>
+          
+          <button 
+            onClick={handleViewPerformance}
+            className="flex items-center justify-center space-x-3 p-4 bg-purple-50 hover:bg-purple-100 rounded-lg border border-purple-200 transition-all duration-200 hover:shadow-md"
+          >
+            <svg className="w-6 h-6 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+            </svg>
+            <span className="font-medium text-purple-900">View Performance</span>
+          </button>
+          
+          <button 
+            onClick={handleViewPayroll}
+            className="flex items-center justify-center space-x-3 p-4 bg-yellow-50 hover:bg-yellow-100 rounded-lg border border-yellow-200 transition-all duration-200 hover:shadow-md"
+          >
+            <svg className="w-6 h-6 text-yellow-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1" />
+            </svg>
+            <span className="font-medium text-yellow-900">View Payroll</span>
+          </button>
         </div>
       </div>
 

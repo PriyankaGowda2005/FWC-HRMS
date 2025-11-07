@@ -72,7 +72,29 @@ export const CandidateAuthProvider = ({ children }) => {
         return { success: false, error: response.data.message }
       }
     } catch (error) {
-      const errorMessage = error.response?.data?.message || 'Login failed'
+      // Only log in development
+      if (process.env.NODE_ENV === 'development') {
+        console.error('Candidate login error:', error)
+      }
+      
+      // Handle network errors with simple message
+      if (error.code === 'ERR_NETWORK' || error.code === 'ECONNREFUSED' || error.code === 'ERR_CONNECTION_REFUSED' || error.message === 'Network Error') {
+        const networkError = 'Unable to connect to server. Please ensure the backend is running.';
+        setError(networkError);
+        toast.error(networkError);
+        return { success: false, error: networkError };
+      }
+      
+      // Handle CORS errors
+      if (error.message?.includes('CORS') || error.message?.includes('cross-origin')) {
+        const corsError = 'Connection error. Please check server configuration.';
+        setError(corsError);
+        toast.error(corsError);
+        return { success: false, error: corsError };
+      }
+      
+      // Handle other errors - use backend message if available
+      const errorMessage = error.response?.data?.message || error.message || 'Login failed. Please try again.'
       setError(errorMessage)
       toast.error(errorMessage)
       return { success: false, error: errorMessage }
@@ -156,9 +178,9 @@ export const CandidateAuthProvider = ({ children }) => {
       setError(null)
 
       const formData = new FormData()
-      formData.append('resume', file)
+      formData.append('resumes', file) // Use 'resumes' for the new API
 
-      const response = await api.post('/candidates/resume', formData, {
+      const response = await api.post('/resume-processing/upload', formData, {
         headers: {
           'Content-Type': 'multipart/form-data'
         }
@@ -169,10 +191,10 @@ export const CandidateAuthProvider = ({ children }) => {
         setCandidate(prev => ({
           ...prev,
           resumeUploaded: true,
-          resumeId: response.data.data.resumeId
+          resumeId: response.data.data.primaryResumeId || response.data.data.resumes?.[0]?.resumeId
         }))
         
-        toast.success('Resume uploaded successfully!')
+        toast.success('Resume uploaded and processing started!')
         return { success: true, data: response.data.data }
       } else {
         setError(response.data.message)

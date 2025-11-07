@@ -52,17 +52,37 @@ const Login = () => {
       toast.success('Login successful!')
       
       // Redirect based on role
-      const role = response.user.role
+      const role = response.user?.role
       if (role === 'ADMIN') {
         navigate('/admin')
+      } else if (role === 'HR') {
+        navigate('/hr')
+      } else if (role === 'MANAGER') {
+        navigate('/manager')
+      } else if (role === 'EMPLOYEE') {
+        navigate('/dashboard')
       } else {
         navigate('/dashboard')
       }
     } catch (error) {
       console.error('Login error details:', error)
-      const errorMessage = error.response?.data?.message || error.message || 'Login failed'
+      
+      // Handle authentication errors with better messages
+      let errorMessage = error.message || 'Login failed. Please check your credentials.'
+      
+      // Provide helpful suggestions for connection errors
+      if (errorMessage.includes('Unable to connect')) {
+        errorMessage += '\n\n💡 Make sure the backend server is running:\ncd apps/backend && npm run dev'
+      }
+      
       console.error('Error message:', errorMessage)
-      toast.error(errorMessage)
+      toast.error(errorMessage, {
+        duration: 5000,
+        style: {
+          maxWidth: '500px',
+          whiteSpace: 'pre-line'
+        }
+      })
     } finally {
       setLoading(false)
     }
@@ -138,14 +158,6 @@ const Login = () => {
               >
                 Welcome Back
               </motion.h1>
-              <motion.p 
-                className="text-slate-300 text-lg"
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.5 }}
-              >
-                Sign in to access your professional HR dashboard
-              </motion.p>
         </div>
 
         {/* Login Form */}

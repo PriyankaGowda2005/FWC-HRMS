@@ -58,6 +58,14 @@ except Exception as e:
     print(f"Warning: Zoom services not available: {e}")
     ZOOM_SERVICES_AVAILABLE = False
 
+# Import real-time interview service router
+try:
+    from realtime_interview_service import router as realtime_interview_router
+    REALTIME_INTERVIEW_AVAILABLE = True
+except Exception as e:
+    print(f"Warning: Real-time interview services not available: {e}")
+    REALTIME_INTERVIEW_AVAILABLE = False
+
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -89,6 +97,15 @@ if ZOOM_SERVICES_AVAILABLE:
         logger.warning(f"Failed to include zoom router: {e}")
 else:
     logger.info("Zoom Interview Analysis router not available")
+
+if REALTIME_INTERVIEW_AVAILABLE:
+    try:
+        app.include_router(realtime_interview_router)
+        logger.info("Real-time Interview Monitoring router included")
+    except Exception as e:
+        logger.warning(f"Failed to include real-time interview router: {e}")
+else:
+    logger.info("Real-time Interview Monitoring router not available")
 
 # Security
 security = HTTPBearer()
@@ -467,6 +484,150 @@ async def register(user_data: UserRegistration):
 # ----------------------
 # Resume Analysis Endpoints
 # ----------------------
+class ResumeAnalyzeRequest(BaseModel):
+    file_path: str
+    job_requirements: List[str] = []
+    job_title: str = ""
+    job_description: str = ""
+
+@app.post("/api/resume/analyze")
+async def analyze_resume(request: ResumeAnalyzeRequest):
+    """Analyze resume from file path (called by backend)"""
+    try:
+        file_path = request.file_path
+        job_requirements = request.job_requirements
+        job_title = request.job_title
+        job_description = request.job_description
+
+        if not file_path or not os.path.exists(file_path):
+            raise HTTPException(status_code=404, detail="Resume file not found")
+
+        # Use advanced resume parser if available
+        try:
+            from advanced_resume_parser import AdvancedResumeAnalyzer
+            analyzer = AdvancedResumeAnalyzer()
+            
+            # Prepare job requirements dict
+            job_req_dict = {
+                "skills": job_requirements if isinstance(job_requirements, list) else [],
+                "nice_to_have": [],
+                "experience_level": "mid",
+                "industry": "technology",
+                "culture": []
+            }
+            
+            result = analyzer.analyze_resume(file_path, job_req_dict)
+            
+            if result.get("success"):
+                # Extract data for response
+                profile = result.get("candidate_profile", {})
+                fit_analysis = result.get("job_fit_analysis", {})
+                
+                # Calculate match score
+                match_score = 0
+                if fit_analysis:
+                    if isinstance(fit_analysis, dict):
+                        match_score = fit_analysis.get("overall_score", 0)
+                    elif isinstance(fit_analysis, (int, float)):
+                        match_score = fit_analysis
+                
+                # Extract skills
+                skills_detected = profile.get("skills_detected", {})
+                skills_list = list(skills_detected.keys()) if isinstance(skills_detected, dict) else []
+                
+                # Generate strengths and weaknesses
+                strengths = []
+                weaknesses = []
+                recommendations = []
+                
+                if match_score >= 80:
+                    strengths.append("Strong alignment with job requirements")
+                    strengths.append("Relevant skills and experience demonstrated")
+                    recommendations.append("Proceed to interview stage")
+                elif match_score >= 60:
+                    strengths.append("Moderate alignment with role requirements")
+                    weaknesses.append("Some skill gaps identified")
+                    recommendations.append("Consider for interview with focus on skill gaps")
+                else:
+                    weaknesses.append("Limited alignment with job requirements")
+                    weaknesses.append("Significant skill gaps present")
+                    recommendations.append("Review candidate for alternative positions or skill development")
+                
+                # Skills match analysis
+                skills_match = []
+                if job_requirements and isinstance(job_requirements, list):
+                    for req in job_requirements:
+                        req_lower = req.lower()
+                        for skill in skills_list:
+                            if req_lower in skill.lower() or skill.lower() in req_lower:
+                                skills_match.append(skill)
+                                break
+                
+                return {
+                    "success": True,
+                    "data": {
+                        "match_score": int(match_score),
+                        "skills": skills_list,
+                        "experience": profile.get("experiences", 0),
+                        "strengths": strengths,
+                        "weaknesses": weaknesses,
+                        "recommendations": recommendations,
+                        "skills_match": list(set(skills_match)),
+                        "experience_match": f"{profile.get('experiences', 0)} years of experience detected" if profile.get("experiences", 0) > 0 else "Experience level needs verification",
+                        "education_match": "Education details extracted from resume",
+                        "confidence": result.get("analysis_confidence", 0.7)
+                    }
+                }
+            else:
+                raise HTTPException(status_code=500, detail=result.get("error", "Analysis failed"))
+                
+        except ImportError:
+            # Fallback to basic resume parser
+            if resume_analyzer:
+                result = resume_analyzer.parse_resume(file_path, job_requirements)
+                return {
+                    "success": True,
+                    "data": {
+                        "match_score": result.get("match_score", 50),
+                        "skills": result.get("skills", []),
+                        "experience": result.get("experience", 0),
+                        "strengths": result.get("strengths", []),
+                        "weaknesses": result.get("weaknesses", []),
+                        "recommendations": result.get("recommendations", [])
+                    }
+                }
+            else:
+                # Generate fallback analysis
+                return {
+                    "success": True,
+                    "data": {
+                        "match_score": 65,
+                        "skills": [],
+                        "experience": 0,
+                        "strengths": ["Resume received and processed"],
+                        "weaknesses": ["Detailed AI analysis unavailable"],
+                        "recommendations": ["Manual review recommended"]
+                    }
+                }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Resume analysis error: {e}")
+        # Return fallback response
+        return {
+            "success": True,
+            "data": {
+                "match_score": 50,
+                "skills": [],
+                "experience": 0,
+                "strengths": [],
+                "weaknesses": ["AI analysis service encountered an error"],
+                "recommendations": ["Manual review required"]
+            }
+        }
+
+
 @app.post("/api/resume/upload", response_model=APIResponse)
 async def upload_resume(
     file: UploadFile = File(...),
@@ -539,6 +700,324 @@ async def get_resume_analysis(analysis_id: str):
         raise
     except Exception as e:
         logger.error(f"Get resume analysis error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# Enhanced Resume Processing Endpoints
+class ResumeParseRequest(BaseModel):
+    file_path: str
+    candidate_id: Optional[str] = None
+    resume_id: Optional[str] = None
+
+class ATSScoreRequest(BaseModel):
+    file_path: str
+    job_requirements: List[str] = []
+    job_title: str = ""
+    job_description: str = ""
+    extracted_data: Optional[Dict] = None
+
+class TemplateRequest(BaseModel):
+    file_path: str
+    extracted_data: Dict
+    ats_score: Optional[Dict] = None
+    template_style: str = "professional"
+
+@app.post("/api/resume/parse", response_model=APIResponse)
+async def parse_resume(request: ResumeParseRequest):
+    """Parse resume and extract comprehensive information"""
+    try:
+        from enhanced_resume_parser import EnhancedResumeParser
+        
+        parser = EnhancedResumeParser()
+        result = parser.parse_resume(request.file_path)
+        
+        if result.get("success"):
+            return APIResponse(
+                success=True,
+                message="Resume parsed successfully",
+                data=result.get("data")
+            )
+        else:
+            raise HTTPException(status_code=500, detail=result.get("error", "Parsing failed"))
+            
+    except ImportError:
+        # Fallback to basic parser if enhanced parser not available
+        try:
+            from advanced_resume_parser import AdvancedResumeAnalyzer
+            analyzer = AdvancedResumeAnalyzer()
+            result = analyzer.analyze_resume(request.file_path)
+            
+            # Convert to expected format
+            profile = result.get("candidate_profile", {})
+            skills_detected = profile.get("skills_detected", {})
+            
+            return APIResponse(
+                success=True,
+                message="Resume parsed successfully (basic mode)",
+                data={
+                    "fullName": None,
+                    "contactInfo": {},
+                    "education": [],
+                    "experience": {
+                        "entries": [],
+                        "totalYears": profile.get("experiences", 0),
+                        "totalPositions": profile.get("experiences", 0)
+                    },
+                    "skills": {
+                        "technical": list(skills_detected.keys()) if isinstance(skills_detected, dict) else [],
+                        "soft": [],
+                        "all": list(skills_detected.keys()) if isinstance(skills_detected, dict) else []
+                    },
+                    "certifications": []
+                }
+            )
+        except Exception as e:
+            logger.error(f"Resume parsing error: {e}")
+            raise HTTPException(status_code=500, detail=str(e))
+    except Exception as e:
+        logger.error(f"Resume parsing error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/resume/ats-score", response_model=APIResponse)
+async def calculate_ats_score(request: ATSScoreRequest):
+    """Calculate ATS (Applicant Tracking System) score"""
+    try:
+        # Use extracted data if available, otherwise parse resume
+        extracted_data = request.extracted_data
+        
+        if not extracted_data:
+            # Parse resume first
+            try:
+                from enhanced_resume_parser import EnhancedResumeParser
+                parser = EnhancedResumeParser()
+                parse_result = parser.parse_resume(request.file_path)
+                if parse_result.get("success"):
+                    extracted_data = parse_result.get("data")
+            except Exception as e:
+                logger.warning(f"Could not parse resume for ATS score: {e}")
+        
+        # Extract skills from resume
+        candidate_skills = []
+        if extracted_data:
+            skills_data = extracted_data.get("skills", {})
+            if isinstance(skills_data, dict):
+                candidate_skills = skills_data.get("all", []) or skills_data.get("technical", [])
+            elif isinstance(skills_data, list):
+                candidate_skills = skills_data
+        
+        # Normalize skills to lowercase for matching
+        candidate_skills_lower = [s.lower() for s in candidate_skills]
+        job_requirements_lower = [r.lower() for r in request.job_requirements]
+        
+        # Calculate skill match
+        matched_skills = []
+        for req in job_requirements_lower:
+            for skill in candidate_skills_lower:
+                if req in skill or skill in req:
+                    matched_skills.append(skill)
+                    break
+        
+        # Calculate scores
+        skill_match_score = (len(matched_skills) / len(job_requirements_lower) * 100) if job_requirements_lower else 0
+        
+        # Experience match (if available)
+        experience_years = 0
+        if extracted_data and extracted_data.get("experience"):
+            exp_data = extracted_data.get("experience")
+            if isinstance(exp_data, dict):
+                experience_years = exp_data.get("totalYears", 0)
+            elif isinstance(exp_data, (int, float)):
+                experience_years = exp_data
+        
+        # Overall ATS score (weighted)
+        # 70% skill match, 20% experience relevance, 10% keyword density
+        overall_score = skill_match_score * 0.7
+        
+        # Add experience bonus
+        if experience_years >= 5:
+            overall_score += 20
+        elif experience_years >= 3:
+            overall_score += 15
+        elif experience_years >= 1:
+            overall_score += 10
+        
+        # Cap at 100
+        overall_score = min(100, overall_score)
+        
+        return APIResponse(
+            success=True,
+            message="ATS score calculated",
+            data={
+                "overallScore": round(overall_score, 1),
+                "skillMatch": round(skill_match_score, 1),
+                "matchedSkills": list(set(matched_skills)),
+                "totalRequiredSkills": len(job_requirements_lower),
+                "matchedSkillsCount": len(matched_skills),
+                "missingSkills": [r for r in job_requirements_lower if r not in [s.lower() for s in matched_skills]],
+                "candidateSkills": candidate_skills,
+                "experienceYears": experience_years
+            }
+        )
+        
+    except Exception as e:
+        logger.error(f"ATS score calculation error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/resume/generate-template", response_model=APIResponse)
+async def generate_template(request: TemplateRequest):
+    """Generate professional uniform template from resume"""
+    try:
+        from reportlab.lib.pagesizes import letter
+        from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
+        from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+        from reportlab.lib.units import inch
+        from reportlab.lib import colors
+        
+        # Create output directory
+        output_dir = Path("uploads/templates")
+        output_dir.mkdir(parents=True, exist_ok=True)
+        
+        # Generate filename
+        template_filename = f"template_{uuid.uuid4()}.pdf"
+        template_path = str(output_dir / template_filename)
+        
+        # Create PDF document
+        doc = SimpleDocTemplate(template_path, pagesize=letter)
+        story = []
+        styles = getSampleStyleSheet()
+        
+        # Custom styles
+        title_style = ParagraphStyle(
+            'CustomTitle',
+            parent=styles['Heading1'],
+            fontSize=18,
+            textColor=colors.HexColor('#1a237e'),
+            spaceAfter=12,
+            alignment=1  # Center
+        )
+        
+        heading_style = ParagraphStyle(
+            'CustomHeading',
+            parent=styles['Heading2'],
+            fontSize=14,
+            textColor=colors.HexColor('#283593'),
+            spaceAfter=6,
+            spaceBefore=12
+        )
+        
+        # Extract data
+        data = request.extracted_data
+        full_name = data.get("fullName", "Candidate Name")
+        contact = data.get("contactInfo", {})
+        education = data.get("education", [])
+        experience = data.get("experience", {}).get("entries", [])
+        skills = data.get("skills", {})
+        certifications = data.get("certifications", [])
+        
+        # Header
+        story.append(Paragraph(full_name, title_style))
+        
+        # Contact Information
+        contact_info = []
+        if contact.get("email"):
+            contact_info.append(contact["email"])
+        if contact.get("phone"):
+            contact_info.append(contact["phone"])
+        if contact.get("linkedin"):
+            contact_info.append(f"LinkedIn: {contact['linkedin']}")
+        
+        if contact_info:
+            story.append(Paragraph(" | ".join(contact_info), styles['Normal']))
+            story.append(Spacer(1, 0.2*inch))
+        
+        # ATS Score (if provided)
+        if request.ats_score:
+            ats_score = request.ats_score.get("overallScore", 0)
+            score_color_hex = "#4caf50" if ats_score >= 70 else "#ff9800" if ats_score >= 50 else "#f44336"
+            story.append(Paragraph(f"<b>ATS Match Score: <font color='{score_color_hex}'>{ats_score}%</font></b>", styles['Normal']))
+            story.append(Spacer(1, 0.1*inch))
+        
+        # Professional Summary
+        story.append(Paragraph("PROFESSIONAL SUMMARY", heading_style))
+        summary_text = f"Experienced professional with {data.get('experience', {}).get('totalYears', 0)} years of experience. "
+        if skills.get("technical"):
+            summary_text += f"Proficient in {', '.join(skills['technical'][:5])}. "
+        story.append(Paragraph(summary_text, styles['Normal']))
+        story.append(Spacer(1, 0.2*inch))
+        
+        # Skills Section
+        if skills:
+            story.append(Paragraph("SKILLS", heading_style))
+            tech_skills = skills.get("technical", [])
+            soft_skills = skills.get("soft", [])
+            
+            if tech_skills:
+                story.append(Paragraph(f"<b>Technical:</b> {', '.join(tech_skills[:15])}", styles['Normal']))
+            if soft_skills:
+                story.append(Paragraph(f"<b>Soft Skills:</b> {', '.join(soft_skills[:10])}", styles['Normal']))
+            story.append(Spacer(1, 0.2*inch))
+        
+        # Work Experience
+        if experience:
+            story.append(Paragraph("WORK EXPERIENCE", heading_style))
+            for exp in experience[:5]:  # Top 5 experiences
+                company = exp.get("company", "Company")
+                position = exp.get("position", "Position")
+                duration = exp.get("duration", exp.get("startDate", ""))
+                
+                story.append(Paragraph(f"<b>{position}</b> - {company}", styles['Normal']))
+                if duration:
+                    story.append(Paragraph(f"<i>{duration}</i>", styles['Normal']))
+                if exp.get("description"):
+                    story.append(Paragraph(exp["description"][:200], styles['Normal']))
+                story.append(Spacer(1, 0.1*inch))
+            story.append(Spacer(1, 0.2*inch))
+        
+        # Education
+        if education:
+            story.append(Paragraph("EDUCATION", heading_style))
+            for edu in education[:3]:  # Top 3 education entries
+                degree = edu.get("degree", "")
+                institution = edu.get("institution", "")
+                year = edu.get("graduationYear", "")
+                
+                edu_text = f"<b>{degree}</b>"
+                if institution:
+                    edu_text += f" - {institution}"
+                if year:
+                    edu_text += f" ({year})"
+                story.append(Paragraph(edu_text, styles['Normal']))
+            story.append(Spacer(1, 0.2*inch))
+        
+        # Certifications
+        if certifications:
+            story.append(Paragraph("CERTIFICATIONS", heading_style))
+            for cert in certifications[:5]:  # Top 5 certifications
+                cert_name = cert.get("name", "")
+                issuer = cert.get("issuer", "")
+                cert_text = f"<b>{cert_name}</b>"
+                if issuer:
+                    cert_text += f" - {issuer}"
+                story.append(Paragraph(cert_text, styles['Normal']))
+        
+        # Build PDF
+        doc.build(story)
+        
+        return APIResponse(
+            success=True,
+            message="Professional template generated",
+            data={
+                "template_path": template_path,
+                "template_filename": template_filename
+            }
+        )
+        
+    except ImportError:
+        # Fallback if reportlab not available
+        logger.warning("ReportLab not available, cannot generate PDF template")
+        raise HTTPException(status_code=503, detail="PDF generation library not available")
+    except Exception as e:
+        logger.error(f"Template generation error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 

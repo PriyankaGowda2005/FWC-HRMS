@@ -2,9 +2,9 @@ import axios from 'axios'
 
 // Create axios instance
 const api = axios.create({
-  baseURL: 'http://localhost:3001/api',
+  baseURL: import.meta.env.VITE_API_BASE_URL || 'http://localhost:3001/api',
   withCredentials: true, // Important for cookies
-  timeout: 10000, // 10 second timeout
+  timeout: 30000, // 30 second timeout for better reliability
   headers: {
     'Content-Type': 'application/json',
     'Accept': 'application/json'
@@ -43,6 +43,21 @@ api.interceptors.request.use(
   }
 )
 
+// Flag to prevent multiple simultaneous refresh attempts
+let isRefreshing = false
+let failedQueue = []
+
+const processQueue = (error, token = null) => {
+  failedQueue.forEach(prom => {
+    if (error) {
+      prom.reject(error)
+    } else {
+      prom.resolve(token)
+    }
+  })
+  failedQueue = []
+}
+
 // Response interceptor for error handling
 api.interceptors.response.use(
   (response) => {
@@ -55,29 +70,137 @@ api.interceptors.response.use(
     })
     return response
   },
-  (error) => {
-    console.error('API Response Error:', error.response?.status, error.config?.url, error.response?.data)
+  async (error) => {
+    const originalRequest = error.config
     
-    // Handle 401 Unauthorized - token expired
-    if (error.response?.status === 401) {
-      console.log('🔐 Token expired, clearing auth data')
-      localStorage.removeItem('token')
-      localStorage.removeItem('candidateToken')
-      localStorage.removeItem('refreshToken')
-      // Don't redirect here, let the component handle it
+    // Only log errors in development mode
+    if (process.env.NODE_ENV === 'development') {
+      console.error('API Response Error:', error.response?.status, error.config?.url, error.response?.data)
     }
     
-    // Handle network errors
+    // Handle 401 Unauthorized and 403 Forbidden - token expired or invalid
+    if ((error.response?.status === 401 || error.response?.status === 403) && originalRequest) {
+      // Skip refresh for auth endpoints (login, refresh, register) to avoid infinite loops
+      if (originalRequest.url?.includes('/auth/login') || 
+          originalRequest.url?.includes('/auth/refresh') || 
+          originalRequest.url?.includes('/auth/register')) {
+        console.log('🔐 Auth endpoint failed, clearing tokens')
+        localStorage.removeItem('token')
+        localStorage.removeItem('candidateToken')
+        localStorage.removeItem('refreshToken')
+        return Promise.reject(error)
+      }
+      
+      // Check if we have a refresh token
+      const refreshToken = localStorage.getItem('refreshToken')
+      
+      if (refreshToken && !originalRequest._retry) {
+        // If we're already refreshing, queue this request
+        if (isRefreshing) {
+          return new Promise((resolve, reject) => {
+            failedQueue.push({ resolve, reject })
+          }).then(token => {
+            originalRequest.headers.Authorization = `Bearer ${token}`
+            return api(originalRequest)
+          }).catch(err => {
+            return Promise.reject(err)
+          })
+        }
+        
+        originalRequest._retry = true
+        isRefreshing = true
+        
+        try {
+          console.log('🔄 Attempting to refresh token...')
+          
+          // Call refresh endpoint with refresh token in request body
+          const refreshResponse = await axios.post(
+            `${import.meta.env.VITE_API_BASE_URL || 'http://localhost:3001/api'}/auth/refresh`,
+            { refreshToken }, // Send refresh token in request body
+            {
+              withCredentials: true, // Important for cookies
+              headers: {
+                'Content-Type': 'application/json'
+              }
+            }
+          )
+          
+          const { token: newToken, refreshToken: newRefreshToken } = refreshResponse.data
+          
+          if (newToken) {
+            // Update tokens in localStorage
+            localStorage.setItem('token', newToken)
+            if (newRefreshToken) {
+              localStorage.setItem('refreshToken', newRefreshToken)
+            }
+            
+            console.log('✅ Token refreshed successfully')
+            
+            // Update the original request with new token
+            originalRequest.headers.Authorization = `Bearer ${newToken}`
+            
+            // Process queued requests
+            processQueue(null, newToken)
+            isRefreshing = false
+            
+            // Retry the original request
+            return api(originalRequest)
+          } else {
+            throw new Error('No token in refresh response')
+          }
+        } catch (refreshError) {
+          console.error('❌ Token refresh failed:', refreshError)
+          
+          // Refresh failed - clear all tokens and process queue with error
+          localStorage.removeItem('token')
+          localStorage.removeItem('candidateToken')
+          localStorage.removeItem('refreshToken')
+          
+          processQueue(refreshError, null)
+          isRefreshing = false
+          
+          // Redirect to login if we're not already there
+          if (window.location.pathname !== '/login' && window.location.pathname !== '/') {
+            // Only redirect if we have a router available
+            if (window.location) {
+              window.location.href = '/login'
+            }
+          }
+          
+          return Promise.reject(refreshError)
+        }
+      } else {
+        // No refresh token available - clear everything
+        console.log('🔐 No refresh token available, clearing auth data')
+        localStorage.removeItem('token')
+        localStorage.removeItem('candidateToken')
+        localStorage.removeItem('refreshToken')
+        
+        // Redirect to login if we're not already there
+        if (window.location.pathname !== '/login' && window.location.pathname !== '/') {
+          if (window.location) {
+            window.location.href = '/login'
+          }
+        }
+      }
+    }
+    
+    // Handle network errors - minimal logging
     if (error.code === 'ERR_NETWORK' || error.code === 'NETWORK_ERROR' || error.message === 'Network Error') {
-      console.error('🌐 Network Error: Backend server is not accessible')
-      console.error('💡 Please ensure backend is running on http://localhost:3001')
-      console.error('🔍 Check: http://localhost:3001/health')
+      // Don't log - let the component handle it with better UI
     }
     
     // Handle connection refused
     if (error.code === 'ECONNREFUSED' || error.code === 'ERR_CONNECTION_REFUSED') {
-      console.error('🔌 Connection Refused: Backend server is not running')
-      console.error('💡 Please start the backend server: cd apps/backend && npm start')
+      // Don't log - let the component handle it
+    }
+    
+    // Handle timeout errors
+    if (error.code === 'ECONNABORTED' || error.message?.includes('timeout')) {
+      // Don't log - let the component handle it
+      if (typeof window !== 'undefined' && window.toast) {
+        window.toast.error('Request timed out. Please try again.')
+      }
     }
     
     // Handle CORS errors
@@ -93,9 +216,9 @@ api.interceptors.response.use(
 export const authAPI = {
   login: (credentials) => api.post('/auth/login', credentials),
   register: (userData) => api.post('/auth/register', userData),
-  logout: () => api.post('/auth/logout'),
+  logout: (data) => api.post('/auth/logout', data || {}),
   getCurrentUser: () => api.get('/auth/me'),
-  refreshToken: () => api.post('/auth/refresh'),
+  refreshToken: (refreshToken) => api.post('/auth/refresh', { refreshToken }),
 }
 
 // Employee API
@@ -330,6 +453,8 @@ export const aiAPI = {
     api.get('/ai/insights/hr'),
   getEmployeeInsights: (employeeId) => 
     api.get(`/ai/insights/employee/${employeeId}`),
+  getInsights: () => 
+    api.get('/recruitment/ai-insights'),
   
   // AI Chat and Assistance
   askAIQuestion: (question, context) => 
@@ -430,6 +555,7 @@ export const reportsAPI = {
   getPayrollReport: (params) => api.get('/reports/payroll', { params }),
   getLeaveReport: (params) => api.get('/reports/leave', { params }),
   getPerformanceReport: (params) => api.get('/reports/performance', { params }),
+  generateReport: (type, dateRange) => api.get(`/reports/${type}`, { params: dateRange }),
 }
 
 // Report API (for ReportsAnalytics page)
@@ -551,6 +677,39 @@ export const interviewTranscriptsAPI = {
   }
 };
 
+// Real-time Interview Monitoring API
+export const realtimeInterviewAPI = {
+  // Start monitoring session
+  startMonitoring: async (data) => {
+    const response = await api.post('/realtime-interview/start-monitoring', data);
+    return response.data;
+  },
+
+  // Process audio/transcript
+  processAudio: async (data) => {
+    const response = await api.post('/realtime-interview/process-audio', data);
+    return response.data;
+  },
+
+  // Get session data
+  getSession: async (sessionId) => {
+    const response = await api.get(`/realtime-interview/session/${sessionId}`);
+    return response.data;
+  },
+
+  // Get live monitoring data
+  getLiveData: async (sessionId) => {
+    const response = await api.get(`/realtime-interview/session/${sessionId}/live`);
+    return response.data;
+  },
+
+  // End monitoring and generate report
+  endMonitoring: async (data) => {
+    const response = await api.post('/realtime-interview/end-monitoring', data);
+    return response.data;
+  }
+};
+
 // Candidate to Employee Conversion API
 export const candidateConversionAPI = {
   // Convert candidate to employee
@@ -584,6 +743,41 @@ export const candidateConversionAPI = {
     return response.data;
   }
 };
+
+// Resume Processing API
+export const resumeProcessingAPI = {
+  // Upload resume(s) with automatic processing
+  uploadResumes: (files) => {
+    const formData = new FormData()
+    files.forEach(file => {
+      formData.append('resumes', file)
+    })
+    return api.post('/resume-processing/upload', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' }
+    })
+  },
+
+  // Calculate ATS score for a resume against a job posting
+  calculateAtsScore: (data) => api.post('/resume-processing/ats-score', data),
+
+  // Generate professional template
+  generateTemplate: (resumeId, options = {}) => 
+    api.post(`/resume-processing/generate-template/${resumeId}`, options),
+
+  // Download template
+  downloadTemplate: (resumeId) => 
+    api.get(`/resume-processing/download-template/${resumeId}`, { responseType: 'blob' }),
+
+  // Get job recommendations for a candidate
+  getJobRecommendations: (candidateId) => 
+    api.get(`/resume-processing/job-recommendations/${candidateId}`),
+
+  // Get dashboard data with filters
+  getDashboard: (params = {}) => {
+    const queryParams = new URLSearchParams(params).toString()
+    return api.get(`/resume-processing/dashboard?${queryParams}`)
+  }
+}
 
 // Resume Screening API
 export const resumeScreeningAPI = {

@@ -24,11 +24,21 @@ if (process.env.RESEND_API_KEY) {
 async function sendEmailDirect(type, to, data) {
   // Check if Resend is initialized
   if (!resend) {
-    console.warn(`⚠️  Email sending skipped (${type}): RESEND_API_KEY not configured`);
-    return { success: false, error: 'Email service not configured. RESEND_API_KEY is required.' };
+    const errorMsg = 'Email service not configured. RESEND_API_KEY environment variable is required.';
+    console.error(`❌ ${errorMsg}`);
+    console.error(`💡 To fix: Add RESEND_API_KEY to your .env file`);
+    return { success: false, error: errorMsg };
+  }
+
+  // Validate email address
+  if (!to || !to.includes('@')) {
+    const errorMsg = `Invalid email address: ${to}`;
+    console.error(`❌ ${errorMsg}`);
+    return { success: false, error: errorMsg };
   }
 
   try {
+    console.log(`📧 Preparing to send ${type} email to: ${to}`);
     const templates = {
       candidate_invitation: {
         subject: 'Invitation to Join Mastersolis Infotech Talent Pool',
@@ -181,18 +191,35 @@ async function sendEmailDirect(type, to, data) {
       throw new Error(`Email template not found for type: ${type}`);
     }
 
+    const fromEmail = process.env.RESEND_FROM || 'Mastersolis Infotech <onboarding@resend.dev>';
+    console.log(`📧 Sending email from: ${fromEmail}`);
+    console.log(`📧 Sending email to: ${to}`);
+    
     const result = await resend.emails.send({
-      from: process.env.RESEND_FROM || 'Mastersolis Infotech <onboarding@resend.dev>',
+      from: fromEmail,
       to: [to],
       subject: template.subject,
       html: template.html
     });
 
-    console.log('Email sent successfully:', result);
+    if (result.error) {
+      console.error('❌ Resend API error:', result.error);
+      return { success: false, error: result.error.message || 'Resend API returned an error' };
+    }
+
+    console.log('✅ Email sent successfully. Message ID:', result.data?.id);
     return { success: true, messageId: result.data?.id };
   } catch (error) {
-    console.error('Failed to send email:', error);
-    return { success: false, error: error.message };
+    console.error('❌ Failed to send email:', error);
+    console.error('Error details:', {
+      message: error.message,
+      name: error.name,
+      stack: error.stack
+    });
+    return { 
+      success: false, 
+      error: error.message || 'Unknown error occurred while sending email' 
+    };
   }
 }
 
@@ -232,7 +259,10 @@ const upload = multer({
 // Candidate registration
 router.post('/register', validateSchema(candidateSchemas.register), async (req, res) => {
   try {
-    const { email, password, firstName, lastName, phone, invitationToken } = req.body;
+    let { email, password, firstName, lastName, phone, invitationToken } = req.body;
+
+    // Normalize email (lowercase and trim)
+    email = email.toLowerCase().trim();
 
     // Check if candidate already exists
     const existingCandidate = await database.findOne('candidates', { email });
@@ -243,41 +273,88 @@ router.post('/register', validateSchema(candidateSchemas.register), async (req, 
       });
     }
 
-    // If invitation token is provided, validate it
-    if (invitationToken) {
-      try {
-        const jwtSecret = process.env.JWT_SECRET || 'fwc-hrms-super-secret-jwt-key-2024';
-        const decoded = jwt.verify(invitationToken, jwtSecret);
-        if (decoded.email !== email) {
-          return res.status(400).json({
-            success: false,
-            message: 'Invalid invitation token'
-          });
-        }
+    // Validate invitation token (REQUIRED)
+    if (!invitationToken) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invitation token is required. Please use the invitation link sent to your email.'
+      });
+    }
 
-        // Update invitation status to ACCEPTED
-        await database.updateOne(
-          'candidate_invitations',
-          { invitationToken, email },
-          { 
-            $set: { 
-              status: 'ACCEPTED',
-              acceptedAt: new Date()
-            }
-          }
-        );
-      } catch (error) {
+    const jwtSecret = process.env.JWT_SECRET || 'fwc-hrms-super-secret-jwt-key-2024';
+    
+    // Verify JWT token
+    let decoded;
+    try {
+      decoded = jwt.verify(invitationToken, jwtSecret);
+    } catch (error) {
+      if (error.name === 'TokenExpiredError') {
         return res.status(400).json({
           success: false,
-          message: 'Invalid or expired invitation token'
+          message: 'Invitation token has expired. Please request a new invitation from HR.'
         });
       }
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid invitation token. Please use the invitation link sent to your email.'
+      });
     }
+
+    // Verify email matches token
+    if (decoded.email !== email) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invitation token does not match the provided email address.'
+      });
+    }
+
+    // Check if invitation exists in database and is valid
+    const invitation = await database.findOne('candidate_invitations', { 
+      invitationToken,
+      email 
+    });
+
+    if (!invitation) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invitation not found. Please use the invitation link sent to your email.'
+      });
+    }
+
+    // Check if invitation is still pending
+    if (invitation.status !== 'PENDING') {
+      return res.status(400).json({
+        success: false,
+        message: invitation.status === 'ACCEPTED' 
+          ? 'This invitation has already been used. Please contact HR if you need assistance.'
+          : 'This invitation is no longer valid. Please request a new invitation from HR.'
+      });
+    }
+
+    // Check if invitation has expired
+    if (invitation.expiresAt && new Date(invitation.expiresAt) < new Date()) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invitation has expired. Please request a new invitation from HR.'
+      });
+    }
+
+    // Update invitation status to ACCEPTED
+    await database.updateOne(
+      'candidate_invitations',
+      { invitationToken, email },
+      { 
+        $set: { 
+          status: 'ACCEPTED',
+          acceptedAt: new Date()
+        }
+      }
+    );
 
     // Hash password
     const hashedPassword = await bcrypt.hash(password, 12);
 
-    // Create candidate
+    // Create candidate (only via invitation)
     const candidate = {
       email,
       password: hashedPassword,
@@ -287,7 +364,8 @@ router.post('/register', validateSchema(candidateSchemas.register), async (req, 
       status: 'ACTIVE',
       profileComplete: false,
       resumeUploaded: false,
-      invitedBy: invitationToken ? 'INVITATION' : 'SELF_REGISTERED',
+      invitedBy: 'INVITATION',
+      invitationId: invitation._id,
       createdAt: new Date(),
       updatedAt: new Date()
     };
@@ -325,10 +403,7 @@ router.post('/register', validateSchema(candidateSchemas.register), async (req, 
       // Don't fail registration if email fails
     }
 
-    // Validate JWT_SECRET for registration token
-    const jwtSecret = process.env.JWT_SECRET || 'fwc-hrms-super-secret-jwt-key-2024';
-
-    // Generate JWT token
+    // Generate JWT token (jwtSecret already declared above)
     const token = jwt.sign(
       { 
         candidateId: result.insertedId.toString(),
@@ -364,20 +439,87 @@ router.post('/register', validateSchema(candidateSchemas.register), async (req, 
 // Candidate login
 router.post('/login', validateSchema(candidateSchemas.login), async (req, res) => {
   try {
-    const { email, password } = req.body;
+    // Use validated body which already has normalized email
+    const { email, password } = req.validatedBody || req.body;
+    
+    // Ensure email is normalized (validation should do this, but double-check)
+    const normalizedEmail = email.toLowerCase().trim();
 
-    // Find candidate
-    const candidate = await database.findOne('candidates', { email });
+    // Find candidate - use normalized email
+    let candidate = await database.findOne('candidates', { email: normalizedEmail });
+    
+    // If not found, try case-insensitive search as fallback
     if (!candidate) {
+      const allCandidates = await database.find('candidates', {});
+      candidate = allCandidates.find(c => c.email && c.email.toLowerCase().trim() === normalizedEmail);
+    }
+
+    if (!candidate) {
+      console.error(`❌ Candidate not found for email: ${normalizedEmail}`);
       return res.status(401).json({
         success: false,
         message: 'Invalid email or password'
       });
     }
 
+    // Debug logging (only in development)
+    if (process.env.NODE_ENV !== 'production') {
+      console.log(`🔍 Candidate login attempt for: ${normalizedEmail}`);
+      console.log(`   Found candidate: ${candidate.email}`);
+      console.log(`   Status: ${candidate.status}`);
+      console.log(`   Has password: ${!!candidate.password}`);
+    }
+
+    // No invitation check required - all candidates can login if they have valid credentials
+
     // Check password
-    const isPasswordValid = await bcrypt.compare(password, candidate.password);
+    if (!candidate.password) {
+      console.error(`❌ Candidate has no password set: ${candidate.email}`);
+      return res.status(401).json({
+        success: false,
+        message: 'Invalid email or password'
+      });
+    }
+
+    // Verify password with better error handling
+    let isPasswordValid = false;
+    try {
+      // Ensure password is a string
+      const plainPassword = String(password || '').trim();
+      const hashedPassword = String(candidate.password || '').trim();
+      
+      if (!plainPassword || !hashedPassword) {
+        if (process.env.NODE_ENV !== 'production') {
+          console.error(`❌ Empty password or hash for: ${candidate.email}`);
+        }
+        return res.status(401).json({
+          success: false,
+          message: 'Invalid email or password'
+        });
+      }
+      
+      isPasswordValid = await bcrypt.compare(plainPassword, hashedPassword);
+      
+      if (process.env.NODE_ENV !== 'production') {
+        console.log(`   Password valid: ${isPasswordValid}`);
+        console.log(`   Password length: ${plainPassword.length}`);
+        console.log(`   Hash length: ${hashedPassword.length}`);
+        console.log(`   Hash starts with: ${hashedPassword.substring(0, 10)}`);
+      }
+    } catch (compareError) {
+      console.error(`❌ Password comparison error for ${candidate.email}:`, compareError);
+      return res.status(401).json({
+        success: false,
+        message: 'Invalid email or password'
+      });
+    }
+    
     if (!isPasswordValid) {
+      if (process.env.NODE_ENV !== 'production') {
+        console.error(`❌ Password mismatch for: ${candidate.email}`);
+        console.error(`   Attempted password: "${password}"`);
+        console.error(`   Stored hash: ${candidate.password.substring(0, 20)}...`);
+      }
       return res.status(401).json({
         success: false,
         message: 'Invalid email or password'
@@ -413,23 +555,35 @@ router.post('/login', validateSchema(candidateSchemas.login), async (req, res) =
       success: true,
       message: 'Login successful',
       data: {
+        _id: candidate._id,
         candidateId: candidate._id,
         email: candidate.email,
         firstName: candidate.firstName,
         lastName: candidate.lastName,
+        name: candidate.name || `${candidate.firstName || ''} ${candidate.lastName || ''}`.trim(),
+        phone: candidate.phone,
         profileComplete: candidate.profileComplete,
         resumeUploaded: candidate.resumeUploaded,
+        status: candidate.status,
         token
       }
     });
 
   } catch (error) {
-    console.error('Candidate login error:', error);
-    res.status(500).json({
+    console.error('❌ Candidate login error:', error);
+    console.error('   Error stack:', error.stack);
+    
+    // Provide more detailed error information in development
+    const errorResponse = {
       success: false,
       message: 'Internal server error',
-      error: error.message
-    });
+      ...(process.env.NODE_ENV !== 'production' && {
+        error: error.message,
+        stack: error.stack
+      })
+    };
+    
+    res.status(500).json(errorResponse);
   }
 });
 
@@ -840,6 +994,115 @@ try {
   console.warn('Email queue not available:', error.message);
 }
 
+// Validate invitation token (public endpoint for frontend)
+router.get('/validate-invitation', async (req, res) => {
+  try {
+    const { token, email } = req.query;
+
+    if (!token || !email) {
+      return res.status(400).json({
+        success: false,
+        valid: false,
+        message: 'Token and email are required'
+      });
+    }
+
+    const jwtSecret = process.env.JWT_SECRET || 'fwc-hrms-super-secret-jwt-key-2024';
+    
+    // Verify JWT token
+    let decoded;
+    try {
+      decoded = jwt.verify(token, jwtSecret);
+    } catch (error) {
+      if (error.name === 'TokenExpiredError') {
+        return res.json({
+          success: true,
+          valid: false,
+          message: 'Invitation token has expired. Please request a new invitation from HR.'
+        });
+      }
+      return res.json({
+        success: true,
+        valid: false,
+        message: 'Invalid invitation token.'
+      });
+    }
+
+    // Verify email matches token
+    if (decoded.email !== email) {
+      return res.json({
+        success: true,
+        valid: false,
+        message: 'Invitation token does not match the email address.'
+      });
+    }
+
+    // Check if invitation exists in database
+    const invitation = await database.findOne('candidate_invitations', { 
+      invitationToken: token,
+      email 
+    });
+
+    if (!invitation) {
+      return res.json({
+        success: true,
+        valid: false,
+        message: 'Invitation not found.'
+      });
+    }
+
+    // Check if invitation is still pending
+    if (invitation.status !== 'PENDING') {
+      return res.json({
+        success: true,
+        valid: false,
+        message: invitation.status === 'ACCEPTED' 
+          ? 'This invitation has already been used.'
+          : 'This invitation is no longer valid.'
+      });
+    }
+
+    // Check if invitation has expired
+    if (invitation.expiresAt && new Date(invitation.expiresAt) < new Date()) {
+      return res.json({
+        success: true,
+        valid: false,
+        message: 'Invitation has expired.'
+      });
+    }
+
+    // Check if candidate already exists
+    const existingCandidate = await database.findOne('candidates', { email });
+    if (existingCandidate) {
+      return res.json({
+        success: true,
+        valid: false,
+        message: 'A candidate account with this email already exists.'
+      });
+    }
+
+    return res.json({
+      success: true,
+      valid: true,
+      message: 'Invitation is valid',
+      data: {
+        email: invitation.email,
+        candidateName: invitation.candidateName,
+        expiresAt: invitation.expiresAt
+      }
+    });
+
+  } catch (error) {
+    console.error('Validate invitation error:', error);
+    res.status(500).json({
+      success: false,
+      valid: false,
+      message: 'Internal server error',
+      error: error.message
+    });
+  }
+});
+
 // HR: Send candidate invitation email
 router.post('/invite', verifyToken, async (req, res) => {
   try {
@@ -860,6 +1123,15 @@ router.post('/invite', verifyToken, async (req, res) => {
       });
     }
 
+    // Validate email format
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid email address format'
+      });
+    }
+
     // Check if candidate already exists
     const existingCandidate = await database.findOne('candidates', { email });
     if (existingCandidate) {
@@ -874,27 +1146,34 @@ router.post('/invite', verifyToken, async (req, res) => {
 
     // Create invitation record
     const invitation = {
-      email,
+      email: email.toLowerCase().trim(), // Normalize email
       candidateName: candidateName || email.split('@')[0],
       invitedBy: req.user._id,
       invitedByName: invitedBy || req.user.name,
       status: 'PENDING',
-      invitationToken: jwt.sign({ email }, jwtSecret, { expiresIn: '7d' }),
+      invitationToken: jwt.sign({ email: email.toLowerCase().trim() }, jwtSecret, { expiresIn: '7d' }),
       createdAt: new Date(),
       expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000) // 7 days
     };
 
     const invitationResult = await database.insertOne('candidate_invitations', invitation);
 
-    // Generate registration link
-    const registrationLink = `${process.env.FRONTEND_URL || 'http://localhost:3000'}/candidate-portal/register?token=${invitation.invitationToken}&email=${encodeURIComponent(email)}`;
+    // Generate registration link with normalized email
+    // Use FRONTEND_URL from env, or default to common development ports
+    const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
+    const registrationLink = `${frontendUrl}/candidate-portal/register?token=${invitation.invitationToken}&email=${encodeURIComponent(invitation.email)}`;
+    
+    console.log(`🔗 Generated registration link: ${registrationLink}`);
 
-    // Send email invitation directly (no Redis required)
+    // Send email invitation directly to the provided email address
     let emailSent = false;
     let emailError = null;
     
     try {
-      const emailResult = await sendEmailDirect('candidate_invitation', email, {
+      console.log(`📧 Attempting to send invitation email to: ${invitation.email}`);
+      console.log(`📧 Registration link: ${registrationLink}`);
+      
+      const emailResult = await sendEmailDirect('candidate_invitation', invitation.email, {
         candidateName: invitation.candidateName,
         registrationLink,
         invitedByName: invitation.invitedByName
@@ -902,27 +1181,49 @@ router.post('/invite', verifyToken, async (req, res) => {
       
       if (emailResult.success) {
         emailSent = true;
-        console.log('Email invitation sent successfully');
+        console.log(`✅ Email invitation sent successfully to: ${invitation.email}`);
+        console.log(`📧 Message ID: ${emailResult.messageId || 'N/A'}`);
       } else {
-        emailError = emailResult.error;
-        console.error('Failed to send email:', emailError);
+        emailError = emailResult.error || 'Unknown error';
+        console.error(`❌ Failed to send email to ${invitation.email}:`, emailError);
       }
     } catch (error) {
-      emailError = error.message;
-      console.error('Email sending error:', error);
+      emailError = error.message || 'Unknown error occurred';
+      console.error(`❌ Email sending exception for ${invitation.email}:`, error);
+      console.error('Error stack:', error.stack);
+    }
+
+    // Return response - if email failed, still return success but with warning
+    if (!emailSent) {
+      console.warn(`⚠️  Invitation created but email not sent. Registration link: ${registrationLink}`);
+      return res.status(200).json({
+        success: true,
+        message: `Invitation created but email failed to send. Please share this registration link manually: ${registrationLink}`,
+        warning: true,
+        data: {
+          invitationId: invitationResult.insertedId,
+          email: invitation.email,
+          candidateName: invitation.candidateName,
+          expiresAt: invitation.expiresAt,
+          emailSent: false,
+          registrationLink,
+          emailError: emailError || 'Email service not configured. RESEND_API_KEY may be missing.',
+          manualLink: registrationLink
+        }
+      });
     }
 
     res.json({
       success: true,
-      message: emailSent ? 'Invitation sent successfully' : `Invitation created successfully (email failed: ${emailError || 'unknown error'})`,
+      message: 'Invitation sent successfully',
       data: {
         invitationId: invitationResult.insertedId,
-        email,
+        email: invitation.email,
         candidateName: invitation.candidateName,
         expiresAt: invitation.expiresAt,
-        emailSent,
+        emailSent: true,
         registrationLink,
-        emailError: emailError || null
+        emailError: null
       }
     });
 

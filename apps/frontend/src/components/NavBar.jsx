@@ -14,6 +14,7 @@ const NavBar = () => {
   const [isScrolled, setIsScrolled] = useState(false)
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
   const [showMoreMenu, setShowMoreMenu] = useState(false)
+  const [activeSection, setActiveSection] = useState(null)
   const moreMenuRef = useRef(null)
 
   useEffect(() => {
@@ -89,31 +90,53 @@ const NavBar = () => {
     { name: 'Security', href: '/security' },
     { name: 'About Us', href: '/about' },
     { name: 'Contact', href: '/contact' },
+    { name: 'Our Offices', href: '/our-offices' },
+  ]
+
+  // Main navigation items
+  const navigation = [
+    { name: 'Who we serve', href: '/who-we-serve' },
+    { name: 'What we do', href: '/what-we-do' },
+    { name: 'Who we are', href: '/who-we-are' },
+    { name: 'Why choose us', href: '/why-choose-us' },
+    { name: 'Contact', href: '/contact' },
   ]
 
   // More menu structure - categories with their items
-  const moreMenuItems = [
+  const moreMenuSections = [
     {
-      category: 'Product',
+      id: 'product',
+      title: 'Product',
       items: productMenu
     },
     {
-      category: 'Company',
+      id: 'company',
+      title: 'Company',
       items: companyMenu
     },
     {
-      category: 'Resources',
+      id: 'resources',
+      title: 'Resources',
       items: resourcesMenu
     },
     {
-      category: 'Legal',
+      id: 'legal',
+      title: 'Legal',
       items: legalMenu
-    },
-    {
-      category: null, // Direct link, no submenu
-      items: [{ name: 'Our Offices', href: '/our-offices' }]
     }
   ]
+
+  // Set default active section when menu opens
+  useEffect(() => {
+    if (showMoreMenu) {
+      if (!activeSection) {
+        setActiveSection('product') // Default to first section
+      }
+    } else {
+      // Reset active section when menu closes
+      setActiveSection(null)
+    }
+  }, [showMoreMenu])
 
   return (
     <motion.header
@@ -147,17 +170,19 @@ const NavBar = () => {
           </button>
         </div>
         
-        {/* Desktop Navigation - Simplified */}
+        {/* Desktop Navigation */}
         <div className="hidden lg:flex lg:gap-x-1 xl:gap-x-2 items-center">
-          {/* Home Link */}
-          <Link 
-            to="/" 
-            className="relative text-base font-semibold leading-6 text-gray-700 hover:text-blue-600 transition-all duration-300 px-4 py-2.5 rounded-lg hover:bg-blue-50/80 group"
-            aria-label="Home"
-          >
-            <span className="relative z-10">Home</span>
-            <span className="absolute inset-0 bg-gradient-to-r from-blue-500/5 to-purple-500/5 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity duration-300"></span>
-          </Link>
+          {/* Main Navigation Links */}
+          {navigation.map((item) => (
+            <Link 
+              key={item.name} 
+              to={item.href} 
+              className="relative text-base font-semibold leading-6 text-gray-700 hover:text-blue-600 transition-all duration-300 px-4 py-2.5 rounded-lg hover:bg-blue-50/80 group"
+            >
+              <span className="relative z-10">{item.name}</span>
+              <span className="absolute inset-0 bg-gradient-to-r from-blue-500/5 to-purple-500/5 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity duration-300"></span>
+            </Link>
+          ))}
           
           {/* More Dropdown */}
           <div className="relative" ref={moreMenuRef}>
@@ -193,39 +218,78 @@ const NavBar = () => {
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0, y: 10 }}
                   transition={{ duration: 0.2 }}
-                  className="absolute top-full left-0 mt-2 w-80 bg-white rounded-2xl shadow-2xl border border-gray-200 p-4 z-50"
+                  className="absolute top-full left-0 mt-2 w-[420px] bg-white rounded-lg shadow-lg border border-gray-200 z-50 overflow-hidden"
                   role="menu"
                   aria-orientation="vertical"
+                  onMouseLeave={() => setActiveSection('product')}
                 >
-                  <div className="space-y-4 max-h-96 overflow-y-auto">
-                    {moreMenuItems.map((section, sectionIndex) => (
-                      <div key={sectionIndex} className="space-y-2">
-                        {section.category && (
-                          <h3 className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-2 px-1">
-                            {section.category}
-                          </h3>
-                        )}
-                        <div className="space-y-1">
-                          {section.items.map((item, itemIndex) => (
-                            <Link
-                              key={item.href}
-                              to={item.href}
-                              className="block px-3 py-2 text-sm text-gray-700 hover:bg-blue-50 hover:text-blue-600 rounded-lg transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-1"
-                              onClick={() => setShowMoreMenu(false)}
-                              onKeyDown={(e) => {
-                                if (e.key === 'Escape') {
-                                  setShowMoreMenu(false)
-                                }
-                              }}
-                              role="menuitem"
-                              tabIndex={0}
-                            >
-                              {item.name}
-                            </Link>
-                          ))}
-                        </div>
+                  <div className="flex">
+                    {/* Left Column - Main Headings */}
+                    <div className="w-32 border-r border-gray-100 bg-gray-50/40">
+                      <div className="py-2">
+                        {moreMenuSections.map((section) => (
+                          <button
+                            key={section.id}
+                            onMouseEnter={() => setActiveSection(section.id)}
+                            onClick={() => setActiveSection(section.id)}
+                            className={`w-full text-left px-3 py-2 mx-1 rounded-md transition-all duration-150 ${
+                              activeSection === section.id
+                                ? 'bg-blue-50 text-blue-700 font-semibold'
+                                : 'text-gray-700 hover:bg-gray-100 hover:text-gray-900'
+                            }`}
+                            role="menuitem"
+                            tabIndex={0}
+                          >
+                            <span className="text-sm font-medium">{section.title}</span>
+                          </button>
+                        ))}
                       </div>
-                    ))}
+                    </div>
+
+                    {/* Right Panel - Sub-items */}
+                    <div className="flex-1 min-h-[240px] max-h-[280px] overflow-y-auto">
+                      <div className="p-3">
+                        {activeSection && (
+                          <AnimatePresence mode="wait">
+                            {moreMenuSections
+                              .filter(section => section.id === activeSection)
+                              .map((section) => (
+                                <motion.div
+                                  key={section.id}
+                                  initial={{ opacity: 0, x: 10 }}
+                                  animate={{ opacity: 1, x: 0 }}
+                                  exit={{ opacity: 0, x: -10 }}
+                                  transition={{ duration: 0.12 }}
+                                  className="space-y-0.5"
+                                >
+                                  <h3 className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-2 px-2">
+                                    {section.title}
+                                  </h3>
+                                  <div className="space-y-0.5">
+                                    {section.items.map((item) => (
+                                      <Link
+                                        key={item.href}
+                                        to={item.href}
+                                        className="block px-2 py-1.5 text-sm text-gray-700 hover:bg-blue-50 hover:text-blue-600 rounded-md transition-all duration-150 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-1"
+                                        onClick={() => setShowMoreMenu(false)}
+                                        onKeyDown={(e) => {
+                                          if (e.key === 'Escape') {
+                                            setShowMoreMenu(false)
+                                          }
+                                        }}
+                                        role="menuitem"
+                                        tabIndex={0}
+                                      >
+                                        {item.name}
+                                      </Link>
+                                    ))}
+                                  </div>
+                                </motion.div>
+                              ))}
+                          </AnimatePresence>
+                        )}
+                      </div>
+                    </div>
                   </div>
                 </motion.div>
               )}
@@ -265,32 +329,29 @@ const NavBar = () => {
           <div className="mt-8 flow-root">
             <div className="-my-6 divide-y divide-gray-200/50">
               <div className="space-y-1 py-6">
-                {/* Mobile: Home */}
-                <Link
-                  to="/"
-                  className="-mx-3 block rounded-lg px-4 py-3 text-lg font-semibold leading-7 text-gray-700 hover:bg-blue-50 hover:text-blue-600 transition-all duration-200"
-                  onClick={() => setMobileMenuOpen(false)}
-                >
-                  Home
-                </Link>
+                {/* Mobile: Main Navigation Links */}
+                {navigation.map((item) => (
+                  <Link
+                    key={item.name}
+                    to={item.href}
+                    className="-mx-3 block rounded-lg px-4 py-3 text-lg font-semibold leading-7 text-gray-700 hover:bg-blue-50 hover:text-blue-600 transition-all duration-200"
+                    onClick={() => setMobileMenuOpen(false)}
+                  >
+                    {item.name}
+                  </Link>
+                ))}
                 
                 {/* Mobile: More Menu Items */}
-                {moreMenuItems.map((section, sectionIndex) => (
-                  <div key={sectionIndex} className="pt-4 border-t border-gray-200 mt-4">
-                    {section.category && (
-                      <p className="px-4 text-xs font-bold text-gray-500 uppercase tracking-wider mb-3">
-                        {section.category}
-                      </p>
-                    )}
+                {moreMenuSections.map((section) => (
+                  <div key={section.id} className="pt-4 border-t border-gray-200 mt-4">
+                    <p className="px-4 text-xs font-bold text-gray-500 uppercase tracking-wider mb-3">
+                      {section.title}
+                    </p>
                     {section.items.map((item) => (
                       <Link
                         key={item.href}
                         to={item.href}
-                        className={`-mx-3 block rounded-lg px-4 py-2 transition-all duration-200 ${
-                          section.category 
-                            ? 'text-sm leading-6 text-gray-600 hover:bg-blue-50 hover:text-blue-600' 
-                            : 'text-lg font-semibold leading-7 text-gray-700 hover:bg-blue-50 hover:text-blue-600'
-                        }`}
+                        className="-mx-3 block rounded-lg px-4 py-2 text-sm leading-6 text-gray-600 hover:bg-blue-50 hover:text-blue-600 transition-all duration-200"
                         onClick={() => setMobileMenuOpen(false)}
                       >
                         {item.name}

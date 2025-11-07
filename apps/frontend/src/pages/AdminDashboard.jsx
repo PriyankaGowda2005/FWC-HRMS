@@ -3,11 +3,13 @@ import { useNavigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from 'react-query'
 import toast from 'react-hot-toast'
 import { useAuth } from '../contexts/AuthContext'
-import { employeeAPI, aiAPI } from '../services/api'
+import { employeeAPI, aiAPI, departmentAPI, attendanceAPI, leaveAPI, payrollAPI } from '../services/api'
 import LoadingSpinner from '../components/LoadingSpinner'
 import AIInsights from '../components/AIInsights'
 import AIServicesStatus from '../components/AIServicesStatus'
 import SystemStatus from '../components/SystemStatus'
+import DataShowcase from '../components/DataShowcase'
+import RealTimeDataIndicator from '../components/RealTimeDataIndicator'
 
 const AdminDashboard = () => {
   const { user, logout } = useAuth()
@@ -16,14 +18,52 @@ const AdminDashboard = () => {
   const [page, setPage] = useState(1)
   const limit = 10
 
-  // Fetch employees
-  const { data: employeesData, isLoading, error } = useQuery(
+  const [lastUpdated, setLastUpdated] = useState(new Date())
+  const [autoRefresh, setAutoRefresh] = useState(true)
+  const [showDataShowcase, setShowDataShowcase] = useState(false)
+
+  // Fetch employees with real-time updates
+  const { data: employeesData, isLoading, error, refetch: refetchEmployees } = useQuery(
     ['employees', page],
     () => employeeAPI.getAll({ page, limit }),
     {
       keepPreviousData: true,
+      refetchInterval: autoRefresh ? 30000 : false,
+      refetchOnWindowFocus: true,
+      onSuccess: () => setLastUpdated(new Date())
     }
   )
+
+  // Fetch additional stats for dashboard
+  const { data: departmentsData } = useQuery(
+    'departments-stats',
+    () => departmentAPI.getDepartments(),
+    {
+      refetchInterval: autoRefresh ? 60000 : false
+    }
+  )
+
+  const { data: attendanceStats } = useQuery(
+    'attendance-stats',
+    () => attendanceAPI.getAttendance({}),
+    {
+      refetchInterval: autoRefresh ? 30000 : false
+    }
+  )
+
+  const { data: leaveStats } = useQuery(
+    'leave-stats',
+    () => leaveAPI.getLeaveRequests(),
+    {
+      refetchInterval: autoRefresh ? 30000 : false
+    }
+  )
+
+  const handleRefreshAll = async () => {
+    await refetchEmployees()
+    setLastUpdated(new Date())
+    toast.success('Data refreshed')
+  }
 
   // Delete employee mutation
   const deleteEmployeeMutation = useMutation(
@@ -94,6 +134,39 @@ const AdminDashboard = () => {
       </div>
 
       <div className="p-4 sm:p-6 space-y-4 sm:space-y-6">
+        {/* Real-time Controls */}
+        <div className="bg-white rounded-lg shadow p-4 flex items-center justify-between">
+          <div className="flex items-center space-x-4">
+            <label className="flex items-center space-x-2 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={autoRefresh}
+                onChange={(e) => setAutoRefresh(e.target.checked)}
+                className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+              />
+              <span className="text-sm text-gray-700">Auto-refresh (30s)</span>
+            </label>
+            <RealTimeDataIndicator 
+              lastUpdated={lastUpdated} 
+              onRefresh={handleRefreshAll}
+              autoRefresh={autoRefresh}
+            />
+          </div>
+          <button
+            onClick={() => setShowDataShowcase(!showDataShowcase)}
+            className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors text-sm"
+          >
+            {showDataShowcase ? 'Hide' : 'Show'} Data Showcase
+          </button>
+        </div>
+
+        {/* Data Showcase Toggle */}
+        {showDataShowcase && (
+          <div className="bg-white rounded-lg shadow-lg p-6">
+            <DataShowcase />
+          </div>
+        )}
+
         {/* Quick Stats */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
           <div className="bg-white rounded-lg shadow p-6">
@@ -106,6 +179,7 @@ const AdminDashboard = () => {
               <div className="ml-4">
                 <p className="text-sm font-medium text-gray-600">Total Employees</p>
                 <p className="text-2xl font-bold text-gray-900">{pagination.total || 0}</p>
+                <p className="text-xs text-gray-500">Active: {employees.filter(emp => emp.isActive).length}</p>
               </div>
             </div>
           </div>
@@ -120,6 +194,7 @@ const AdminDashboard = () => {
               <div className="ml-4">
                 <p className="text-sm font-medium text-gray-600">Active Employees</p>
                 <p className="text-2xl font-bold text-gray-900">{employees.filter(emp => emp.isActive).length}</p>
+                <p className="text-xs text-gray-500">From database</p>
               </div>
             </div>
           </div>
@@ -133,7 +208,8 @@ const AdminDashboard = () => {
               </div>
               <div className="ml-4">
                 <p className="text-sm font-medium text-gray-600">Departments</p>
-                <p className="text-2xl font-bold text-gray-900">15</p>
+                <p className="text-2xl font-bold text-gray-900">{departmentsData?.departments?.length || 0}</p>
+                <p className="text-xs text-gray-500">Active departments</p>
               </div>
             </div>
           </div>
@@ -147,7 +223,10 @@ const AdminDashboard = () => {
               </div>
               <div className="ml-4">
                 <p className="text-sm font-medium text-gray-600">Pending Requests</p>
-                <p className="text-2xl font-bold text-gray-900">23</p>
+                <p className="text-2xl font-bold text-gray-900">
+                  {(leaveStats?.leaveRequests?.filter(l => l.status === 'PENDING').length || 0)}
+                </p>
+                <p className="text-xs text-gray-500">Leave requests</p>
               </div>
             </div>
           </div>

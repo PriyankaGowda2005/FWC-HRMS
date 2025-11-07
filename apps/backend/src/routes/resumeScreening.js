@@ -103,7 +103,7 @@ router.post('/screen', verifyToken, async (req, res) => {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${req.headers.authorization?.split(' ')[1]}`
+          'Authorization': `Bearer ${req.headers.authorization?.split(' ')[1] || ''}`
         },
         body: JSON.stringify({
           file_path: resumeRecord.filePath,
@@ -120,6 +120,69 @@ router.post('/screen', verifyToken, async (req, res) => {
       console.warn('ML service not available, proceeding without AI analysis:', error.message);
     }
 
+    // Calculate enhanced fit score if AI analysis is available
+    let fitScore = 0;
+    let candidateSummary = '';
+    
+    if (aiAnalysis?.data) {
+      fitScore = aiAnalysis.data.match_score || 0;
+      
+      // Generate candidate suitability summary (2-3 sentences)
+      const strengths = aiAnalysis.data.strengths || [];
+      const weaknesses = aiAnalysis.data.weaknesses || [];
+      const skills = aiAnalysis.data.skills || [];
+      const experience = aiAnalysis.data.experience || 0;
+      
+      candidateSummary = `${candidate.name || 'This candidate'} demonstrates `;
+      
+      if (fitScore >= 80) {
+        candidateSummary += `strong alignment with the ${jobPosting.title} role, with `;
+        if (strengths.length > 0) {
+          candidateSummary += `${strengths[0].toLowerCase()}. `;
+        } else {
+          candidateSummary += `relevant experience and skills. `;
+        }
+        candidateSummary += `The candidate's ${experience > 0 ? `${experience} years of ` : ''}experience and technical expertise make them a highly suitable fit for this position.`;
+      } else if (fitScore >= 60) {
+        candidateSummary += `moderate alignment with the ${jobPosting.title} position. `;
+        if (strengths.length > 0) {
+          candidateSummary += `Key strengths include ${strengths[0].toLowerCase()}. `;
+        }
+        if (weaknesses.length > 0) {
+          candidateSummary += `However, ${weaknesses[0].toLowerCase()}, which may require additional consideration.`;
+        } else {
+          candidateSummary += `Further evaluation through interview is recommended to assess fit.`;
+        }
+      } else {
+        candidateSummary += `limited alignment with the ${jobPosting.title} role requirements. `;
+        if (weaknesses.length > 0) {
+          candidateSummary += `Primary concerns include ${weaknesses[0].toLowerCase()}. `;
+        }
+        candidateSummary += `This candidate may be better suited for alternative positions or require significant skill development.`;
+      }
+    } else {
+      // Fallback calculation without AI
+      const candidateSkills = candidate.skills || [];
+      const jobRequirements = jobPosting.requirements || [];
+      const matchingSkills = candidateSkills.filter(skill => 
+        jobRequirements.some(req => req.toLowerCase().includes(skill.toLowerCase()) || 
+          skill.toLowerCase().includes(req.toLowerCase()))
+      );
+      
+      fitScore = jobRequirements.length > 0 
+        ? Math.round((matchingSkills.length / jobRequirements.length) * 100)
+        : 50;
+      
+      candidateSummary = `${candidate.name || 'This candidate'} shows `;
+      if (fitScore >= 70) {
+        candidateSummary += `good potential for the ${jobPosting.title} role based on skill overlap. `;
+        candidateSummary += `Manual review recommended to assess full qualifications and cultural fit.`;
+      } else {
+        candidateSummary += `partial alignment with role requirements. `;
+        candidateSummary += `Additional screening may be needed to determine suitability.`;
+      }
+    }
+
     // Create screening record
     const screening = {
       candidateId: normalizedCandidateId,
@@ -130,10 +193,14 @@ router.post('/screen', verifyToken, async (req, res) => {
       aiAnalysis: aiAnalysis?.data || null,
       manualNotes: screeningNotes || '',
       status: 'SCREENED',
-      fitScore: aiAnalysis?.data?.match_score || null,
+      fitScore: fitScore,
+      candidateSummary: candidateSummary,
       strengths: aiAnalysis?.data?.strengths || [],
       weaknesses: aiAnalysis?.data?.weaknesses || [],
-      recommendations: aiAnalysis?.data?.recommendations || []
+      recommendations: aiAnalysis?.data?.recommendations || [],
+      skillsMatch: aiAnalysis?.data?.skills_match || [],
+      experienceMatch: aiAnalysis?.data?.experience_match || null,
+      educationMatch: aiAnalysis?.data?.education_match || null
     };
 
     const screeningResult = await database.insertOne('resume_screenings', screening);
@@ -179,7 +246,7 @@ router.post('/screen', verifyToken, async (req, res) => {
   }
 });
 
-// Get screening results for a job posting
+// Get screening results for a job posting with ranking and filtering
 router.get('/screenings/:jobPostingId', verifyToken, async (req, res) => {
   try {
     // Check if user has HR, ADMIN, or MANAGER role
@@ -191,16 +258,45 @@ router.get('/screenings/:jobPostingId', verifyToken, async (req, res) => {
     }
 
     const { jobPostingId } = req.params;
+    const { 
+      minFitScore, 
+      maxFitScore, 
+      skills, 
+      minExperience, 
+      maxExperience,
+      sortBy = 'fitScore',
+      sortOrder = 'desc'
+    } = req.query;
+
+    // Build query filter
+    let query = { jobPostingId: ObjectId.isValid(jobPostingId) ? new ObjectId(jobPostingId) : jobPostingId };
+    
+    // Filter by fit score range
+    if (minFitScore || maxFitScore) {
+      query.fitScore = {};
+      if (minFitScore) query.fitScore.$gte = parseInt(minFitScore);
+      if (maxFitScore) query.fitScore.$lte = parseInt(maxFitScore);
+    }
+
+    // Build sort
+    const sort = {};
+    if (sortBy === 'fitScore') {
+      sort.fitScore = sortOrder === 'asc' ? 1 : -1;
+    } else if (sortBy === 'screeningDate') {
+      sort.screeningDate = sortOrder === 'asc' ? 1 : -1;
+    } else {
+      sort.fitScore = -1; // Default to fit score descending
+    }
 
     // Get all screenings for this job posting
-    const screenings = await database.find(
+    let screenings = await database.find(
       'resume_screenings',
-      { jobPostingId },
-      { sort: { screeningDate: -1 } }
+      query,
+      { sort }
     );
 
     // Populate candidate and job posting details
-    const populatedScreenings = await Promise.all(
+    let populatedScreenings = await Promise.all(
       screenings.map(async (screening) => {
         const candidate = await database.findOne('candidates', { _id: screening.candidateId });
         const jobPosting = await database.findOne('job_postings', { _id: screening.jobPostingId });
@@ -208,10 +304,125 @@ router.get('/screenings/:jobPostingId', verifyToken, async (req, res) => {
         return {
           ...screening,
           candidate: candidate ? {
-            name: candidate.name,
+            name: candidate.name || `${candidate.firstName || ''} ${candidate.lastName || ''}`.trim(),
             email: candidate.email,
-            phone: candidate.phone
+            phone: candidate.phone,
+            skills: candidate.skills || [],
+            experience: candidate.experience || 0,
+            education: candidate.education || []
           } : null,
+          jobPosting: jobPosting ? {
+            title: jobPosting.title,
+            department: jobPosting.department
+          } : null
+        };
+      })
+    );
+
+    // Filter by skills if provided
+    if (skills) {
+      const skillsArray = Array.isArray(skills) ? skills : skills.split(',');
+      populatedScreenings = populatedScreenings.filter(screening => {
+        const candidateSkills = screening.candidate?.skills || [];
+        return skillsArray.some(skill => 
+          candidateSkills.some(cs => 
+            cs.toLowerCase().includes(skill.toLowerCase()) || 
+            skill.toLowerCase().includes(cs.toLowerCase())
+          )
+        );
+      });
+    }
+
+    // Filter by experience range if provided
+    if (minExperience || maxExperience) {
+      populatedScreenings = populatedScreenings.filter(screening => {
+        const experience = screening.candidate?.experience || 0;
+        if (minExperience && experience < parseInt(minExperience)) return false;
+        if (maxExperience && experience > parseInt(maxExperience)) return false;
+        return true;
+      });
+    }
+
+    // Add ranking
+    populatedScreenings = populatedScreenings.map((screening, index) => ({
+      ...screening,
+      rank: index + 1,
+      recommendationTag: screening.fitScore >= 80 ? 'Highly Suitable' :
+                         screening.fitScore >= 60 ? 'Potential Fit' :
+                         'Needs Review'
+    }));
+
+    res.json({
+      success: true,
+      data: populatedScreenings,
+      total: populatedScreenings.length,
+      filters: {
+        minFitScore: minFitScore || null,
+        maxFitScore: maxFitScore || null,
+        skills: skills || null,
+        minExperience: minExperience || null,
+        maxExperience: maxExperience || null
+      }
+    });
+
+  } catch (error) {
+    console.error('Get screenings error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Internal server error',
+      error: error.message
+    });
+  }
+});
+
+// Get ranked candidates for a job posting (sorted by fit score)
+router.get('/ranked-candidates/:jobPostingId', verifyToken, async (req, res) => {
+  try {
+    if (!['HR', 'ADMIN', 'MANAGER'].includes(req.user.role)) {
+      return res.status(403).json({
+        success: false,
+        message: 'Access denied. HR, Admin, or Manager role required.'
+      });
+    }
+
+    const { jobPostingId } = req.params;
+    const normalizedJobPostingId = ObjectId.isValid(jobPostingId) ? new ObjectId(jobPostingId) : jobPostingId;
+
+    // Get all screenings for this job posting, sorted by fit score
+    const screenings = await database.find(
+      'resume_screenings',
+      { jobPostingId: normalizedJobPostingId },
+      { sort: { fitScore: -1, screeningDate: -1 } }
+    );
+
+    // Populate and rank candidates
+    const rankedCandidates = await Promise.all(
+      screenings.map(async (screening, index) => {
+        const candidate = await database.findOne('candidates', { _id: screening.candidateId });
+        const jobPosting = await database.findOne('job_postings', { _id: screening.jobPostingId });
+        
+        return {
+          rank: index + 1,
+          fitScore: screening.fitScore || 0,
+          candidateSummary: screening.candidateSummary || '',
+          recommendationTag: screening.fitScore >= 80 ? 'Highly Suitable' :
+                            screening.fitScore >= 60 ? 'Potential Fit' :
+                            'Needs Review',
+          candidate: candidate ? {
+            _id: candidate._id,
+            name: candidate.name || `${candidate.firstName || ''} ${candidate.lastName || ''}`.trim(),
+            email: candidate.email,
+            phone: candidate.phone,
+            skills: candidate.skills || [],
+            experience: candidate.experience || 0
+          } : null,
+          screening: {
+            screeningId: screening._id,
+            strengths: screening.strengths || [],
+            weaknesses: screening.weaknesses || [],
+            recommendations: screening.recommendations || [],
+            screeningDate: screening.screeningDate
+          },
           jobPosting: jobPosting ? {
             title: jobPosting.title,
             department: jobPosting.department
@@ -222,11 +433,20 @@ router.get('/screenings/:jobPostingId', verifyToken, async (req, res) => {
 
     res.json({
       success: true,
-      data: populatedScreenings
+      data: rankedCandidates,
+      total: rankedCandidates.length,
+      statistics: {
+        highlySuitable: rankedCandidates.filter(c => c.fitScore >= 80).length,
+        potentialFit: rankedCandidates.filter(c => c.fitScore >= 60 && c.fitScore < 80).length,
+        needsReview: rankedCandidates.filter(c => c.fitScore < 60).length,
+        averageFitScore: rankedCandidates.length > 0 
+          ? Math.round(rankedCandidates.reduce((sum, c) => sum + c.fitScore, 0) / rankedCandidates.length)
+          : 0
+      }
     });
 
   } catch (error) {
-    console.error('Get screenings error:', error);
+    console.error('Get ranked candidates error:', error);
     res.status(500).json({
       success: false,
       message: 'Internal server error',

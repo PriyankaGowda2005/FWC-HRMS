@@ -1,22 +1,24 @@
 import React, { useState } from 'react'
 import QRCode from 'react-qr-code'
 import { toast } from 'react-hot-toast'
+import emailjs from '@emailjs/browser'
 import NavBar from '../components/NavBar'
 import Footer from '../components/Footer'
 import Chatbot from '../components/Chatbot'
 
 const Contact = () => {
   const [formData, setFormData] = useState({
-    name: 'Jane Wilson',
+    name: '',
     phone: '',
-    email: 'jane@example.com',
-    location: 'DK Denmark',
+    email: '',
+    location: '',
     companyType: '',
     message: '',
     brochure: 'yes'
   })
   const [newsletterEmail, setNewsletterEmail] = useState('')
   const [isSubscribing, setIsSubscribing] = useState(false)
+  const [isSubmitting, setIsSubmitting] = useState(false)
 
   const handleInputChange = (e) => {
     const { name, value } = e.target
@@ -26,10 +28,131 @@ const Contact = () => {
     }))
   }
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault()
-    console.log('Form submitted:', formData)
-    alert('Thank you for your message! We\'ll get back to you soon.')
+    
+    // Validate required fields
+    if (!formData.name.trim() || !formData.email.trim() || !formData.location || !formData.companyType || !formData.message.trim()) {
+      toast.error('Please fill in all required fields.')
+      return
+    }
+
+    setIsSubmitting(true)
+    
+    try {
+      // EmailJS configuration
+      const serviceId = import.meta.env.VITE_EMAILJS_SERVICE_ID || 'service_dac0qgk'
+      const templateId = import.meta.env.VITE_EMAILJS_TEMPLATE_ID || 'template_i11ufxn'
+      const publicKey = import.meta.env.VITE_EMAILJS_PUBLIC_KEY || 'K5IkkAvo6ML2IGOJW'
+      const recipientEmail = import.meta.env.VITE_DEMO_REQUEST_EMAIL || 'abhi8861375377@gmail.com'
+
+      // Prepare template parameters
+      const templateParams = {
+        to_email: recipientEmail,
+        from_name: formData.name.trim(),
+        from_email: formData.email.trim(),
+        phone: formData.phone.trim() || 'Not provided',
+        location: formData.location || 'Not provided',
+        company_type: formData.companyType || 'Not provided',
+        message: formData.message.trim() || 'Not provided',
+        brochure: formData.brochure === 'yes' ? 'Yes, please send it' : 'No, thank you',
+        submission_date: new Date().toLocaleString(),
+        email_body: `
+<!DOCTYPE html>
+<html>
+<head>
+  <style>
+    body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+    .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+    .header { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 20px; border-radius: 8px 8px 0 0; }
+    .content { background: #f9f9f9; padding: 20px; border: 1px solid #ddd; border-top: none; }
+    .field { margin-bottom: 15px; }
+    .label { font-weight: bold; color: #667eea; margin-bottom: 5px; display: block; }
+    .value { color: #555; padding: 8px; background: white; border-radius: 4px; border-left: 3px solid #667eea; }
+    .footer { background: #f0f0f0; padding: 15px; text-align: center; font-size: 12px; color: #666; border-radius: 0 0 8px 8px; border: 1px solid #ddd; border-top: none; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <h2>🎯 New Demo Request</h2>
+      <p style="margin: 0; opacity: 0.9;">A new demo request has been submitted through the website</p>
+    </div>
+    <div class="content">
+      <div class="field">
+        <span class="label">👤 Full Name:</span>
+        <div class="value">${formData.name.trim()}</div>
+      </div>
+      <div class="field">
+        <span class="label">📧 Email:</span>
+        <div class="value">${formData.email.trim()}</div>
+      </div>
+      <div class="field">
+        <span class="label">📱 Phone Number:</span>
+        <div class="value">${formData.phone.trim() || 'Not provided'}</div>
+      </div>
+      <div class="field">
+        <span class="label">🌍 Location:</span>
+        <div class="value">${formData.location || 'Not provided'}</div>
+      </div>
+      <div class="field">
+        <span class="label">🏢 Company Type:</span>
+        <div class="value">${formData.companyType || 'Not provided'}</div>
+      </div>
+      <div class="field">
+        <span class="label">💬 Message:</span>
+        <div class="value" style="white-space: pre-wrap;">${formData.message.trim()}</div>
+      </div>
+      <div class="field">
+        <span class="label">📄 Brochure Request:</span>
+        <div class="value">${formData.brochure === 'yes' ? '✅ Yes, please send it' : '❌ No, thank you'}</div>
+      </div>
+    </div>
+    <div class="footer">
+      <p>This email was automatically generated from the Mastersolis Infotech website contact form.</p>
+      <p>Submitted at: ${new Date().toLocaleString()}</p>
+    </div>
+  </div>
+</body>
+</html>
+        `.trim()
+      }
+
+      // Send email using EmailJS
+      const response = await emailjs.send(
+        serviceId,
+        templateId,
+        templateParams,
+        publicKey
+      )
+
+      console.log('✅ Email sent successfully:', response)
+      toast.success('Your demo request has been sent successfully! We\'ll reach out shortly.')
+      
+      // Reset form
+      setFormData({
+        name: '',
+        phone: '',
+        email: '',
+        location: '',
+        companyType: '',
+        message: '',
+        brochure: 'yes'
+      })
+    } catch (error) {
+      console.error('Demo request submission error:', error)
+      
+      // Handle different types of errors
+      if (error.text) {
+        toast.error(`Failed to send email: ${error.text}`)
+      } else if (error.message) {
+        toast.error(`There was an issue sending your request: ${error.message}`)
+      } else {
+        toast.error('There was an issue sending your request. Please try again later.')
+      }
+    } finally {
+      setIsSubmitting(false)
+    }
   }
 
   // QR Code component for address
@@ -285,9 +408,20 @@ END:VCARD`
 
                   <button
                     type="submit"
-                    className="w-full bg-gradient-to-r from-blue-600 to-purple-600 text-white hover:from-blue-700 hover:to-purple-700 font-bold py-3 sm:py-4 px-6 sm:px-8 rounded-lg sm:rounded-xl transition-all duration-300 text-base sm:text-lg shadow-xl hover:shadow-2xl transform hover:-translate-y-1"
+                    disabled={isSubmitting}
+                    className="w-full bg-gradient-to-r from-blue-600 to-purple-600 text-white hover:from-blue-700 hover:to-purple-700 font-bold py-3 sm:py-4 px-6 sm:px-8 rounded-lg sm:rounded-xl transition-all duration-300 text-base sm:text-lg shadow-xl hover:shadow-2xl transform hover:-translate-y-1 disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none flex items-center justify-center gap-2"
                   >
-                    Request a Demo
+                    {isSubmitting ? (
+                      <>
+                        <svg className="animate-spin h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                        </svg>
+                        Sending...
+                      </>
+                    ) : (
+                      'Request a Demo'
+                    )}
                   </button>
                 </form>
               </div>
@@ -398,17 +532,31 @@ END:VCARD`
 
                     setIsSubscribing(true)
                     try {
-                      const response = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:5000'}/api/newsletter/subscribe`, {
+                      const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000'
+                      
+                      // Create AbortController for timeout
+                      const controller = new AbortController()
+                      const timeoutId = setTimeout(() => controller.abort(), 10000) // 10 second timeout
+                      
+                      const response = await fetch(`${apiUrl}/api/newsletter/subscribe`, {
                         method: 'POST',
                         headers: {
                           'Content-Type': 'application/json',
                         },
                         body: JSON.stringify({ email: newsletterEmail }),
+                        signal: controller.signal,
                       })
+                      
+                      clearTimeout(timeoutId)
+
+                      if (!response.ok) {
+                        const errorData = await response.json().catch(() => ({}))
+                        throw new Error(errorData.message || `Server error: ${response.status}`)
+                      }
 
                       const data = await response.json()
 
-                      if (response.ok && data.success) {
+                      if (data.success) {
                         toast.success(data.message || 'Successfully subscribed! Please check your email.')
                         setNewsletterEmail('')
                       } else {
@@ -416,7 +564,19 @@ END:VCARD`
                       }
                     } catch (error) {
                       console.error('Newsletter subscription error:', error)
-                      toast.error('Something went wrong. Please try again later.')
+                      
+                      // Handle different types of errors
+                      if (error.name === 'AbortError') {
+                        toast.error('Request timed out. Please check your connection and try again.')
+                      } else if (error.message?.includes('Failed to fetch') || error.message?.includes('NetworkError') || error.name === 'TypeError') {
+                        // Backend might not be running - show helpful message
+                        toast.error('Unable to connect to server. The backend service may not be running. Please contact support or try again later.')
+                        console.warn('Backend server may not be running at:', apiUrl)
+                      } else if (error.message) {
+                        toast.error(error.message)
+                      } else {
+                        toast.error('Something went wrong. Please try again later.')
+                      }
                     } finally {
                       setIsSubscribing(false)
                     }

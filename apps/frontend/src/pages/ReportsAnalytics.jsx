@@ -74,6 +74,13 @@ const ReportsAnalytics = () => {
           lastUpdated: new Date().toLocaleTimeString(),
           dataFreshness: 'Live'
         }))
+      },
+      onError: (error) => {
+        console.error('Report fetch error:', error)
+        setRealTimeStatus(prev => ({
+          ...prev,
+          dataFreshness: 'Error'
+        }))
       }
     }
   )
@@ -357,7 +364,13 @@ const ReportsAnalytics = () => {
                 onClick={() => setSelectedReport(type.id)}
                 className={`p-6 rounded-xl border-2 transition-all text-left ${
                   selectedReport === type.id
-                    ? `border-${type.color}-500 bg-${type.color}-50 text-${type.color}-700`
+                    ? type.color === 'blue' ? 'border-blue-500 bg-blue-50 text-blue-700' :
+                      type.color === 'green' ? 'border-green-500 bg-green-50 text-green-700' :
+                      type.color === 'yellow' ? 'border-yellow-500 bg-yellow-50 text-yellow-700' :
+                      type.color === 'purple' ? 'border-purple-500 bg-purple-50 text-purple-700' :
+                      type.color === 'indigo' ? 'border-indigo-500 bg-indigo-50 text-indigo-700' :
+                      type.color === 'red' ? 'border-red-500 bg-red-50 text-red-700' :
+                      'border-gray-500 bg-gray-50 text-gray-700'
                     : 'border-gray-200 hover:border-gray-300 text-gray-700 hover:shadow-md'
                 }`}
                 whileHover={{ scale: 1.02 }}
@@ -365,10 +378,26 @@ const ReportsAnalytics = () => {
               >
                 <div className="flex items-center space-x-3 mb-3">
                   <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${
-                    selectedReport === type.id ? `bg-${type.color}-100` : 'bg-gray-100'
+                    selectedReport === type.id 
+                      ? type.color === 'blue' ? 'bg-blue-100' :
+                        type.color === 'green' ? 'bg-green-100' :
+                        type.color === 'yellow' ? 'bg-yellow-100' :
+                        type.color === 'purple' ? 'bg-purple-100' :
+                        type.color === 'indigo' ? 'bg-indigo-100' :
+                        type.color === 'red' ? 'bg-red-100' :
+                        'bg-gray-100'
+                      : 'bg-gray-100'
                   }`}>
                     <type.icon className={`w-5 h-5 ${
-                      selectedReport === type.id ? `text-${type.color}-600` : 'text-gray-600'
+                      selectedReport === type.id
+                        ? type.color === 'blue' ? 'text-blue-600' :
+                          type.color === 'green' ? 'text-green-600' :
+                          type.color === 'yellow' ? 'text-yellow-600' :
+                          type.color === 'purple' ? 'text-purple-600' :
+                          type.color === 'indigo' ? 'text-indigo-600' :
+                          type.color === 'red' ? 'text-red-600' :
+                          'text-gray-600'
+                        : 'text-gray-600'
                     }`} />
                   </div>
                   <div>

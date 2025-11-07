@@ -12,8 +12,11 @@ require('dotenv').config();
 const app = express();
 const PORT = process.env.PORT || 3001;
 
-// Security middleware
-app.use(helmet());
+// Security middleware - configure helmet to allow CORS
+app.use(helmet({
+  crossOriginResourcePolicy: { policy: "cross-origin" },
+  crossOriginEmbedderPolicy: false
+}));
 app.use(cookieParser());
 
 // Rate limiting (disabled in development)
@@ -35,14 +38,37 @@ const authLimiter = rateLimit({
   message: 'Too many authentication attempts, please try again later.'
 });
 
-// CORS configuration
+// CORS configuration - Allow all origins in development for easier debugging
 const corsOptions = {
-  origin: [
-    process.env.FRONTEND_URL || 'http://localhost:5173',
-    'http://localhost:5174',
-    'http://localhost:3000',
-    'http://localhost:5175'
-  ],
+  origin: function (origin, callback) {
+    // Allow requests with no origin (like mobile apps or curl requests)
+    if (!origin) return callback(null, true);
+    
+    const allowedOrigins = [
+      process.env.FRONTEND_URL || 'http://localhost:5173',
+      'http://localhost:5173',
+      'http://localhost:5174',
+      'http://localhost:3000',
+      'http://localhost:5175',
+      'http://127.0.0.1:5173',
+      'http://127.0.0.1:5174',
+      'http://127.0.0.1:3000',
+      'http://127.0.0.1:5175'
+    ];
+    
+    // In development, allow all localhost origins
+    if (process.env.NODE_ENV === 'development') {
+      if (origin.includes('localhost') || origin.includes('127.0.0.1')) {
+        return callback(null, true);
+      }
+    }
+    
+    if (allowedOrigins.indexOf(origin) !== -1 || !origin) {
+      callback(null, true);
+    } else {
+      callback(new Error('Not allowed by CORS'));
+    }
+  },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
   allowedHeaders: [
@@ -54,7 +80,9 @@ const corsOptions = {
     'Expires',
     'X-Requested-With',
     'X-XSRF-TOKEN'
-  ]
+  ],
+  exposedHeaders: ['Authorization'],
+  optionsSuccessStatus: 200
 };
 app.use(cors(corsOptions));
 // Explicitly enable pre-flight across-the-board
@@ -112,9 +140,11 @@ app.use('/api/career', require('./routes/careerApplications'));
 app.use('/api/candidates', require('./routes/candidates'));
 app.use('/api/candidate-interviews', require('./routes/candidateInterviews'));
 app.use('/api/resume-screening', require('./routes/resumeScreening'));
+app.use('/api/resume-processing', require('./routes/resumeProcessing'));
 app.use('/api/job-attachments', require('./routes/jobAttachments'));
 app.use('/api/interviews', require('./routes/interviews'));
 app.use('/api/interview-transcripts', require('./routes/interviewTranscripts'));
+app.use('/api/realtime-interview', require('./routes/realtimeInterview'));
 app.use('/api/candidate-conversion', require('./routes/candidateConversion'));
 app.use('/api/performance-reviews', require('./routes/performanceReviews'));
 app.use('/api/reports', require('./routes/reports'));
@@ -122,6 +152,9 @@ app.use('/api/ai', require('./routes/ai'));
 app.use('/api/chatbot', require('./routes/chatbot'));
 app.use('/api/services', require('./routes/services'));
 app.use('/api/newsletter', require('./routes/newsletter'));
+app.use('/api/email', require('./routes/emailAutoReply'));
+app.use('/api', require('./routes/demoRequest'));
+app.use('/api/recruitment', require('./routes/recruitmentDashboard'));
 app.use('/api/files/:folder/:filename', require('./middleware/fileUpload').serveFile);
 
 // Error handling middleware
@@ -144,20 +177,29 @@ const startServer = async () => {
     }
     
     // Start the server even if MongoDB is not connected
-    const server = app.listen(PORT, () => {
-      console.log(`🚀 Backend server running on port ${PORT}`);
+    // Bind to 0.0.0.0 to ensure it's accessible on both IPv4 and IPv6
+    const server = app.listen(PORT, '0.0.0.0', () => {
+      console.log(`\n${'='.repeat(60)}`);
+      console.log(`🚀 Backend server is RUNNING!`);
+      console.log(`${'='.repeat(60)}`);
+      console.log(`📍 Port: ${PORT}`);
+      console.log(`🌐 Local: http://localhost:${PORT}`);
       console.log(`📋 Health check: http://localhost:${PORT}/health`);
-      console.log(`🔐 Auth endpoints: http://localhost:${PORT}/api/auth`);
+      console.log(`🔐 Auth login: http://localhost:${PORT}/api/auth/login`);
+      console.log(`👥 Candidates login: http://localhost:${PORT}/api/candidates/login`);
+      console.log(`${'='.repeat(60)}\n`);
       
       if (database.isConnected) {
-        console.log(`📊 Database: Connected to MongoDB`);
+        console.log(`✅ Database: Connected to MongoDB`);
       } else {
-        console.log(`⚠️  Database: MongoDB not connected - some features may not work`);
-        console.log(`💡 To enable database features:`);
+        console.log(`⚠️  Database: MongoDB not connected`);
+        console.log(`   Note: Server will still work, but login requires database.`);
+        console.log(`💡 To enable database:`);
         console.log(`   1. Install MongoDB: https://www.mongodb.com/try/download/community`);
-        console.log(`   2. Start MongoDB service: net start MongoDB`);
-        console.log(`   3. Or set DATABASE_URL environment variable for remote MongoDB`);
+        console.log(`   2. Start MongoDB: net start MongoDB (Windows)`);
+        console.log(`   3. Or use MongoDB Atlas (cloud)`);
       }
+      console.log(`\n✅ Server ready to accept connections!\n`);
     });
 
     // Handle server errors
@@ -177,9 +219,26 @@ const startServer = async () => {
     // Don't exit - try to start server anyway
     console.log('⚠️  Attempting to start server without database connection...');
     
-    const server = app.listen(PORT, () => {
-      console.log(`🚀 Backend server running on port ${PORT} (limited functionality)`);
-      console.log(`⚠️  Database connection failed - some features may not work`);
+    const server = app.listen(PORT, '0.0.0.0', () => {
+      console.log(`\n${'='.repeat(60)}`);
+      console.log(`🚀 Backend server is RUNNING! (Limited functionality)`);
+      console.log(`${'='.repeat(60)}`);
+      console.log(`📍 Port: ${PORT}`);
+      console.log(`🌐 Local: http://localhost:${PORT}`);
+      console.log(`📋 Health check: http://localhost:${PORT}/health`);
+      console.log(`⚠️  Database connection failed - login may not work without database`);
+      console.log(`${'='.repeat(60)}\n`);
+    });
+    
+    server.on('error', (error) => {
+      if (error.code === 'EADDRINUSE') {
+        console.error(`❌ Port ${PORT} is already in use. Please stop other instances or use a different port.`);
+        console.log(`💡 Try running: taskkill /f /im node.exe`);
+        process.exit(1);
+      } else {
+        console.error('❌ Server error:', error);
+        process.exit(1);
+      }
     });
   }
 };

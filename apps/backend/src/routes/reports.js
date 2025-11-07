@@ -138,6 +138,332 @@ router.get('/performance', checkRole('ADMIN', 'HR', 'MANAGER'), asyncHandler(asy
   });
 }));
 
+// Get recruitment dashboard insights and reports
+router.get('/recruitment/insights', checkRole('ADMIN', 'HR'), asyncHandler(async (req, res) => {
+  const { period = '30d', departmentId } = req.query;
+  
+  // Calculate date range
+  let startDate, endDate;
+  const now = new Date();
+  const days = parseInt(period.replace('d', '')) || 30;
+  startDate = new Date(now.getTime() - days * 24 * 60 * 60 * 1000);
+  endDate = now;
+
+  // Build query
+  let jobQuery = {};
+  let candidateQuery = {};
+  if (departmentId) {
+    jobQuery.department = departmentId;
+    candidateQuery.department = departmentId;
+  }
+
+  // Get recruitment data
+  const [jobPostings, candidates, applications, screenings, interviews] = await Promise.all([
+    database.find('job_postings', jobQuery),
+    database.find('candidates', candidateQuery),
+    database.find('candidate_applications', { appliedAt: { $gte: startDate, $lte: endDate } }),
+    database.find('resume_screenings', { screeningDate: { $gte: startDate, $lte: endDate } }),
+    database.find('interviews', { scheduledAt: { $gte: startDate, $lte: endDate } })
+  ]);
+
+  // Calculate metrics
+  const totalApplications = applications.length;
+  const interviewsScheduled = interviews.filter(i => i.status === 'SCHEDULED' || i.status === 'COMPLETED').length;
+  const offersExtended = interviews.filter(i => i.status === 'SELECTED' || i.status === 'OFFER_EXTENDED').length;
+  const hiresCompleted = candidates.filter(c => c.status === 'HIRED' || c.status === 'SELECTED').length;
+  
+  // Calculate average time to hire
+  const completedHires = candidates.filter(c => c.hiredAt && c.appliedAt);
+  const averageTimeToHire = completedHires.length > 0
+    ? Math.round(completedHires.reduce((sum, c) => {
+        const days = (new Date(c.hiredAt) - new Date(c.appliedAt)) / (1000 * 60 * 60 * 24);
+        return sum + days;
+      }, 0) / completedHires.length)
+    : 0;
+
+  // Calculate candidate quality score (average fit score)
+  const screeningsWithScores = screenings.filter(s => s.fitScore);
+  const candidateQualityScore = screeningsWithScores.length > 0
+    ? Math.round(screeningsWithScores.reduce((sum, s) => sum + (s.fitScore || 0), 0) / screeningsWithScores.length)
+    : 0;
+
+  // Calculate trends
+  const applicationTrend = totalApplications > 0 ? 'increasing' : 'stable';
+  const interviewConversionRate = totalApplications > 0 
+    ? Math.round((interviewsScheduled / totalApplications) * 100)
+    : 0;
+  const offerAcceptanceRate = interviewsScheduled > 0
+    ? Math.round((offersExtended / interviewsScheduled) * 100)
+    : 0;
+
+  // Get top sources (if available in applications)
+  const sourceCounts = {};
+  applications.forEach(app => {
+    const source = app.source || 'Company Website';
+    sourceCounts[source] = (sourceCounts[source] || 0) + 1;
+  });
+  const topSources = Object.entries(sourceCounts)
+    .map(([source, count]) => ({
+      source,
+      applications: count,
+      conversion: Math.round((count / totalApplications) * 100)
+    }))
+    .sort((a, b) => b.applications - a.applications)
+    .slice(0, 5);
+
+  // AI-generated predictions
+  const predictions = {
+    nextMonthApplications: Math.round(totalApplications * 1.1), // 10% increase estimate
+    hiringVelocity: Math.round((hiresCompleted / days) * 30), // Projected hires per month
+    skillGaps: jobPostings
+      .flatMap(job => job.requirements || [])
+      .filter((req, index, self) => self.indexOf(req) === index)
+      .slice(0, 5)
+  };
+
+  // AI-generated recommendations
+  const recommendations = [];
+  if (interviewConversionRate < 50) {
+    recommendations.push('Optimize job descriptions for better candidate matching');
+  }
+  if (averageTimeToHire > 30) {
+    recommendations.push('Streamline interview process to reduce time-to-hire');
+  }
+  if (candidateQualityScore < 70) {
+    recommendations.push('Enhance screening criteria to improve candidate quality');
+  }
+  if (topSources.length === 0 || topSources[0].applications < 10) {
+    recommendations.push('Expand recruitment channels and improve employer branding');
+  }
+  if (offersExtended === 0 && interviewsScheduled > 0) {
+    recommendations.push('Review interview feedback and adjust selection criteria');
+  }
+
+  res.json({
+    success: true,
+    period,
+    metrics: {
+      totalApplications,
+      interviewsScheduled,
+      offersExtended,
+      hiresCompleted,
+      averageTimeToHire,
+      candidateQualityScore
+    },
+    trends: {
+      applicationTrend,
+      interviewConversionRate,
+      offerAcceptanceRate,
+      timeToHireTrend: averageTimeToHire < 20 ? 'decreasing' : 'stable'
+    },
+    topSources,
+    predictions,
+    recommendations,
+    generatedAt: new Date()
+  });
+}));
+
+// Get candidate trends analysis
+router.get('/recruitment/candidate-trends', checkRole('ADMIN', 'HR'), asyncHandler(async (req, res) => {
+  const { period = '90d' } = req.query;
+  const days = parseInt(period.replace('d', '')) || 90;
+  const startDate = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
+  
+  const applications = await database.find('candidate_applications', {
+    appliedAt: { $gte: startDate }
+  });
+
+  // Group by date
+  const dailyApplications = {};
+  applications.forEach(app => {
+    const date = new Date(app.appliedAt).toISOString().split('T')[0];
+    dailyApplications[date] = (dailyApplications[date] || 0) + 1;
+  });
+
+  // Group by department
+  const departmentCounts = {};
+  applications.forEach(async (app) => {
+    const jobPosting = await database.findOne('job_postings', { _id: app.jobPostingId });
+    if (jobPosting) {
+      const dept = jobPosting.department || 'Unknown';
+      departmentCounts[dept] = (departmentCounts[dept] || 0) + 1;
+    }
+  });
+
+  // Calculate average fit scores by department
+  const screenings = await database.find('resume_screenings', {
+    screeningDate: { $gte: startDate }
+  });
+
+  const fitScoresByDept = {};
+  for (const screening of screenings) {
+    const jobPosting = await database.findOne('job_postings', { _id: screening.jobPostingId });
+    if (jobPosting && screening.fitScore) {
+      const dept = jobPosting.department || 'Unknown';
+      if (!fitScoresByDept[dept]) {
+        fitScoresByDept[dept] = [];
+      }
+      fitScoresByDept[dept].push(screening.fitScore);
+    }
+  }
+
+  const avgFitScores = Object.entries(fitScoresByDept).map(([dept, scores]) => ({
+    department: dept,
+    averageFitScore: Math.round(scores.reduce((a, b) => a + b, 0) / scores.length),
+    totalCandidates: scores.length
+  }));
+
+  res.json({
+    success: true,
+    period,
+    dailyApplications,
+    departmentDistribution: departmentCounts,
+    averageFitScoresByDepartment: avgFitScores,
+    totalApplications: applications.length,
+    generatedAt: new Date()
+  });
+}));
+
+// Get role difficulty analysis
+router.get('/recruitment/role-difficulty', checkRole('ADMIN', 'HR'), asyncHandler(async (req, res) => {
+  const jobPostings = await database.find('job_postings', { status: 'PUBLISHED' });
+  
+  const roleAnalysis = await Promise.all(
+    jobPostings.map(async (job) => {
+      const applications = await database.find('candidate_applications', {
+        jobPostingId: job._id
+      });
+      
+      const screenings = await database.find('resume_screenings', {
+        jobPostingId: job._id
+      });
+      
+      const avgFitScore = screenings.length > 0
+        ? screenings.reduce((sum, s) => sum + (s.fitScore || 0), 0) / screenings.length
+        : 0;
+      
+      const interviews = await database.find('interviews', {
+        jobPostingId: job._id
+      });
+      
+      const timeToFill = applications.length > 0
+        ? (new Date() - new Date(job.publishedAt || job.createdAt)) / (1000 * 60 * 60 * 24)
+        : 0;
+      
+      // Calculate difficulty score (0-100, higher = more difficult)
+      const difficultyScore = Math.round(
+        (100 - avgFitScore) * 0.4 + // Lower fit scores = harder
+        (timeToFill > 30 ? 30 : timeToFill / 30 * 30) * 0.3 + // Longer time = harder
+        (applications.length < 10 ? 30 : 0) * 0.3 // Fewer applications = harder
+      );
+      
+      return {
+        jobTitle: job.title,
+        department: job.department,
+        totalApplications: applications.length,
+        averageFitScore: Math.round(avgFitScore),
+        interviewsScheduled: interviews.length,
+        timeToFill: Math.round(timeToFill),
+        difficultyScore: Math.min(100, difficultyScore),
+        difficultyLevel: difficultyScore >= 70 ? 'High' : difficultyScore >= 40 ? 'Medium' : 'Low'
+      };
+    })
+  );
+
+  res.json({
+    success: true,
+    roles: roleAnalysis.sort((a, b) => b.difficultyScore - a.difficultyScore),
+    generatedAt: new Date()
+  });
+}));
+
+// Get hiring time predictions
+router.get('/recruitment/hiring-predictions', checkRole('ADMIN', 'HR'), asyncHandler(async (req, res) => {
+  const { jobPostingId } = req.query;
+  
+  let query = {};
+  if (jobPostingId) {
+    query._id = ObjectId.isValid(jobPostingId) ? new ObjectId(jobPostingId) : jobPostingId;
+  }
+
+  const jobPostings = await database.find('job_postings', query);
+  
+  const predictions = await Promise.all(
+    jobPostings.map(async (job) => {
+      const applications = await database.find('candidate_applications', {
+        jobPostingId: job._id
+      });
+      
+      const screenings = await database.find('resume_screenings', {
+        jobPostingId: job._id
+      });
+      
+      const avgFitScore = screenings.length > 0
+        ? screenings.reduce((sum, s) => sum + (s.fitScore || 0), 0) / screenings.length
+        : 0;
+      
+      // Historical data for similar roles
+      const similarJobs = await database.find('job_postings', {
+        department: job.department,
+        _id: { $ne: job._id }
+      });
+      
+      let avgHistoricalTime = 0;
+      if (similarJobs.length > 0) {
+        const historicalTimes = [];
+        for (const similarJob of similarJobs) {
+          const similarApplications = await database.find('candidate_applications', {
+            jobPostingId: similarJob._id,
+            status: 'SELECTED'
+          });
+          
+          for (const app of similarApplications) {
+            if (app.appliedAt && app.selectedAt) {
+              const days = (new Date(app.selectedAt) - new Date(app.appliedAt)) / (1000 * 60 * 60 * 24);
+              historicalTimes.push(days);
+            }
+          }
+        }
+        
+        if (historicalTimes.length > 0) {
+          avgHistoricalTime = historicalTimes.reduce((a, b) => a + b, 0) / historicalTimes.length;
+        }
+      }
+      
+      // Predict time to hire
+      const baseTime = avgHistoricalTime || 30; // Default 30 days
+      const fitScoreAdjustment = (100 - avgFitScore) / 100 * 10; // Adjust based on fit score
+      const predictedDays = Math.round(baseTime + fitScoreAdjustment);
+      
+      // Predict number of candidates needed
+      const interviewConversionRate = 0.6; // 60% conversion
+      const offerAcceptanceRate = 0.7; // 70% acceptance
+      const candidatesNeeded = Math.ceil(1 / (interviewConversionRate * offerAcceptanceRate));
+      
+      return {
+        jobTitle: job.title,
+        department: job.department,
+        currentApplications: applications.length,
+        averageFitScore: Math.round(avgFitScore),
+        predictedTimeToHire: predictedDays,
+        predictedCandidatesNeeded: candidatesNeeded,
+        confidence: avgHistoricalTime > 0 ? 'High' : 'Medium',
+        factors: [
+          avgFitScore < 60 ? 'Low candidate fit scores' : null,
+          applications.length < 5 ? 'Limited applications received' : null,
+          avgHistoricalTime > 0 ? `Based on ${similarJobs.length} similar roles` : 'Limited historical data'
+        ].filter(Boolean)
+      };
+    })
+  );
+
+  res.json({
+    success: true,
+    predictions,
+    generatedAt: new Date()
+  });
+}));
+
 // Get general analytics
 router.get('/analytics', checkRole('ADMIN', 'HR'), asyncHandler(async (req, res) => {
   const { period } = req.query;

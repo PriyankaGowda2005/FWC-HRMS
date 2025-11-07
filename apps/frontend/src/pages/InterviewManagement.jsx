@@ -10,13 +10,19 @@ import PageTransition from '../components/PageTransition';
 import PageHeader from '../components/PageHeader';
 import InterviewRecorder from '../components/InterviewRecorder';
 import InterviewAnalysisResults from '../components/InterviewAnalysisResults';
+import LiveInterviewMonitor from '../components/LiveInterviewMonitor';
+import EnhancedLiveInterviewMonitor from '../components/EnhancedLiveInterviewMonitor';
+import InterviewReportViewer from '../components/InterviewReportViewer';
 
 const InterviewManagement = () => {
   const [activeTab, setActiveTab] = useState('scheduled');
   const [selectedInterview, setSelectedInterview] = useState(null);
   const [showRecorder, setShowRecorder] = useState(false);
   const [showAnalysis, setShowAnalysis] = useState(false);
+  const [showLiveMonitor, setShowLiveMonitor] = useState(false);
+  const [showReportViewer, setShowReportViewer] = useState(false);
   const [selectedTranscriptId, setSelectedTranscriptId] = useState(null);
+  const [selectedInterviewForMonitor, setSelectedInterviewForMonitor] = useState(null);
 
   const queryClient = useQueryClient();
 
@@ -326,6 +332,20 @@ const InterviewManagement = () => {
                           </Button>
                         )}
 
+                        {(interview.status === 'SCHEDULED' || interview.status === 'IN_PROGRESS') && interview.meetingLink && (
+                          <Button
+                            variant="primary"
+                            size="sm"
+                            onClick={() => {
+                              setSelectedInterviewForMonitor(interview);
+                              setShowLiveMonitor(true);
+                            }}
+                          >
+                            <Icon name="microphone" className="w-4 h-4 mr-1" />
+                            Live Monitor
+                          </Button>
+                        )}
+
                         {interview.status === 'IN_PROGRESS' && (
                           <Button
                             variant="outline"
@@ -339,14 +359,29 @@ const InterviewManagement = () => {
                         )}
 
                         {canViewAnalysis(interview) && (
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => handleViewAnalysis(interview.transcriptId)}
-                          >
-                            <Icon name="bar-chart" className="w-4 h-4 mr-1" />
-                            View Analysis
-                          </Button>
+                          <>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => handleViewAnalysis(interview.transcriptId)}
+                            >
+                              <Icon name="bar-chart" className="w-4 h-4 mr-1" />
+                              View Analysis
+                            </Button>
+                            {interview.transcriptId && (
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => {
+                                  setSelectedTranscriptId(interview.transcriptId);
+                                  setShowReportViewer(true);
+                                }}
+                              >
+                                <Icon name="document-text" className="w-4 h-4 mr-1" />
+                                View Report
+                              </Button>
+                            )}
+                          </>
                         )}
 
                         {interview.meetingLink && (
@@ -451,6 +486,33 @@ const InterviewManagement = () => {
             onScoresSubmitted={() => {
               queryClient.invalidateQueries(['manager-transcripts']);
               queryClient.invalidateQueries(['manager-interviews']);
+            }}
+          />
+        )}
+
+        {/* Live Interview Monitor Modal */}
+        {showLiveMonitor && selectedInterviewForMonitor && (
+          <EnhancedLiveInterviewMonitor
+            interviewId={selectedInterviewForMonitor._id}
+            meetingLink={selectedInterviewForMonitor.meetingLink}
+            candidateName={selectedInterviewForMonitor.candidateName || selectedInterviewForMonitor.candidate?.name || 'Candidate'}
+            jobTitle={selectedInterviewForMonitor.jobPosting?.title || selectedInterviewForMonitor.jobTitle || 'Position'}
+            onClose={() => {
+              setShowLiveMonitor(false);
+              setSelectedInterviewForMonitor(null);
+              queryClient.invalidateQueries(['manager-interviews']);
+              queryClient.invalidateQueries(['manager-transcripts']);
+            }}
+          />
+        )}
+
+        {/* Interview Report Viewer Modal */}
+        {showReportViewer && selectedTranscriptId && (
+          <InterviewReportViewer
+            transcriptId={selectedTranscriptId}
+            onClose={() => {
+              setShowReportViewer(false);
+              setSelectedTranscriptId(null);
             }}
           />
         )}

@@ -39,15 +39,22 @@ const ResumeScreeningModal = ({ candidate, jobPosting, isOpen, onClose, onSucces
     jobPostingsData?.jobPostings ||
     [];
 
+  const [screeningResult, setScreeningResult] = useState(null);
+  const [showResults, setShowResults] = useState(false);
+
   const screenResumeMutation = useMutation(
     (data) => resumeScreeningAPI.screenResume(data),
     {
       onSuccess: (response) => {
-        toast.success('Resume screening completed successfully!');
-        queryClient.invalidateQueries('candidates');
-        queryClient.invalidateQueries('job-postings');
-        if (onSuccess) onSuccess(response.data);
-        onClose();
+        if (response.data?.success) {
+          setScreeningResult(response.data.data);
+          setShowResults(true);
+          toast.success('Resume screening completed successfully!');
+          queryClient.invalidateQueries('candidates');
+          queryClient.invalidateQueries('job-postings');
+        } else {
+          toast.error(response.data?.message || 'Screening completed but no results');
+        }
       },
       onError: (error) => {
         const errorMessage = error.response?.data?.message || 'Failed to screen resume';
@@ -145,6 +152,7 @@ const ResumeScreeningModal = ({ candidate, jobPosting, isOpen, onClose, onSucces
         </div>
 
         {/* Screening Form */}
+        {!showResults && (
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
             <label htmlFor="jobPosting" className="block text-sm font-medium text-gray-700 mb-2">
@@ -219,6 +227,7 @@ const ResumeScreeningModal = ({ candidate, jobPosting, isOpen, onClose, onSucces
             </Button>
           </div>
         </form>
+        )}
 
         {/* Warning if no resume */}
         {!candidate.resumeUploaded && (
@@ -232,6 +241,104 @@ const ResumeScreeningModal = ({ candidate, jobPosting, isOpen, onClose, onSucces
                   their resume before screening.
                 </p>
               </div>
+            </div>
+          </div>
+        )}
+
+        {/* Screening Results */}
+        {showResults && screeningResult && (
+          <div className="mt-6 border-t pt-6 space-y-4">
+            <h3 className="text-lg font-semibold">AI Screening Results</h3>
+            
+            {/* Fit Score */}
+            <div className={`p-4 rounded-lg ${
+              (screeningResult.aiAnalysis?.match_score || screeningResult.fitScore || 0) >= 80 ? 'bg-green-50 border border-green-200' :
+              (screeningResult.aiAnalysis?.match_score || screeningResult.fitScore || 0) >= 60 ? 'bg-yellow-50 border border-yellow-200' :
+              'bg-red-50 border border-red-200'
+            }`}>
+              <div className="flex items-center justify-between">
+                <div>
+                  <div className="text-sm text-gray-600">AI Fit Score</div>
+                  <div className="text-3xl font-bold">
+                    {screeningResult.aiAnalysis?.match_score || screeningResult.fitScore || 0}/100
+                  </div>
+                </div>
+                <div className="text-right">
+                  <div className="text-sm text-gray-600">Recommendation</div>
+                  <div className="font-semibold">
+                    {(screeningResult.aiAnalysis?.match_score || screeningResult.fitScore || 0) >= 80 ? 'Highly Suitable' :
+                     (screeningResult.aiAnalysis?.match_score || screeningResult.fitScore || 0) >= 60 ? 'Potential Fit' :
+                     'Needs Review'}
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Candidate Summary */}
+            {screeningResult.candidateSummary && (
+              <div className="bg-gray-50 p-4 rounded-lg">
+                <h4 className="font-semibold text-gray-900 mb-2">Summary</h4>
+                <p className="text-gray-700 text-sm">{screeningResult.candidateSummary}</p>
+              </div>
+            )}
+
+            {/* Strengths */}
+            {screeningResult.strengths && screeningResult.strengths.length > 0 && (
+              <div className="bg-green-50 border border-green-200 p-4 rounded-lg">
+                <h4 className="font-semibold text-green-900 mb-2">Strengths</h4>
+                <ul className="list-disc list-inside space-y-1 text-sm text-green-800">
+                  {screeningResult.strengths.map((strength, idx) => (
+                    <li key={idx}>{strength}</li>
+                  ))}
+                </ul>
+              </div>
+            )}
+
+            {/* Weaknesses */}
+            {screeningResult.weaknesses && screeningResult.weaknesses.length > 0 && (
+              <div className="bg-red-50 border border-red-200 p-4 rounded-lg">
+                <h4 className="font-semibold text-red-900 mb-2">Areas for Improvement</h4>
+                <ul className="list-disc list-inside space-y-1 text-sm text-red-800">
+                  {screeningResult.weaknesses.map((weakness, idx) => (
+                    <li key={idx}>{weakness}</li>
+                  ))}
+                </ul>
+              </div>
+            )}
+
+            {/* Recommendations */}
+            {screeningResult.recommendations && screeningResult.recommendations.length > 0 && (
+              <div className="bg-blue-50 border border-blue-200 p-4 rounded-lg">
+                <h4 className="font-semibold text-blue-900 mb-2">Recommendations</h4>
+                <ul className="list-disc list-inside space-y-1 text-sm text-blue-800">
+                  {screeningResult.recommendations.map((rec, idx) => (
+                    <li key={idx}>{rec}</li>
+                  ))}
+                </ul>
+              </div>
+            )}
+
+            <div className="flex justify-end space-x-3 pt-4">
+              <Button
+                type="button"
+                variant="secondary"
+                onClick={() => {
+                  setShowResults(false);
+                  setScreeningResult(null);
+                }}
+              >
+                Back
+              </Button>
+              <Button
+                type="button"
+                variant="primary"
+                onClick={() => {
+                  if (onSuccess) onSuccess(screeningResult);
+                  onClose();
+                }}
+              >
+                Use Results
+              </Button>
             </div>
           </div>
         )}

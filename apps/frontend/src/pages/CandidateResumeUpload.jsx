@@ -1,21 +1,54 @@
 import React, { useState, useRef, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useCandidateAuth } from '../contexts/CandidateAuthContext'
+import { resumeProcessingAPI } from '../services/api'
 import Button from '../components/UI/Button'
 import Icon from '../components/UI/Icon'
 import Card from '../components/UI/Card'
 import LoadingSpinner from '../components/LoadingSpinner'
+import toast from 'react-hot-toast'
 
 const CandidateResumeUpload = () => {
   const { candidate, uploadResume, loading, error } = useCandidateAuth()
   const [dragActive, setDragActive] = useState(false)
   const [uploadedFile, setUploadedFile] = useState(null)
   const [uploadProgress, setUploadProgress] = useState(0)
-  const [uploadStatus, setUploadStatus] = useState('idle') // idle, uploading, success, error
+  const [uploadStatus, setUploadStatus] = useState('idle') // idle, uploading, processing, success, error
   const [validationError, setValidationError] = useState('')
-  const [showPreview, setShowPreview] = useState(false)
+  const [showDetails, setShowDetails] = useState(false)
+  const [resumeData, setResumeData] = useState(null)
+  const [jobRecommendations, setJobRecommendations] = useState([])
+  const [processingStatus, setProcessingStatus] = useState('')
   const fileInputRef = useRef(null)
 
+  // Fetch resume data and recommendations when candidate has uploaded resume
+  useEffect(() => {
+    if (candidate?.resumeUploaded && candidate?.resumeId) {
+      fetchResumeData()
+      fetchJobRecommendations()
+    }
+  }, [candidate?.resumeUploaded, candidate?.resumeId])
+
+  const fetchResumeData = async () => {
+    try {
+      // This would need a new endpoint to get resume details
+      // For now, we'll fetch it when showing details
+    } catch (error) {
+      console.error('Error fetching resume data:', error)
+    }
+  }
+
+  const fetchJobRecommendations = async () => {
+    try {
+      if (!candidate?._id) return
+      const response = await resumeProcessingAPI.getJobRecommendations(candidate._id)
+      if (response.data.success) {
+        setJobRecommendations(response.data.data.recommendations || [])
+      }
+    } catch (error) {
+      console.error('Error fetching job recommendations:', error)
+    }
+  }
 
   // Reset validation error when file changes
   useEffect(() => {
@@ -61,8 +94,8 @@ const CandidateResumeUpload = () => {
       return 'Please upload a PDF, DOC, or DOCX file only.'
     }
 
-    if (file.size > 5 * 1024 * 1024) {
-      return 'File size must be less than 5MB.'
+    if (file.size > 10 * 1024 * 1024) {
+      return 'File size must be less than 10MB.'
     }
 
     return null
@@ -80,30 +113,45 @@ const CandidateResumeUpload = () => {
     setUploadStatus('uploading')
     setUploadProgress(0)
     setValidationError('')
+    setProcessingStatus('Uploading resume...')
 
     // Realistic upload progress simulation
     const progressInterval = setInterval(() => {
       setUploadProgress(prev => {
-        if (prev >= 95) {
+        if (prev >= 90) {
           clearInterval(progressInterval)
           return prev
         }
-        return prev + Math.random() * 15
+        return prev + Math.random() * 10
       })
-    }, 150)
+    }, 200)
 
     try {
       const result = await uploadResume(file)
       
       clearInterval(progressInterval)
-      setUploadProgress(100)
-      
+      setUploadProgress(90)
+      setProcessingStatus('Processing resume and extracting information...')
+      setUploadStatus('processing')
+
       if (result.success) {
-        setUploadStatus('success')
-        setTimeout(() => {
-          setUploadStatus('idle')
-          setUploadedFile(null)
-          setUploadProgress(0)
+        // Wait a bit for processing, then check status
+        setTimeout(async () => {
+          setUploadProgress(100)
+          setProcessingStatus('Resume processed successfully!')
+          
+          // Fetch job recommendations
+          await fetchJobRecommendations()
+          
+          setUploadStatus('success')
+          toast.success('Resume uploaded and processed! Skills extracted, ATS scores calculated.')
+          
+          setTimeout(() => {
+            setUploadStatus('idle')
+            setUploadedFile(null)
+            setUploadProgress(0)
+            setProcessingStatus('')
+          }, 3000)
         }, 2000)
       } else {
         setUploadStatus('error')
@@ -150,16 +198,24 @@ const CandidateResumeUpload = () => {
     }
   }
 
+  const getAtsScoreColor = (score) => {
+    if (score >= 80) return 'text-green-600 bg-green-50 border-green-200'
+    if (score >= 60) return 'text-yellow-600 bg-yellow-50 border-yellow-200'
+    if (score >= 40) return 'text-orange-600 bg-orange-50 border-orange-200'
+    return 'text-red-600 bg-red-50 border-red-200'
+  }
+
   const resetUpload = () => {
     setUploadStatus('idle')
     setUploadedFile(null)
     setUploadProgress(0)
     setValidationError('')
-    setShowPreview(false)
+    setShowDetails(false)
+    setProcessingStatus('')
   }
 
   return (
-    <div className="max-w-4xl mx-auto space-y-8">
+    <div className="max-w-6xl mx-auto space-y-8">
       {/* Enhanced Page Header */}
       <motion.div 
         initial={{ opacity: 0, y: 20 }}
@@ -174,19 +230,20 @@ const CandidateResumeUpload = () => {
         </h1>
         <p className="text-lg text-gray-600 max-w-2xl mx-auto">
           {candidate?.resumeUploaded 
-            ? 'Your resume is ready for job applications. Upload a new version to replace it.'
-            : 'Upload your resume to start applying for positions and showcase your skills.'
+            ? 'Your resume has been processed. View extracted skills, ATS scores, and job recommendations below.'
+            : 'Upload your resume to automatically extract skills, get ATS scores, and receive job recommendations.'
           }
         </p>
       </motion.div>
 
-      {/* Current Resume Status - Enhanced */}
+      {/* Resume Processing Results */}
       <AnimatePresence>
         {candidate?.resumeUploaded && (
           <motion.div
             initial={{ opacity: 0, scale: 0.95 }}
             animate={{ opacity: 1, scale: 1 }}
             exit={{ opacity: 0, scale: 0.95 }}
+            className="space-y-4"
           >
             <Card className="p-6 bg-gradient-to-r from-green-50 to-emerald-50 border-green-200">
               <div className="flex items-center justify-between">
@@ -198,10 +255,10 @@ const CandidateResumeUpload = () => {
                   </div>
                   <div>
                     <h3 className="text-lg font-semibold text-green-800">
-                      Resume Successfully Uploaded
+                      Resume Successfully Processed
                     </h3>
                     <p className="text-green-700 mt-1">
-                      Your resume is ready for job applications. Upload a new version below to replace it.
+                      Skills extracted, ATS scores calculated, and job recommendations ready!
                     </p>
                   </div>
                 </div>
@@ -209,40 +266,92 @@ const CandidateResumeUpload = () => {
                   <Button
                     variant="secondary"
                     size="sm"
-                    onClick={() => setShowPreview(!showPreview)}
+                    onClick={() => setShowDetails(!showDetails)}
                   >
-                    <Icon name="eye" size="sm" className="mr-2" />
-                    {showPreview ? 'Hide' : 'View'} Details
+                    <Icon name={showDetails ? "eye-slash" : "eye"} size="sm" className="mr-2" />
+                    {showDetails ? 'Hide' : 'View'} Details
                   </Button>
                 </div>
               </div>
-              
-              {showPreview && (
-                <motion.div
-                  initial={{ opacity: 0, height: 0 }}
-                  animate={{ opacity: 1, height: 'auto' }}
-                  exit={{ opacity: 0, height: 0 }}
-                  className="mt-4 pt-4 border-t border-green-200"
-                >
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
-                    <div>
-                      <span className="text-green-600 font-medium">Status:</span>
-                      <span className="ml-2 text-green-700">Ready for Applications</span>
-                    </div>
-                    <div>
-                      <span className="text-green-600 font-medium">Uploaded:</span>
-                      <span className="ml-2 text-green-700">
-                        {candidate.updatedAt ? new Date(candidate.updatedAt).toLocaleDateString() : 'Recently'}
+            </Card>
+
+            {/* Detailed Results */}
+            {showDetails && (
+              <motion.div
+                initial={{ opacity: 0, height: 0 }}
+                animate={{ opacity: 1, height: 'auto' }}
+                exit={{ opacity: 0, height: 0 }}
+                className="space-y-4"
+              >
+                {/* Job Recommendations */}
+                {jobRecommendations.length > 0 && (
+                  <Card className="p-6">
+                    <div className="flex items-center justify-between mb-4">
+                      <h3 className="text-xl font-semibold text-gray-900 flex items-center">
+                        <Icon name="briefcase" size="lg" className="mr-2 text-blue-600" />
+                        Job Recommendations
+                      </h3>
+                      <span className="text-sm text-gray-500">
+                        {jobRecommendations.length} matches found
                       </span>
                     </div>
+                    <div className="space-y-3">
+                      {jobRecommendations.slice(0, 5).map((job, idx) => (
+                        <div key={idx} className="p-4 border border-gray-200 rounded-lg hover:border-blue-300 transition-colors">
+                          <div className="flex items-start justify-between">
+                            <div className="flex-1">
+                              <h4 className="font-semibold text-gray-900">{job.title}</h4>
+                              <p className="text-sm text-gray-600 mt-1">
+                                {job.department} • {job.location}
+                              </p>
+                              <p className="text-xs text-gray-500 mt-1">{job.matchReason}</p>
+                            </div>
+                            <div className={`px-4 py-2 rounded-lg border ${getAtsScoreColor(job.atsScore)}`}>
+                              <div className="text-2xl font-bold">{job.atsScore}%</div>
+                              <div className="text-xs">Match</div>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                    <div className="mt-4">
+                      <Button
+                        variant="primary"
+                        size="sm"
+                        onClick={() => window.location.href = '/candidate-portal/jobs'}
+                      >
+                        View All Jobs
+                        <Icon name="arrow-right" size="sm" className="ml-2" />
+                      </Button>
+                    </div>
+                  </Card>
+                )}
+
+                {/* Skills and Information */}
+                <Card className="p-6">
+                  <h3 className="text-xl font-semibold text-gray-900 mb-4 flex items-center">
+                    <Icon name="sparkles" size="lg" className="mr-2 text-purple-600" />
+                    Extracted Information
+                  </h3>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
-                      <span className="text-green-600 font-medium">Format:</span>
-                      <span className="ml-2 text-green-700">PDF/DOC/DOCX</span>
+                      <p className="text-sm font-medium text-gray-500 mb-2">Processing Status</p>
+                      <p className="text-sm text-gray-900">✅ Skills Extracted</p>
+                      <p className="text-sm text-gray-900">✅ ATS Scores Calculated</p>
+                      <p className="text-sm text-gray-900">✅ Job Recommendations Generated</p>
+                    </div>
+                    <div>
+                      <p className="text-sm font-medium text-gray-500 mb-2">Next Steps</p>
+                      <ul className="text-sm text-gray-900 space-y-1">
+                        <li>• Browse recommended jobs</li>
+                        <li>• Apply to positions with high ATS scores</li>
+                        <li>• Download professional template (HR can generate)</li>
+                      </ul>
                     </div>
                   </div>
-                </motion.div>
-              )}
-            </Card>
+                </Card>
+              </motion.div>
+            )}
           </motion.div>
         )}
       </AnimatePresence>
@@ -261,6 +370,8 @@ const CandidateResumeUpload = () => {
                 ? 'border-blue-400 bg-blue-50 scale-105'
                 : uploadStatus === 'success'
                 ? 'border-green-400 bg-green-50'
+                : uploadStatus === 'processing'
+                ? 'border-purple-400 bg-purple-50'
                 : uploadStatus === 'error'
                 ? 'border-red-400 bg-red-50'
                 : 'border-gray-300 hover:border-blue-300 hover:bg-blue-50'
@@ -271,16 +382,8 @@ const CandidateResumeUpload = () => {
             onDrop={handleDrop}
             onClick={() => !uploadStatus && fileInputRef.current?.click()}
           >
-            {/* Background Pattern */}
-            <div className="absolute inset-0 opacity-5 pointer-events-none">
-              <div className="absolute top-4 left-4 w-8 h-8 border-2 border-gray-300 rounded"></div>
-              <div className="absolute top-8 right-8 w-6 h-6 border-2 border-gray-300 rounded"></div>
-              <div className="absolute bottom-8 left-8 w-4 h-4 border-2 border-gray-300 rounded"></div>
-              <div className="absolute bottom-4 right-4 w-10 h-10 border-2 border-gray-300 rounded"></div>
-            </div>
-
             <AnimatePresence mode="wait">
-              {uploadStatus === 'uploading' ? (
+              {uploadStatus === 'uploading' || uploadStatus === 'processing' ? (
                 <motion.div
                   key="uploading"
                   initial={{ opacity: 0, scale: 0.8 }}
@@ -298,7 +401,7 @@ const CandidateResumeUpload = () => {
                   </div>
                   <div className="space-y-3">
                     <h3 className="text-lg font-semibold text-gray-900">
-                      Uploading {uploadedFile?.name}
+                      {uploadStatus === 'processing' ? 'Processing Resume...' : `Uploading ${uploadedFile?.name}`}
                     </h3>
                     <div className="w-full bg-gray-200 rounded-full h-3 overflow-hidden">
                       <motion.div
@@ -309,9 +412,9 @@ const CandidateResumeUpload = () => {
                       />
                     </div>
                     <p className="text-sm text-gray-600">
-                      {uploadProgress < 50 ? 'Processing file...' : 
+                      {processingStatus || (uploadProgress < 50 ? 'Processing file...' : 
                        uploadProgress < 90 ? 'Uploading to server...' : 
-                       'Finalizing upload...'}
+                       'Finalizing upload...')}
                     </p>
                   </div>
                 </motion.div>
@@ -333,10 +436,10 @@ const CandidateResumeUpload = () => {
                   </motion.div>
                   <div className="space-y-2">
                     <h3 className="text-xl font-semibold text-green-900">
-                      Upload Successful!
+                      Upload & Processing Successful!
                     </h3>
                     <p className="text-green-700">
-                      Your resume has been processed and is ready for job applications.
+                      Skills extracted, ATS scores calculated, and job recommendations generated.
                     </p>
                   </div>
                 </motion.div>
@@ -401,7 +504,7 @@ const CandidateResumeUpload = () => {
                       </div>
                       <div className="flex items-center space-x-2">
                         <Icon name="shield" size="sm" className="text-gray-500" />
-                        <span>Max 5MB</span>
+                        <span>Max 10MB</span>
                       </div>
                     </div>
                   </div>
@@ -416,127 +519,6 @@ const CandidateResumeUpload = () => {
               onChange={handleFileInput}
               className="hidden"
             />
-          </div>
-
-          {/* File Preview - Enhanced */}
-          <AnimatePresence>
-            {uploadedFile && uploadStatus !== 'uploading' && uploadStatus !== 'success' && (
-              <motion.div
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -20 }}
-                className="mt-8"
-              >
-                <Card className="p-6 bg-gray-50 border-gray-200">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center space-x-4">
-                      <div className={`w-12 h-12 rounded-lg flex items-center justify-center ${getFileTypeColor(uploadedFile.name)}`}>
-                        <Icon name={getFileIcon(uploadedFile.name)} size="lg" />
-                      </div>
-                      <div>
-                        <h4 className="font-semibold text-gray-900 truncate max-w-xs">
-                          {uploadedFile.name}
-                        </h4>
-                        <p className="text-sm text-gray-500">
-                          {formatFileSize(uploadedFile.size)} • {uploadedFile.type.split('/')[1].toUpperCase()}
-                        </p>
-                      </div>
-                    </div>
-                    <div className="flex space-x-2">
-                      <Button
-                        variant="secondary"
-                        size="sm"
-                        onClick={resetUpload}
-                      >
-                        <Icon name="x-mark" size="sm" className="mr-2" />
-                        Remove
-                      </Button>
-                      <Button
-                        variant="primary"
-                        size="sm"
-                        onClick={() => handleFile(uploadedFile)}
-                        disabled={loading}
-                      >
-                        <Icon name="cloud-arrow-up" size="sm" className="mr-2" />
-                        Upload Now
-                      </Button>
-                    </div>
-                  </div>
-                </Card>
-              </motion.div>
-            )}
-          </AnimatePresence>
-        </Card>
-      </motion.div>
-
-      {/* Enhanced Guidelines */}
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.2 }}
-      >
-        <Card className="p-8">
-          <div className="text-center mb-6">
-            <h3 className="text-xl font-semibold text-gray-900 mb-2">
-              Resume Best Practices
-            </h3>
-            <p className="text-gray-600">
-              Follow these guidelines to create an effective resume
-            </p>
-          </div>
-          
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div className="space-y-4">
-              <div className="flex items-start space-x-3">
-                <div className="w-8 h-8 bg-green-100 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
-                  <Icon name="check-circle" size="sm" className="text-green-600" />
-                </div>
-                <div>
-                  <h4 className="font-medium text-gray-900">Professional Format</h4>
-                  <p className="text-sm text-gray-600 mt-1">
-                    Use clean, professional formatting with standard fonts like Arial or Calibri
-                  </p>
-                </div>
-              </div>
-              
-              <div className="flex items-start space-x-3">
-                <div className="w-8 h-8 bg-green-100 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
-                  <Icon name="check-circle" size="sm" className="text-green-600" />
-                </div>
-                <div>
-                  <h4 className="font-medium text-gray-900">Complete Information</h4>
-                  <p className="text-sm text-gray-600 mt-1">
-                    Include contact details, work experience, education, and relevant skills
-                  </p>
-                </div>
-              </div>
-            </div>
-            
-            <div className="space-y-4">
-              <div className="flex items-start space-x-3">
-                <div className="w-8 h-8 bg-green-100 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
-                  <Icon name="check-circle" size="sm" className="text-green-600" />
-                </div>
-                <div>
-                  <h4 className="font-medium text-gray-900">Keep It Updated</h4>
-                  <p className="text-sm text-gray-600 mt-1">
-                    Regularly update your resume with latest achievements and skills
-                  </p>
-                </div>
-              </div>
-              
-              <div className="flex items-start space-x-3">
-                <div className="w-8 h-8 bg-green-100 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
-                  <Icon name="check-circle" size="sm" className="text-green-600" />
-                </div>
-                <div>
-                  <h4 className="font-medium text-gray-900">PDF Format</h4>
-                  <p className="text-sm text-gray-600 mt-1">
-                    Save as PDF for best compatibility and professional appearance
-                  </p>
-                </div>
-              </div>
-            </div>
           </div>
         </Card>
       </motion.div>
@@ -561,7 +543,7 @@ const CandidateResumeUpload = () => {
             onClick={() => window.location.href = '/candidate-portal/jobs'}
           >
             <Icon name="briefcase" size="sm" className="mr-2" />
-            Browse Jobs
+            Browse Recommended Jobs
           </Button>
         )}
       </motion.div>

@@ -6,6 +6,7 @@ import Button from '../components/UI/Button'
 import Icon from '../components/UI/Icon'
 import Card from '../components/UI/Card'
 import LoadingSpinner from '../components/LoadingSpinner'
+import api from '../services/api'
 
 const CandidateRegister = () => {
   const { register, loading, error, clearError, isAuthenticated } = useCandidateAuth()
@@ -21,6 +22,8 @@ const CandidateRegister = () => {
   })
   const [validationErrors, setValidationErrors] = useState({})
   const [invitationData, setInvitationData] = useState(null)
+  const [validatingToken, setValidatingToken] = useState(false)
+  const [tokenError, setTokenError] = useState('')
 
   // Check for invitation token and email in URL
   useEffect(() => {
@@ -28,13 +31,44 @@ const CandidateRegister = () => {
     const email = searchParams.get('email')
     
     if (token && email) {
-      setInvitationData({ token, email })
-      setFormData(prev => ({
-        ...prev,
-        email: decodeURIComponent(email)
-      }))
+      // Validate the invitation token
+      validateInvitationToken(token, decodeURIComponent(email))
+    } else {
+      // No token provided - show error
+      setTokenError('Invitation token is required. Please use the invitation link sent to your email.')
     }
   }, [searchParams])
+
+  // Validate invitation token with backend
+  const validateInvitationToken = async (token, email) => {
+    setValidatingToken(true)
+    setTokenError('')
+    
+    try {
+      const response = await api.get('/candidates/validate-invitation', {
+        params: {
+          token: token,
+          email: email
+        }
+      })
+      
+      if (response.data.success && response.data.valid) {
+        setInvitationData({ token, email })
+        setFormData(prev => ({
+          ...prev,
+          email: email
+        }))
+      } else {
+        setTokenError(response.data.message || 'Invalid or expired invitation token. Please request a new invitation from HR.')
+      }
+    } catch (error) {
+      const errorMessage = error.response?.data?.message || 'Failed to validate invitation. Please check your connection and try again.'
+      setTokenError(errorMessage)
+      console.error('Token validation error:', error)
+    } finally {
+      setValidatingToken(false)
+    }
+  }
 
   // Redirect if already authenticated
   useEffect(() => {
@@ -110,6 +144,13 @@ const CandidateRegister = () => {
   const handleSubmit = async (e) => {
     e.preventDefault()
     clearError()
+    setTokenError('')
+
+    // Check if invitation token is present
+    if (!invitationData || !invitationData.token) {
+      setTokenError('Invitation token is required. Please use the invitation link sent to your email.')
+      return
+    }
 
     if (!validateForm()) {
       return
@@ -117,10 +158,8 @@ const CandidateRegister = () => {
 
     const { confirmPassword, ...registrationData } = formData
     
-    // Add invitation token if available
-    if (invitationData) {
-      registrationData.invitationToken = invitationData.token
-    }
+    // Add invitation token (required)
+    registrationData.invitationToken = invitationData.token
     
     const result = await register(registrationData)
     
@@ -148,12 +187,20 @@ const CandidateRegister = () => {
             {invitationData ? 'Complete Your Registration' : 'Create Account'}
           </h2>
           <p className="mt-2 text-sm text-gray-600">
-            {invitationData 
+            {validatingToken 
+              ? 'Validating your invitation...'
+              : invitationData
               ? 'You\'ve been invited to join our talent pool'
-              : 'Join our talent pool and start your journey'
+              : 'Please use the invitation link sent to your email'
             }
           </p>
-          {invitationData && (
+          {validatingToken && (
+            <div className="mt-3 inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+              <LoadingSpinner />
+              <span className="ml-2">Validating invitation...</span>
+            </div>
+          )}
+          {invitationData && !validatingToken && (
             <div className="mt-3 inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
               <Icon name="check-circle" size="sm" className="mr-1" />
               Invitation Verified
@@ -164,6 +211,26 @@ const CandidateRegister = () => {
         {/* Registration Form */}
         <Card className="p-8">
           <form className="space-y-6" onSubmit={handleSubmit}>
+            {/* Token Error Message */}
+            {tokenError && (
+              <motion.div
+                initial={{ opacity: 0, y: -10 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="bg-red-50 border border-red-200 rounded-md p-4"
+              >
+                <div className="flex">
+                  <Icon name="shield" size="sm" className="text-red-400 mt-0.5" />
+                  <div className="ml-3">
+                    <p className="text-sm text-red-800 font-medium">Invitation Required</p>
+                    <p className="text-sm text-red-700 mt-1">{tokenError}</p>
+                    <p className="text-xs text-red-600 mt-2">
+                      If you received an invitation email, please click the link in that email to register.
+                    </p>
+                  </div>
+                </div>
+              </motion.div>
+            )}
+
             {/* Error Message */}
             {error && (
               <motion.div
@@ -238,10 +305,16 @@ const CandidateRegister = () => {
                   required
                   value={formData.email}
                   onChange={handleChange}
-                  className={`input-field pl-10 ${validationErrors.email ? 'input-error' : ''}`}
+                  disabled={!!invitationData}
+                  className={`input-field pl-10 ${validationErrors.email ? 'input-error' : ''} ${invitationData ? 'bg-gray-50 cursor-not-allowed' : ''}`}
                   placeholder="john.doe@example.com"
                 />
               </div>
+              {invitationData && (
+                <p className="text-xs text-gray-500 mt-1">
+                  Email is set from your invitation link
+                </p>
+              )}
               {validationErrors.email && (
                 <p className="error-text">{validationErrors.email}</p>
               )}
@@ -326,13 +399,20 @@ const CandidateRegister = () => {
             <Button
               type="submit"
               className="w-full"
-              disabled={loading}
+              disabled={loading || validatingToken || !invitationData}
             >
               {loading ? (
                 <div className="flex items-center justify-center">
                   <LoadingSpinner />
                   <span className="ml-2">Creating account...</span>
                 </div>
+              ) : validatingToken ? (
+                <div className="flex items-center justify-center">
+                  <LoadingSpinner />
+                  <span className="ml-2">Validating invitation...</span>
+                </div>
+              ) : !invitationData ? (
+                'Invitation Required'
               ) : (
                 'Create Account'
               )}

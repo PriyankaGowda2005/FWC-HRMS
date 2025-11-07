@@ -108,7 +108,8 @@ const candidateSchemas = {
     password: commonSchemas.password,
     firstName: z.string().min(1).max(50).trim(),
     lastName: z.string().min(1).max(50).trim(),
-    phone: commonSchemas.phone
+    phone: commonSchemas.phone,
+    invitationToken: z.string().min(1, 'Invitation token is required')
   }),
 
   login: z.object({
