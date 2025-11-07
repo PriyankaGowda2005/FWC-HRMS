@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import { useCandidateAuth } from '../contexts/CandidateAuthContext'
 import Button from '../components/UI/Button'
@@ -10,6 +10,7 @@ import LoadingSpinner from '../components/LoadingSpinner'
 const CandidateRegister = () => {
   const { register, loading, error, clearError, isAuthenticated } = useCandidateAuth()
   const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
   const [formData, setFormData] = useState({
     email: '',
     password: '',
@@ -19,6 +20,21 @@ const CandidateRegister = () => {
     phone: ''
   })
   const [validationErrors, setValidationErrors] = useState({})
+  const [invitationData, setInvitationData] = useState(null)
+
+  // Check for invitation token and email in URL
+  useEffect(() => {
+    const token = searchParams.get('token')
+    const email = searchParams.get('email')
+    
+    if (token && email) {
+      setInvitationData({ token, email })
+      setFormData(prev => ({
+        ...prev,
+        email: decodeURIComponent(email)
+      }))
+    }
+  }, [searchParams])
 
   // Redirect if already authenticated
   useEffect(() => {
@@ -100,6 +116,12 @@ const CandidateRegister = () => {
     }
 
     const { confirmPassword, ...registrationData } = formData
+    
+    // Add invitation token if available
+    if (invitationData) {
+      registrationData.invitationToken = invitationData.token
+    }
+    
     const result = await register(registrationData)
     
     if (result.success) {
@@ -123,11 +145,20 @@ const CandidateRegister = () => {
             </div>
           </div>
           <h2 className="mt-6 text-3xl font-bold text-gray-900">
-            Create Account
+            {invitationData ? 'Complete Your Registration' : 'Create Account'}
           </h2>
           <p className="mt-2 text-sm text-gray-600">
-            Join our talent pool and start your journey
+            {invitationData 
+              ? 'You\'ve been invited to join our talent pool'
+              : 'Join our talent pool and start your journey'
+            }
           </p>
+          {invitationData && (
+            <div className="mt-3 inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
+              <Icon name="check-circle" size="sm" className="mr-1" />
+              Invitation Verified
+            </div>
+          )}
         </div>
 
         {/* Registration Form */}
@@ -312,7 +343,7 @@ const CandidateRegister = () => {
               <p className="text-sm text-gray-600">
                 Already have an account?{' '}
                 <Link
-                  to="/candidate-portal/login"
+                  to="/login"
                   className="font-medium text-primary-600 hover:text-primary-500 transition-colors"
                 >
                   Sign in here

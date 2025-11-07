@@ -6,6 +6,7 @@ import { AuthProvider } from './contexts/AuthContext'
 import { NavigationProvider } from './contexts/NavigationContext'
 import { CandidateAuthProvider } from './contexts/CandidateAuthContext'
 import ProtectedRoute from './components/ProtectedRoute'
+import CandidateProtectedRoute from './components/CandidateProtectedRoute'
 import Layout from './components/Layout'
 import CandidateLayout from './components/CandidateLayout'
 import LoadingSpinner from './components/LoadingSpinner'
@@ -22,7 +23,14 @@ import Careers from './pages/Careers'
 import Contact from './pages/Contact'
 import CandidateRegister from './pages/CandidateRegister'
 import CandidateDashboard from './pages/CandidateDashboard'
+import CandidateResumeUpload from './pages/CandidateResumeUpload'
+import CandidateInterviews from './pages/CandidateInterviews'
+import CandidateProfile from './pages/CandidateProfile'
+import CandidateJobs from './pages/CandidateJobs'
+import CandidateApplications from './pages/CandidateApplications'
 import PersonalizedDashboard from './pages/PersonalizedDashboard'
+import InterviewManagement from './pages/InterviewManagement'
+import CandidateConversion from './pages/CandidateConversion'
 import AdminDashboard from './pages/AdminDashboard'
 import HRDashboard from './pages/HRDashboard'
 import ManagerDashboard from './pages/ManagerDashboard'
@@ -81,10 +89,17 @@ function App() {
                 {/* Protected Candidate Routes */}
                 <Route path="/candidate-portal" element={
                   <CandidateAuthProvider>
-                    <CandidateLayout />
+                    <CandidateProtectedRoute>
+                      <CandidateLayout />
+                    </CandidateProtectedRoute>
                   </CandidateAuthProvider>
                 }>
                   <Route path="dashboard" element={<CandidateDashboard />} />
+                  <Route path="resume" element={<CandidateResumeUpload />} />
+                  <Route path="interviews" element={<CandidateInterviews />} />
+                  <Route path="profile" element={<CandidateProfile />} />
+                  <Route path="jobs" element={<CandidateJobs />} />
+                  <Route path="applications" element={<CandidateApplications />} />
                   {/* Add more candidate routes here */}
                 </Route>
                 
@@ -104,6 +119,7 @@ function App() {
                 }>
                   <Route index element={<ManagerDashboard />} />
                   <Route path="team" element={<TeamManagement />} />
+                  <Route path="interview-management" element={<InterviewManagement />} />
                 </Route>
 
                 <Route path="/hr" element={
@@ -112,6 +128,7 @@ function App() {
                   </ProtectedRoute>
                 }>
                   <Route index element={<HRDashboard />} />
+                  <Route path="candidate-conversion" element={<CandidateConversion />} />
                 </Route>
                 
                 <Route path="/admin" element={

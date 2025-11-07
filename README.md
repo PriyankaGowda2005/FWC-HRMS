@@ -1531,7 +1531,7 @@ Ready to revolutionize HR with AI? Here's how to get started:
 
 5. **Login with default credentials**
    - Admin: admin@fwcit.com / admin123
-   - HR: hr@fwcit.com / hr1234
+   - HR: hr@fwchrms.com / HR@2024!
    - Manager: manager@fwcit.com / manager123
    - Employee: employee@fwcit.com / employee123
 

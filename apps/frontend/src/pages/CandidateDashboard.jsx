@@ -222,6 +222,26 @@ const CandidateDashboard = () => {
                 </p>
               </div>
             </Link>
+
+            <Link
+              to="/candidate-portal/interviews"
+              className="relative group bg-white p-6 focus-within:ring-2 focus-within:ring-inset focus-within:ring-blue-500 rounded-lg border border-gray-200 hover:border-gray-300"
+            >
+              <div>
+                <span className="rounded-lg inline-flex p-3 bg-green-50 text-green-700 ring-4 ring-white">
+                  <Icon name="calendar" size="md" />
+                </span>
+              </div>
+              <div className="mt-8">
+                <h3 className="text-lg font-medium">
+                  <span className="absolute inset-0" aria-hidden="true" />
+                  My Interviews
+                </h3>
+                <p className="mt-2 text-sm text-gray-500">
+                  Manage your interview schedule
+                </p>
+              </div>
+            </Link>
           </div>
         </div>
       </div>

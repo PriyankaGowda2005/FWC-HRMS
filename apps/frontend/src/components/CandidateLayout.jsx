@@ -16,6 +16,7 @@ const CandidateLayout = () => {
     { name: 'Profile', href: '/candidate-portal/profile', icon: 'users' },
     { name: 'Resume', href: '/candidate-portal/resume', icon: 'star' },
     { name: 'Jobs', href: '/candidate-portal/jobs', icon: 'zap' },
+    { name: 'Interviews', href: '/candidate-portal/interviews', icon: 'calendar' },
     { name: 'Applications', href: '/candidate-portal/applications', icon: 'shield' }
   ]
 

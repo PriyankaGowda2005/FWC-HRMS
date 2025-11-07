@@ -3,8 +3,15 @@ import { useQuery, useMutation, useQueryClient } from 'react-query'
 import toast from 'react-hot-toast'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useAuth } from '../contexts/AuthContext'
-import { jobPostingAPI, candidateAPI, aiAPI, departmentAPI } from '../services/api'
+import { jobPostingAPI, candidateAPI, aiAPI, departmentAPI, resumeScreeningAPI, jobAttachmentsAPI, interviewsAPI } from '../services/api'
 import LoadingSpinner from '../components/LoadingSpinner'
+import CandidateInvitationModal from '../components/CandidateInvitationModal'
+import ResumeScreeningModal from '../components/ResumeScreeningModal'
+import ResumeScreeningResultsModal from '../components/ResumeScreeningResultsModal'
+import JobAttachmentModal from '../components/JobAttachmentModal'
+import JobAttachmentsTab from '../components/JobAttachmentsTab'
+import InterviewSchedulingModal from '../components/InterviewSchedulingModal'
+import InterviewManagement from '../components/InterviewManagement'
 import { 
   BriefcaseIcon,
   UserGroupIcon,
@@ -42,7 +49,14 @@ const RecruitmentManagement = () => {
   const [showCreateJob, setShowCreateJob] = useState(false)
   const [showAIInterview, setShowAIInterview] = useState(false)
   const [showResumeAnalysis, setShowResumeAnalysis] = useState(false)
+  const [showInviteCandidate, setShowInviteCandidate] = useState(false)
+  const [showResumeScreening, setShowResumeScreening] = useState(false)
+  const [showScreeningResults, setShowScreeningResults] = useState(false)
+  const [showJobAttachment, setShowJobAttachment] = useState(false)
+  const [showInterviewScheduling, setShowInterviewScheduling] = useState(false)
   const [selectedCandidate, setSelectedCandidate] = useState(null)
+  const [selectedScreening, setSelectedScreening] = useState(null)
+  const [selectedAttachment, setSelectedAttachment] = useState(null)
   const [interviewSession, setInterviewSession] = useState(null)
   const [realTimeStatus, setRealTimeStatus] = useState({
     currentTime: new Date().toLocaleTimeString(),
@@ -277,6 +291,58 @@ const RecruitmentManagement = () => {
         industry: selectedJob.requirements?.industry || 'technology'
       } : null
     })
+  }
+
+  const handleScreenResume = (candidate) => {
+    if (!selectedJob) {
+      toast.error('Please select a job posting first');
+      return;
+    }
+    setSelectedCandidate(candidate)
+    setShowResumeScreening(true)
+  }
+
+  const handleScreeningSuccess = (screeningData) => {
+    setSelectedScreening(screeningData)
+    setShowScreeningResults(true)
+    setShowResumeScreening(false)
+  }
+
+  const handleViewScreeningResults = (screening) => {
+    setSelectedScreening(screening)
+    setShowScreeningResults(true)
+  }
+
+  const handleAttachCandidate = (candidate, screening) => {
+    if (!selectedJob) {
+      toast.error('Please select a job posting first');
+      return;
+    }
+    setSelectedCandidate(candidate)
+    setSelectedScreening(screening)
+    setShowJobAttachment(true)
+  }
+
+  const handleAttachmentSuccess = (attachmentData) => {
+    toast.success('Candidate attached successfully!')
+    queryClient.invalidateQueries('candidates')
+    queryClient.invalidateQueries('job-postings')
+    setShowJobAttachment(false)
+    setSelectedCandidate(null)
+    setSelectedScreening(null)
+  }
+
+  const handleScheduleInterview = (attachment) => {
+    setSelectedAttachment(attachment)
+    setShowInterviewScheduling(true)
+  }
+
+  const handleInterviewScheduled = (interviewData) => {
+    toast.success('Interview scheduled successfully!')
+    queryClient.invalidateQueries('job-attachments')
+    queryClient.invalidateQueries('interviews')
+    setShowInterviewScheduling(false)
+    setSelectedAttachment(null)
   }
 
   // Loading state
@@ -530,6 +596,8 @@ const RecruitmentManagement = () => {
               {[
                 { id: 'job-postings', label: 'Job Postings', count: jobPostings?.length || 0, icon: BriefcaseIcon },
                 { id: 'candidates', label: 'Candidates', count: candidates?.length || 0, icon: UserGroupIcon },
+                { id: 'job-attachments', label: 'Attachments', count: 0, icon: DocumentTextIcon },
+                { id: 'interviews', label: 'Interviews', count: 0, icon: CalendarIcon },
                 { id: 'ai-interviews', label: 'AI Interviews', count: stats.aiInterviews, icon: VideoCameraIcon },
                 { id: 'analytics', label: 'Analytics', count: 0, icon: ChartBarIcon }
               ].map((tab) => (
@@ -573,7 +641,28 @@ const RecruitmentManagement = () => {
                 onStartAIInterview={handleStartAIInterview}
                 onAnalyzeResume={handleAnalyzeResume}
                 selectedJob={selectedJob}
+                onInviteCandidate={() => setShowInviteCandidate(true)}
+                onScreenResume={handleScreenResume}
               />
+            )}
+
+            {activeTab === 'job-attachments' && selectedJob && (
+              <JobAttachmentsTab 
+                jobPosting={selectedJob} 
+                onScheduleInterview={handleScheduleInterview}
+              />
+            )}
+
+            {activeTab === 'job-attachments' && !selectedJob && (
+              <div className="text-center py-12">
+                <Icon name="document-text" size="lg" className="text-gray-400 mx-auto mb-4" />
+                <h3 className="text-lg font-medium text-gray-900 mb-2">Select a Job Posting</h3>
+                <p className="text-gray-600">Please select a job posting from the Job Postings tab to view attached candidates.</p>
+              </div>
+            )}
+
+            {activeTab === 'interviews' && (
+              <InterviewManagement />
             )}
 
             {activeTab === 'ai-interviews' && (
@@ -627,6 +716,79 @@ const RecruitmentManagement = () => {
           />
         )}
       </AnimatePresence>
+
+      {/* Candidate Invitation Modal */}
+      <CandidateInvitationModal
+        isOpen={showInviteCandidate}
+        onClose={() => setShowInviteCandidate(false)}
+        onSuccess={(data) => {
+          toast.success(`Invitation sent to ${data.email}`)
+          queryClient.invalidateQueries('candidates')
+        }}
+      />
+
+      {/* Resume Screening Modal */}
+      {showResumeScreening && selectedCandidate && selectedJob && (
+        <ResumeScreeningModal
+          candidate={selectedCandidate}
+          jobPosting={selectedJob}
+          onClose={() => {
+            setShowResumeScreening(false)
+            setSelectedCandidate(null)
+          }}
+          onSuccess={handleScreeningSuccess}
+        />
+      )}
+
+      {/* Resume Screening Results Modal */}
+      {showScreeningResults && selectedScreening && (
+        <ResumeScreeningResultsModal
+          screening={selectedScreening}
+          onClose={() => {
+            setShowScreeningResults(false)
+            setSelectedScreening(null)
+          }}
+          onStatusUpdate={() => {
+            queryClient.invalidateQueries('candidates')
+            queryClient.invalidateQueries('job-postings')
+          }}
+          onAttachToJob={(screening) => {
+            // Get candidate from screening data
+            const candidate = candidates.find(c => c._id === screening.candidateId);
+            if (candidate) {
+              handleAttachCandidate(candidate, screening);
+              setShowScreeningResults(false);
+            }
+          }}
+        />
+      )}
+
+      {/* Job Attachment Modal */}
+      {showJobAttachment && selectedCandidate && selectedJob && selectedScreening && (
+        <JobAttachmentModal
+          candidate={selectedCandidate}
+          jobPosting={selectedJob}
+          screening={selectedScreening}
+          onClose={() => {
+            setShowJobAttachment(false)
+            setSelectedCandidate(null)
+            setSelectedScreening(null)
+          }}
+          onSuccess={handleAttachmentSuccess}
+        />
+      )}
+
+      {/* Interview Scheduling Modal */}
+      {showInterviewScheduling && selectedAttachment && (
+        <InterviewSchedulingModal
+          attachment={selectedAttachment}
+          onClose={() => {
+            setShowInterviewScheduling(false)
+            setSelectedAttachment(null)
+          }}
+          onSuccess={handleInterviewScheduled}
+        />
+      )}
     </div>
   )
 }
@@ -778,7 +940,7 @@ const JobPostingsTab = ({ jobPostings, onSelectJob, selectedJob, onUpdateJob, on
 }
 
 // Candidates Tab Component
-const CandidatesTab = ({ candidates, onStartAIInterview, onAnalyzeResume, selectedJob }) => {
+const CandidatesTab = ({ candidates, onStartAIInterview, onAnalyzeResume, selectedJob, onInviteCandidate, onScreenResume }) => {
   const [filterStatus, setFilterStatus] = useState('all')
 
   const filteredCandidates = candidates.filter(candidate => 
@@ -787,7 +949,7 @@ const CandidatesTab = ({ candidates, onStartAIInterview, onAnalyzeResume, select
 
   return (
     <div className="space-y-6">
-      {/* Filters */}
+      {/* Filters and Actions */}
       <div className="flex justify-between items-center">
         <div className="flex space-x-4">
           <select
@@ -804,8 +966,17 @@ const CandidatesTab = ({ candidates, onStartAIInterview, onAnalyzeResume, select
             <option value="REJECTED">Rejected</option>
           </select>
         </div>
-        <div className="text-sm text-gray-600">
-          {filteredCandidates.length} candidates
+        <div className="flex items-center space-x-3">
+          <button
+            onClick={onInviteCandidate}
+            className="flex items-center space-x-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+          >
+            <UserGroupIcon className="w-4 h-4" />
+            <span>Invite Candidate</span>
+          </button>
+          <div className="text-sm text-gray-600">
+            {filteredCandidates.length} candidates
+          </div>
         </div>
       </div>
 
@@ -888,17 +1059,26 @@ const CandidatesTab = ({ candidates, onStartAIInterview, onAnalyzeResume, select
             )}
 
             {/* Actions */}
-            <div className="flex space-x-2">
-              <button
-                onClick={() => onAnalyzeResume(candidate)}
-                className="flex-1 px-3 py-2 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-                disabled={!candidate.resumeFile}
-              >
-                Analyze Resume
-              </button>
+            <div className="flex flex-col space-y-2">
+              <div className="flex space-x-2">
+                <button
+                  onClick={() => onScreenResume(candidate)}
+                  className="flex-1 px-3 py-2 text-sm bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
+                  disabled={!candidate.resumeUploaded}
+                >
+                  Screen Resume
+                </button>
+                <button
+                  onClick={() => onAnalyzeResume(candidate)}
+                  className="flex-1 px-3 py-2 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                  disabled={!candidate.resumeFile}
+                >
+                  Analyze Resume
+                </button>
+              </div>
               <button
                 onClick={() => onStartAIInterview(candidate)}
-                className="flex-1 px-3 py-2 text-sm bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors"
+                className="w-full px-3 py-2 text-sm bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors"
               >
                 AI Interview
               </button>
