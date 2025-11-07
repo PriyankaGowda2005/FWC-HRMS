@@ -44,7 +44,7 @@ import {
 const RecruitmentManagement = () => {
   const { user } = useAuth()
   const queryClient = useQueryClient()
-  const [activeTab, setActiveTab] = useState('job-postings')
+  const [activeTab, setActiveTab] = useState('ai-interviews')
   const [selectedJob, setSelectedJob] = useState(null)
   const [showCreateJob, setShowCreateJob] = useState(false)
   const [showAIInterview, setShowAIInterview] = useState(false)
@@ -448,12 +448,8 @@ const RecruitmentManagement = () => {
         <motion.div 
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          className="flex justify-between items-center"
+          className="flex justify-end items-center"
         >
-          <div>
-            <h1 className="text-4xl font-bold text-gray-900">Recruitment Management</h1>
-            <p className="text-gray-600 mt-2">AI-powered recruitment and candidate screening</p>
-          </div>
           <div className="flex space-x-4">
             <button
               onClick={() => setShowCreateJob(true)}
@@ -594,8 +590,6 @@ const RecruitmentManagement = () => {
           <div className="border-b border-gray-200">
             <nav className="-mb-px flex space-x-8 px-6">
               {[
-                { id: 'job-postings', label: 'Job Postings', count: jobPostings?.length || 0, icon: BriefcaseIcon },
-                { id: 'candidates', label: 'Candidates', count: candidates?.length || 0, icon: UserGroupIcon },
                 { id: 'job-attachments', label: 'Attachments', count: 0, icon: DocumentTextIcon },
                 { id: 'interviews', label: 'Interviews', count: 0, icon: CalendarIcon },
                 { id: 'ai-interviews', label: 'AI Interviews', count: stats.aiInterviews, icon: VideoCameraIcon },
@@ -624,27 +618,22 @@ const RecruitmentManagement = () => {
 
           {/* Tab Content */}
           <div className="p-6">
-            {activeTab === 'job-postings' && (
-              <JobPostingsTab
-                jobPostings={jobPostings}
-                onSelectJob={setSelectedJob}
-                selectedJob={selectedJob}
-                onUpdateJob={handleUpdateJob}
-                onDeleteJob={handleDeleteJob}
-                departments={departmentList}
-              />
-            )}
-
-            {activeTab === 'candidates' && (
-              <CandidatesTab
-                candidates={candidates}
-                onStartAIInterview={handleStartAIInterview}
-                onAnalyzeResume={handleAnalyzeResume}
-                selectedJob={selectedJob}
-                onInviteCandidate={() => setShowInviteCandidate(true)}
-                onScreenResume={handleScreenResume}
-              />
-            )}
+            {/* Info Banner */}
+            <div className="mb-6 bg-blue-50 border border-blue-200 rounded-lg p-4">
+              <div className="flex">
+                <div className="flex-shrink-0">
+                  <svg className="h-5 w-5 text-blue-400" fill="currentColor" viewBox="0 0 20 20">
+                    <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
+                  </svg>
+                </div>
+                <div className="ml-3">
+                  <p className="text-sm text-blue-700">
+                    <strong>Note:</strong> Job postings and candidate management are now available in the 
+                    <span className="font-semibold"> Recruitment Dashboard</span> tab for better organization.
+                  </p>
+                </div>
+              </div>
+            </div>
 
             {activeTab === 'job-attachments' && selectedJob && (
               <JobAttachmentsTab 
@@ -942,22 +931,70 @@ const JobPostingsTab = ({ jobPostings, onSelectJob, selectedJob, onUpdateJob, on
 // Candidates Tab Component
 const CandidatesTab = ({ candidates, onStartAIInterview, onAnalyzeResume, selectedJob, onInviteCandidate, onScreenResume }) => {
   const [filterStatus, setFilterStatus] = useState('all')
+  const [searchTerm, setSearchTerm] = useState('')
 
-  const filteredCandidates = candidates.filter(candidate => 
-    filterStatus === 'all' || candidate.status === filterStatus
-  )
+  const filteredCandidates = candidates.filter(candidate => {
+    const matchesStatus = filterStatus === 'all' || candidate.status === filterStatus
+    const matchesSearch = searchTerm === '' || 
+      candidate.firstName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      candidate.lastName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      candidate.email?.toLowerCase().includes(searchTerm.toLowerCase())
+    return matchesStatus && matchesSearch
+  })
+
+  const getStatusColor = (status) => {
+    switch (status) {
+      case 'ACTIVE': return 'bg-green-100 text-green-800'
+      case 'APPLIED': return 'bg-blue-100 text-blue-800'
+      case 'SCREENING': return 'bg-yellow-100 text-yellow-800'
+      case 'INTERVIEWED': return 'bg-purple-100 text-purple-800'
+      case 'OFFERED': return 'bg-indigo-100 text-indigo-800'
+      case 'HIRED': return 'bg-green-100 text-green-800'
+      case 'REJECTED': return 'bg-red-100 text-red-800'
+      default: return 'bg-gray-100 text-gray-800'
+    }
+  }
 
   return (
     <div className="space-y-6">
+      {/* Header with Stats */}
+      <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-lg p-6">
+        <div className="flex items-center justify-between">
+          <div>
+            <h2 className="text-2xl font-bold text-gray-900">Candidate Management</h2>
+            <p className="text-gray-600 mt-1">Manage and track candidate applications</p>
+          </div>
+          <div className="text-right">
+            <div className="text-3xl font-bold text-blue-600">{candidates.length}</div>
+            <div className="text-sm text-gray-500">Total Candidates</div>
+          </div>
+        </div>
+      </div>
+
       {/* Filters and Actions */}
-      <div className="flex justify-between items-center">
-        <div className="flex space-x-4">
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+        <div className="flex flex-col sm:flex-row space-y-2 sm:space-y-0 sm:space-x-4">
+          <div className="relative">
+            <input
+              type="text"
+              placeholder="Search candidates..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="pl-10 pr-4 py-2 border border-gray-300 rounded-lg text-sm bg-white shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 w-full sm:w-64"
+            />
+            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+              <svg className="h-4 w-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+              </svg>
+            </div>
+          </div>
           <select
             value={filterStatus}
             onChange={(e) => setFilterStatus(e.target.value)}
             className="border border-gray-300 rounded-lg px-4 py-2 text-sm bg-white shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
           >
             <option value="all">All Candidates</option>
+            <option value="ACTIVE">Active</option>
             <option value="APPLIED">Applied</option>
             <option value="SCREENING">Screening</option>
             <option value="INTERVIEWED">Interviewed</option>
@@ -981,39 +1018,99 @@ const CandidatesTab = ({ candidates, onStartAIInterview, onAnalyzeResume, select
       </div>
 
       {/* Candidates Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {filteredCandidates.map((candidate) => (
-          <motion.div
-            key={candidate._id}
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="bg-white border border-gray-200 rounded-xl p-6 hover:shadow-md transition-shadow"
+      {filteredCandidates.length === 0 ? (
+        <div className="text-center py-12">
+          <UserGroupIcon className="w-16 h-16 text-gray-300 mx-auto mb-4" />
+          <h3 className="text-lg font-medium text-gray-900 mb-2">No candidates found</h3>
+          <p className="text-gray-500 mb-6">
+            {searchTerm ? 'Try adjusting your search criteria' : 'Start by inviting candidates or they can register themselves'}
+          </p>
+          <button
+            onClick={onInviteCandidate}
+            className="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
           >
-            <div className="flex items-start justify-between mb-4">
-              <div className="flex items-center space-x-3">
-                <div className="h-12 w-12 rounded-full bg-blue-100 flex items-center justify-center">
-                  <span className="text-lg font-medium text-blue-600">
-                    {candidate.firstName?.[0]}{candidate.lastName?.[0]}
+            <UserGroupIcon className="w-4 h-4 mr-2" />
+            Invite First Candidate
+          </button>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {filteredCandidates.map((candidate) => (
+            <motion.div
+              key={candidate._id}
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="bg-white border border-gray-200 rounded-xl p-6 hover:shadow-lg transition-all duration-200"
+            >
+              <div className="flex items-start justify-between mb-4">
+                <div className="flex items-center space-x-3">
+                  <div className="h-12 w-12 rounded-full bg-gradient-to-r from-blue-500 to-indigo-600 flex items-center justify-center">
+                    <span className="text-lg font-medium text-white">
+                      {candidate.firstName?.[0]}{candidate.lastName?.[0]}
+                    </span>
+                  </div>
+                  <div>
+                    <h4 className="font-semibold text-gray-900">
+                      {candidate.firstName} {candidate.lastName}
+                    </h4>
+                    <p className="text-sm text-gray-600">{candidate.email}</p>
+                    {candidate.phone && (
+                      <p className="text-xs text-gray-500">{candidate.phone}</p>
+                    )}
+                  </div>
+                </div>
+                <span className={`px-2 py-1 text-xs font-medium rounded-full ${getStatusColor(candidate.status)}`}>
+                  {candidate.status}
+                </span>
+              </div>
+
+              {/* Candidate Info */}
+              <div className="space-y-3 mb-4">
+                <div className="flex items-center justify-between text-sm">
+                  <span className="text-gray-500">Resume Status:</span>
+                  <span className={`flex items-center space-x-1 ${
+                    candidate.resumeUploaded ? 'text-green-600' : 'text-red-600'
+                  }`}>
+                    {candidate.resumeUploaded ? (
+                      <>
+                        <CheckCircleIcon className="w-4 h-4" />
+                        <span>Uploaded</span>
+                      </>
+                    ) : (
+                      <>
+                        <XCircleIcon className="w-4 h-4" />
+                        <span>Not Uploaded</span>
+                      </>
+                    )}
                   </span>
                 </div>
-                <div>
-                  <h4 className="font-semibold text-gray-900">
-                    {candidate.firstName} {candidate.lastName}
-                  </h4>
-                  <p className="text-sm text-gray-600">{candidate.email}</p>
+                
+                <div className="flex items-center justify-between text-sm">
+                  <span className="text-gray-500">Profile Complete:</span>
+                  <span className={`flex items-center space-x-1 ${
+                    candidate.profileComplete ? 'text-green-600' : 'text-yellow-600'
+                  }`}>
+                    {candidate.profileComplete ? (
+                      <>
+                        <CheckCircleIcon className="w-4 h-4" />
+                        <span>Complete</span>
+                      </>
+                    ) : (
+                      <>
+                        <ExclamationTriangleIcon className="w-4 h-4" />
+                        <span>Incomplete</span>
+                      </>
+                    )}
+                  </span>
+                </div>
+
+                <div className="flex items-center justify-between text-sm">
+                  <span className="text-gray-500">Registration:</span>
+                  <span className="text-gray-700">
+                    {new Date(candidate.createdAt).toLocaleDateString()}
+                  </span>
                 </div>
               </div>
-              <span className={`px-2 py-1 text-xs font-medium rounded-full ${
-                candidate.status === 'APPLIED' ? 'bg-blue-100 text-blue-800' :
-                candidate.status === 'SCREENING' ? 'bg-yellow-100 text-yellow-800' :
-                candidate.status === 'INTERVIEWED' ? 'bg-purple-100 text-purple-800' :
-                candidate.status === 'OFFERED' ? 'bg-green-100 text-green-800' :
-                candidate.status === 'HIRED' ? 'bg-green-100 text-green-800' :
-                'bg-red-100 text-red-800'
-              }`}>
-                {candidate.status}
-              </span>
-            </div>
 
             {/* AI Analysis Results */}
             {candidate.fitScore && (
@@ -1058,38 +1155,63 @@ const CandidatesTab = ({ candidates, onStartAIInterview, onAnalyzeResume, select
               </div>
             )}
 
-            {/* Actions */}
-            <div className="flex flex-col space-y-2">
-              <div className="flex space-x-2">
+              {/* Actions */}
+              <div className="flex flex-col space-y-2">
+                <div className="flex space-x-2">
+                  <button
+                    onClick={() => onScreenResume(candidate)}
+                    className={`flex-1 px-3 py-2 text-sm rounded-lg transition-colors flex items-center justify-center space-x-1 ${
+                      candidate.resumeUploaded 
+                        ? 'bg-green-600 text-white hover:bg-green-700' 
+                        : 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                    }`}
+                    disabled={!candidate.resumeUploaded}
+                    title={candidate.resumeUploaded ? 'Screen candidate resume' : 'Resume not uploaded'}
+                  >
+                    <DocumentTextIcon className="w-4 h-4" />
+                    <span>Screen</span>
+                  </button>
+                  <button
+                    onClick={() => onAnalyzeResume(candidate)}
+                    className={`flex-1 px-3 py-2 text-sm rounded-lg transition-colors flex items-center justify-center space-x-1 ${
+                      candidate.resumeUploaded 
+                        ? 'bg-blue-600 text-white hover:bg-blue-700' 
+                        : 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                    }`}
+                    disabled={!candidate.resumeUploaded}
+                    title={candidate.resumeUploaded ? 'Analyze resume with AI' : 'Resume not uploaded'}
+                  >
+                    <CpuChipIcon className="w-4 h-4" />
+                    <span>Analyze</span>
+                  </button>
+                </div>
                 <button
-                  onClick={() => onScreenResume(candidate)}
-                  className="flex-1 px-3 py-2 text-sm bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
-                  disabled={!candidate.resumeUploaded}
+                  onClick={() => onStartAIInterview(candidate)}
+                  className="w-full px-3 py-2 text-sm bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors flex items-center justify-center space-x-1"
+                  title="Start AI-powered interview"
                 >
-                  Screen Resume
-                </button>
-                <button
-                  onClick={() => onAnalyzeResume(candidate)}
-                  className="flex-1 px-3 py-2 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-                  disabled={!candidate.resumeFile}
-                >
-                  Analyze Resume
+                  <VideoCameraIcon className="w-4 h-4" />
+                  <span>AI Interview</span>
                 </button>
               </div>
-              <button
-                onClick={() => onStartAIInterview(candidate)}
-                className="w-full px-3 py-2 text-sm bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors"
-              >
-                AI Interview
-              </button>
-            </div>
 
-            <div className="mt-3 text-xs text-gray-500">
-              Applied: {new Date(candidate.appliedAt).toLocaleDateString()}
-            </div>
+              {/* Additional Info */}
+              <div className="mt-3 pt-3 border-t border-gray-100">
+                <div className="flex justify-between text-xs text-gray-500">
+                  <span>Registered:</span>
+                  <span>{new Date(candidate.createdAt).toLocaleDateString()}</span>
+                </div>
+                {candidate.invitedBy && (
+                  <div className="flex justify-between text-xs text-gray-500 mt-1">
+                    <span>Invited by:</span>
+                    <span>{candidate.invitedBy}</span>
+                  </div>
+                )}
+              </div>
           </motion.div>
         ))}
       </div>
+      )}
     </div>
   )
 }

@@ -44,10 +44,19 @@ router.post('/screen', verifyToken, async (req, res) => {
     }
 
     // Check if candidate has uploaded resume
-    if (!candidate.resumePath) {
+    if (!candidate.resumeId) {
       return res.status(400).json({
         success: false,
         message: 'Candidate has not uploaded a resume'
+      });
+    }
+
+    // Get resume record to get file path
+    const resumeRecord = await database.findOne('candidate_resumes', { _id: candidate.resumeId });
+    if (!resumeRecord) {
+      return res.status(400).json({
+        success: false,
+        message: 'Resume file not found'
       });
     }
 
@@ -62,7 +71,7 @@ router.post('/screen', verifyToken, async (req, res) => {
           'Authorization': `Bearer ${req.headers.authorization?.split(' ')[1]}`
         },
         body: JSON.stringify({
-          file_path: candidate.resumePath,
+          file_path: resumeRecord.filePath,
           job_requirements: jobPosting.requirements || [],
           job_title: jobPosting.title,
           job_description: jobPosting.description

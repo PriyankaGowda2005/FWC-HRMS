@@ -68,6 +68,99 @@ async function sendEmailDirect(type, to, data) {
             </p>
           </div>
         `
+      },
+      new_candidate_registered: {
+        subject: 'New Candidate Registered - FWC HRMS',
+        html: `
+          <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+            <div style="text-align: center; margin-bottom: 30px;">
+              <h1 style="color: #2563eb; margin: 0;">FWC HRMS</h1>
+              <p style="color: #6b7280; margin: 5px 0;">Talent Acquisition Portal</p>
+            </div>
+            
+            <h2 style="color: #1f2937;">New Candidate Registration</h2>
+            
+            <p>Hello HR Team,</p>
+            
+            <p>A new candidate has registered in our talent pool:</p>
+            
+            <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 20px; margin: 20px 0;">
+              <h3 style="margin-top: 0; color: #1f2937;">Candidate Details</h3>
+              <div style="color: #374151;">
+                <p><strong>Name:</strong> ${data.candidateName}</p>
+                <p><strong>Email:</strong> ${data.candidateEmail}</p>
+                <p><strong>Registration Type:</strong> ${data.registrationType}</p>
+                <p><strong>Registration Date:</strong> ${data.registrationDate}</p>
+              </div>
+            </div>
+            
+            <div style="text-align: center; margin: 30px 0;">
+              <a href="${data.candidateProfileLink}" 
+                 style="background: #2563eb; color: white; padding: 12px 30px; text-decoration: none; border-radius: 6px; font-weight: bold; display: inline-block;">
+                View Candidate Profile
+              </a>
+            </div>
+            
+            <div style="background: #fef3c7; border: 1px solid #f59e0b; border-radius: 6px; padding: 15px; margin: 20px 0;">
+              <p style="margin: 0; color: #92400e;">
+                <strong>Next Steps:</strong> Review the candidate profile and consider screening them against current job openings.
+              </p>
+            </div>
+            
+            <p>Best regards,<br>
+            <strong>FWC HRMS System</strong></p>
+          </div>
+        `
+      },
+      job_invitation: {
+        subject: 'Job Opportunity - ${data.jobTitle} at ${data.companyName}',
+        html: `
+          <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+            <div style="text-align: center; margin-bottom: 30px;">
+              <h1 style="color: #2563eb; margin: 0;">FWC HRMS</h1>
+              <p style="color: #6b7280; margin: 5px 0;">Talent Acquisition Portal</p>
+            </div>
+            
+            <h2 style="color: #1f2937;">Job Opportunity for You!</h2>
+            
+            <p>Dear ${data.candidateName},</p>
+            
+            <p>${data.invitationMessage}</p>
+            
+            <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 20px; margin: 20px 0;">
+              <h3 style="margin-top: 0; color: #1f2937;">Position Details</h3>
+              <div style="color: #374151;">
+                <p><strong>Job Title:</strong> ${data.jobTitle}</p>
+                <p><strong>Department:</strong> ${data.department}</p>
+                <p><strong>Company:</strong> ${data.companyName}</p>
+              </div>
+              
+              <div style="margin-top: 15px;">
+                <h4 style="color: #1f2937; margin-bottom: 10px;">Job Description:</h4>
+                <p style="color: #374151; line-height: 1.6;">${data.jobDescription}</p>
+              </div>
+            </div>
+            
+            <div style="text-align: center; margin: 30px 0;">
+              <a href="${data.applicationLink}" 
+                 style="background: #2563eb; color: white; padding: 12px 30px; text-decoration: none; border-radius: 6px; font-weight: bold; display: inline-block;">
+                Apply for This Position
+              </a>
+            </div>
+            
+            <div style="background: #fef3c7; border: 1px solid #f59e0b; border-radius: 6px; padding: 15px; margin: 20px 0;">
+              <p style="margin: 0; color: #92400e;">
+                <strong>Note:</strong> This invitation is personalized for you based on your profile and skills. We believe you would be a great addition to our team!
+              </p>
+            </div>
+            
+            <p>If you have any questions about this position, please don't hesitate to reach out.</p>
+            
+            <p>Best regards,<br>
+            <strong>${data.invitedByName}</strong><br>
+            <strong>FWC Human Resources Team</strong></p>
+          </div>
+        `
       }
     };
 
@@ -187,6 +280,37 @@ router.post('/register', validateSchema(candidateSchemas.register), async (req, 
     };
 
     const result = await database.insertOne('candidates', candidate);
+
+    // Send notification to HR team about new candidate registration
+    try {
+      // Get HR team emails
+      const hrUsers = await database.find('users', { 
+        role: { $in: ['HR', 'ADMIN'] },
+        isActive: true 
+      });
+      
+      if (hrUsers.length > 0) {
+        const hrEmails = hrUsers.map(user => user.email);
+        
+        // Send notification email to HR team
+        const emailResult = await sendEmailDirect('new_candidate_registered', hrEmails, {
+          candidateName: `${firstName} ${lastName}`,
+          candidateEmail: email,
+          registrationType: invitationToken ? 'Invited Candidate' : 'Self-Registered',
+          registrationDate: new Date().toLocaleDateString(),
+          candidateProfileLink: `${process.env.FRONTEND_URL || 'http://localhost:5173'}/hr/candidates/${result.insertedId}`
+        });
+        
+        if (emailResult.success) {
+          console.log('HR notification sent successfully for new candidate:', email);
+        } else {
+          console.error('Failed to send HR notification:', emailResult.error);
+        }
+      }
+    } catch (emailError) {
+      console.error('Error sending HR notification:', emailError);
+      // Don't fail registration if email fails
+    }
 
     // Generate JWT token
     const token = jwt.sign(
@@ -776,6 +900,74 @@ router.post('/invite', verifyToken, async (req, res) => {
   }
 });
 
+// Get recent candidates for HR dashboard (HR only)
+router.get('/recent', verifyToken, async (req, res) => {
+  try {
+    // Check if user has HR or ADMIN role
+    if (!['HR', 'ADMIN'].includes(req.user.role)) {
+      return res.status(403).json({
+        success: false,
+        message: 'Access denied. HR or Admin role required.'
+      });
+    }
+
+    const { limit = 10, days = 7 } = req.query;
+    
+    // Calculate date range
+    const daysAgo = new Date();
+    daysAgo.setDate(daysAgo.getDate() - parseInt(days));
+    
+    // Get recent candidates
+    const candidates = await database.find(
+      'candidates',
+      { 
+        createdAt: { $gte: daysAgo },
+        status: 'ACTIVE'
+      },
+      {
+        sort: { createdAt: -1 },
+        limit: parseInt(limit)
+      }
+    );
+
+    // Get invitation details for each candidate
+    const candidatesWithInvitations = await Promise.all(
+      candidates.map(async (candidate) => {
+        const invitation = await database.findOne('candidate_invitations', {
+          email: candidate.email,
+          status: 'ACCEPTED'
+        });
+        
+        return {
+          ...candidate,
+          invitation: invitation ? {
+            invitedBy: invitation.invitedByName,
+            invitedAt: invitation.createdAt,
+            registrationType: candidate.invitedBy
+          } : null
+        };
+      })
+    );
+
+    res.json({
+      success: true,
+      data: {
+        candidates: candidatesWithInvitations,
+        total: candidatesWithInvitations.length,
+        period: `${days} days`
+      }
+    });
+
+  } catch (error) {
+    console.error('Get recent candidates error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Internal server error',
+      error: error.message
+    });
+  }
+});
+
 // Get all candidate invitations (HR only)
 router.get('/invitations', verifyToken, async (req, res) => {
   try {
@@ -798,6 +990,236 @@ router.get('/invitations', verifyToken, async (req, res) => {
 
   } catch (error) {
     console.error('Get invitations error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Internal server error',
+      error: error.message
+    });
+  }
+});
+
+// Proactive candidate screening (HR only)
+router.post('/screen-candidate', verifyToken, async (req, res) => {
+  try {
+    // Check if user has HR or ADMIN role
+    if (!['HR', 'ADMIN'].includes(req.user.role)) {
+      return res.status(403).json({
+        success: false,
+        message: 'Access denied. HR or Admin role required.'
+      });
+    }
+
+    const { candidateId, jobPostingId, screeningNotes } = req.body;
+
+    if (!candidateId || !jobPostingId) {
+      return res.status(400).json({
+        success: false,
+        message: 'Candidate ID and Job Posting ID are required'
+      });
+    }
+
+    // Get candidate and job posting details
+    const candidate = await database.findOne('candidates', { _id: candidateId });
+    const jobPosting = await database.findOne('job_postings', { _id: jobPostingId });
+
+    if (!candidate) {
+      return res.status(404).json({
+        success: false,
+        message: 'Candidate not found'
+      });
+    }
+
+    if (!jobPosting) {
+      return res.status(404).json({
+        success: false,
+        message: 'Job posting not found'
+      });
+    }
+
+    // Check if already screened for this job
+    const existingScreening = await database.findOne('resume_screenings', {
+      candidateId,
+      jobPostingId
+    });
+
+    if (existingScreening) {
+      return res.status(400).json({
+        success: false,
+        message: 'Candidate has already been screened for this job posting'
+      });
+    }
+
+    // Create screening record
+    const screening = {
+      candidateId,
+      jobPostingId,
+      screenedBy: req.user._id,
+      screenedByName: req.user.name,
+      screeningDate: new Date(),
+      status: 'SCREENED',
+      screeningNotes: screeningNotes || '',
+      fitScore: 0, // Will be calculated by AI or manual assessment
+      aiAnalysis: null,
+      manualAssessment: true,
+      createdAt: new Date(),
+      updatedAt: new Date()
+    };
+
+    const screeningResult = await database.insertOne('resume_screenings', screening);
+
+    // Create candidate application if it doesn't exist
+    const existingApplication = await database.findOne('candidate_applications', {
+      candidateId,
+      jobPostingId
+    });
+
+    if (!existingApplication) {
+      const application = {
+        candidateId,
+        jobPostingId,
+        resumeId: candidate.resumeId,
+        status: 'SCREENED',
+        appliedAt: new Date(),
+        screeningId: screeningResult.insertedId,
+        createdAt: new Date(),
+        updatedAt: new Date()
+      };
+
+      await database.insertOne('candidate_applications', application);
+    }
+
+    res.json({
+      success: true,
+      message: 'Candidate screening initiated successfully',
+      data: {
+        screeningId: screeningResult.insertedId,
+        candidate: {
+          name: `${candidate.firstName} ${candidate.lastName}`,
+          email: candidate.email
+        },
+        jobPosting: {
+          title: jobPosting.title,
+          department: jobPosting.department
+        }
+      }
+    });
+
+  } catch (error) {
+    console.error('Proactive screening error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Internal server error',
+      error: error.message
+    });
+  }
+});
+
+// Invite candidate to apply for specific job (HR only)
+router.post('/invite-to-apply', verifyToken, async (req, res) => {
+  try {
+    // Check if user has HR or ADMIN role
+    if (!['HR', 'ADMIN'].includes(req.user.role)) {
+      return res.status(403).json({
+        success: false,
+        message: 'Access denied. HR or Admin role required.'
+      });
+    }
+
+    const { candidateId, jobPostingId, invitationMessage } = req.body;
+
+    if (!candidateId || !jobPostingId) {
+      return res.status(400).json({
+        success: false,
+        message: 'Candidate ID and Job Posting ID are required'
+      });
+    }
+
+    // Get candidate and job posting details
+    const candidate = await database.findOne('candidates', { _id: candidateId });
+    const jobPosting = await database.findOne('job_postings', { _id: jobPostingId });
+
+    if (!candidate) {
+      return res.status(404).json({
+        success: false,
+        message: 'Candidate not found'
+      });
+    }
+
+    if (!jobPosting) {
+      return res.status(404).json({
+        success: false,
+        message: 'Job posting not found'
+      });
+    }
+
+    // Check if already invited
+    const existingInvitation = await database.findOne('job_invitations', {
+      candidateId,
+      jobPostingId
+    });
+
+    if (existingInvitation) {
+      return res.status(400).json({
+        success: false,
+        message: 'Candidate has already been invited to apply for this job'
+      });
+    }
+
+    // Create job invitation record
+    const invitation = {
+      candidateId,
+      jobPostingId,
+      invitedBy: req.user._id,
+      invitedByName: req.user.name,
+      invitationDate: new Date(),
+      invitationMessage: invitationMessage || `We believe you would be a great fit for the ${jobPosting.title} position.`,
+      status: 'SENT',
+      createdAt: new Date(),
+      updatedAt: new Date()
+    };
+
+    const invitationResult = await database.insertOne('job_invitations', invitation);
+
+    // Send email invitation to candidate
+    try {
+      const emailResult = await sendEmailDirect('job_invitation', candidate.email, {
+        candidateName: `${candidate.firstName} ${candidate.lastName}`,
+        jobTitle: jobPosting.title,
+        department: jobPosting.department,
+        companyName: 'FWC',
+        invitationMessage: invitation.invitationMessage,
+        jobDescription: jobPosting.description,
+        applicationLink: `${process.env.FRONTEND_URL || 'http://localhost:5173'}/candidate-portal/jobs/${jobPostingId}`,
+        invitedByName: req.user.name
+      });
+
+      if (emailResult.success) {
+        console.log('Job invitation email sent successfully to:', candidate.email);
+      } else {
+        console.error('Failed to send job invitation email:', emailResult.error);
+      }
+    } catch (emailError) {
+      console.error('Error sending job invitation email:', emailError);
+    }
+
+    res.json({
+      success: true,
+      message: 'Job invitation sent successfully',
+      data: {
+        invitationId: invitationResult.insertedId,
+        candidate: {
+          name: `${candidate.firstName} ${candidate.lastName}`,
+          email: candidate.email
+        },
+        jobPosting: {
+          title: jobPosting.title,
+          department: jobPosting.department
+        }
+      }
+    });
+
+  } catch (error) {
+    console.error('Job invitation error:', error);
     res.status(500).json({
       success: false,
       message: 'Internal server error',

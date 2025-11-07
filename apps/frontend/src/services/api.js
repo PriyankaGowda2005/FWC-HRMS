@@ -15,12 +15,19 @@ const api = axios.create({
 api.interceptors.request.use(
   (config) => {
     // Add token to requests if available
-    const token = localStorage.getItem('token')
+    let token = localStorage.getItem('token')
+    if (!token) {
+      token = localStorage.getItem('candidateToken')
+    }
     if (token) {
       config.headers.Authorization = `Bearer ${token}`
     }
     
-    console.log('API Request:', config.method?.toUpperCase(), config.url, config.data)
+    console.log('🔍 API Request:', config.method?.toUpperCase(), config.url, {
+      hasToken: !!token,
+      tokenType: token ? (localStorage.getItem('token') ? 'regular' : 'candidate') : 'none',
+      data: config.data
+    })
     return config
   },
   (error) => {
@@ -32,7 +39,13 @@ api.interceptors.request.use(
 // Response interceptor for error handling
 api.interceptors.response.use(
   (response) => {
-    console.log('API Response:', response.status, response.config.url, response.data)
+    console.log('🔍 API Response:', response.status, response.config.url, {
+      success: response.data?.success,
+      dataKeys: response.data ? Object.keys(response.data) : [],
+      dataType: typeof response.data,
+      hasCandidates: !!response.data?.data?.candidates,
+      candidatesCount: response.data?.data?.candidates?.length || 0
+    })
     return response
   },
   (error) => {
@@ -42,6 +55,7 @@ api.interceptors.response.use(
     if (error.response?.status === 401) {
       console.log('🔐 Token expired, clearing auth data')
       localStorage.removeItem('token')
+      localStorage.removeItem('candidateToken')
       localStorage.removeItem('refreshToken')
       // Don't redirect here, let the component handle it
     }
@@ -172,8 +186,21 @@ export const jobPostingAPI = {
 
 // Candidate API
 export const candidateAPI = {
-  getAll: ({ jobPostingId, status } = {}) => 
-    api.get(`/candidates?jobPostingId=${jobPostingId}&status=${status}`),
+  getAll: ({ jobPostingId, status } = {}) => {
+    const params = new URLSearchParams()
+    if (jobPostingId) params.append('jobPostingId', jobPostingId)
+    if (status) params.append('status', status)
+    
+    const queryString = params.toString()
+    const url = queryString ? `/candidates?${queryString}` : '/candidates'
+    
+    // Add timestamp to prevent caching without custom headers
+    const timestamp = Date.now()
+    const separator = queryString ? '&' : '?'
+    const finalUrl = `${url}${separator}_t=${timestamp}`
+    
+    return api.get(finalUrl)
+  },
   getById: (id) => api.get(`/candidates/${id}`),
   create: (data) => api.post('/candidates', data),
   update: (id, data) => api.put(`/candidates/${id}`, data),
@@ -186,6 +213,19 @@ export const candidateAPI = {
     })
   },
   updateStatus: (id, status) => api.put(`/candidates/${id}/status`, { status }),
+  
+  // Candidate-specific endpoints
+  getJobs: ({ page = 1, limit = 10, department, location } = {}) => 
+    api.get(`/candidates/jobs?page=${page}&limit=${limit}&department=${department}&location=${location}`),
+  getApplications: () => api.get('/candidates/applications'),
+  getProfile: () => api.get('/candidates/profile'),
+  
+  // New hybrid approach endpoints
+  getRecent: ({ limit = 10, days = 7 } = {}) => 
+    api.get(`/candidates/recent?limit=${limit}&days=${days}`),
+  screenCandidate: (data) => api.post('/candidates/screen-candidate', data),
+  inviteToApply: (data) => api.post('/candidates/invite-to-apply', data),
+  getInvitations: () => api.get('/candidates/invitations'),
 }
 
 // AI/ML API

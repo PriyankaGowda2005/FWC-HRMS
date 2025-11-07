@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
+import toast from 'react-hot-toast'
 import api from '../services/api'
 
 const CandidateAuthContext = createContext({})
@@ -63,14 +64,17 @@ export const CandidateAuthProvider = ({ children }) => {
         api.defaults.headers.common['Authorization'] = `Bearer ${token}`
         setCandidate(candidateData)
         
+        toast.success('Login successful!')
         return { success: true }
       } else {
         setError(response.data.message)
+        toast.error(response.data.message)
         return { success: false, error: response.data.message }
       }
     } catch (error) {
       const errorMessage = error.response?.data?.message || 'Login failed'
       setError(errorMessage)
+      toast.error(errorMessage)
       return { success: false, error: errorMessage }
     } finally {
       setLoading(false)
@@ -92,14 +96,17 @@ export const CandidateAuthProvider = ({ children }) => {
         api.defaults.headers.common['Authorization'] = `Bearer ${token}`
         setCandidate(candidateInfo)
         
+        toast.success('Registration successful!')
         return { success: true }
       } else {
         setError(response.data.message)
+        toast.error(response.data.message)
         return { success: false, error: response.data.message }
       }
     } catch (error) {
       const errorMessage = error.response?.data?.message || 'Registration failed'
       setError(errorMessage)
+      toast.error(errorMessage)
       return { success: false, error: errorMessage }
     } finally {
       setLoading(false)
@@ -111,6 +118,7 @@ export const CandidateAuthProvider = ({ children }) => {
     delete api.defaults.headers.common['Authorization']
     setCandidate(null)
     setError(null)
+    toast.success('Logged out successfully!')
     navigate('/login')
   }
 
@@ -164,14 +172,17 @@ export const CandidateAuthProvider = ({ children }) => {
           resumeId: response.data.data.resumeId
         }))
         
+        toast.success('Resume uploaded successfully!')
         return { success: true, data: response.data.data }
       } else {
         setError(response.data.message)
+        toast.error(response.data.message)
         return { success: false, error: response.data.message }
       }
     } catch (error) {
       const errorMessage = error.response?.data?.message || 'Resume upload failed'
       setError(errorMessage)
+      toast.error(errorMessage)
       return { success: false, error: errorMessage }
     } finally {
       setLoading(false)
