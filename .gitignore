@@ -154,3 +154,7 @@ docs/
 !requirements.txt
 !package.json
 !package-lock.json
+
+# Script files
+*.sh
+*.bat
