@@ -1,233 +1,490 @@
 const express = require('express');
-const { body, validationResult, param } = require('express-validator');
-const { ObjectId } = require('mongodb');
-const database = require('../database/connection');
-const { verifyToken, checkRole } = require('../middleware/authMiddleware');
-const { asyncHandler } = require('../middleware/errorHandler');
-
 const router = express.Router();
+const bcrypt = require('bcrypt');
+const jwt = require('jsonwebtoken');
+const multer = require('multer');
+const path = require('path');
+const fs = require('fs').promises;
+const database = require('../database/connection');
+const { authenticateCandidate } = require('../middleware/authMiddleware');
+const { candidateSchemas, validateSchema } = require('../middleware/validation');
 
-// Apply auth middleware to all routes
-router.use(verifyToken);
-
-// Get all candidates
-router.get('/', checkRole('ADMIN', 'HR', 'MANAGER'), asyncHandler(async (req, res) => {
-  const { jobPostingId, status, page = 1, limit = 10 } = req.query;
-  const skip = (page - 1) * limit;
-
-  let query = {};
-  if (jobPostingId) query.jobPostingId = jobPostingId;
-  if (status) query.status = status;
-
-  const candidates = await database.find('candidates', query, {
-    skip,
-    limit,
-    sort: { createdAt: -1 }
-  });
-
-  const total = await database.count('candidates', query);
-
-  res.json({
-    candidates,
-    pagination: {
-      page: parseInt(page),
-      limit: parseInt(limit),
-      total,
-      pages: Math.ceil(total / limit)
+// Configure multer for resume uploads
+const storage = multer.diskStorage({
+  destination: async (req, file, cb) => {
+    const uploadDir = path.join(__dirname, '../../uploads/resumes');
+    try {
+      await fs.mkdir(uploadDir, { recursive: true });
+      cb(null, uploadDir);
+    } catch (error) {
+      cb(error);
     }
-  });
-}));
-
-// Get candidate by ID
-router.get('/:id', checkRole('ADMIN', 'HR', 'MANAGER'), asyncHandler(async (req, res) => {
-  const { id } = req.params;
-
-  if (!ObjectId.isValid(id)) {
-    return res.status(400).json({ message: 'Invalid candidate ID' });
+  },
+  filename: (req, file, cb) => {
+    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+    cb(null, `resume-${uniqueSuffix}${path.extname(file.originalname)}`);
   }
+});
 
-  const candidate = await database.findOne('candidates', { _id: new ObjectId(id) });
-  if (!candidate) {
-    return res.status(404).json({ message: 'Candidate not found' });
+const upload = multer({
+  storage: storage,
+  limits: {
+    fileSize: 5 * 1024 * 1024, // 5MB limit
+  },
+  fileFilter: (req, file, cb) => {
+    const allowedTypes = ['.pdf', '.doc', '.docx'];
+    const ext = path.extname(file.originalname).toLowerCase();
+    if (allowedTypes.includes(ext)) {
+      cb(null, true);
+    } else {
+      cb(new Error('Only PDF, DOC, and DOCX files are allowed'));
+    }
   }
+});
 
-  res.json({ candidate });
-}));
+// Candidate registration
+router.post('/register', validateSchema(candidateSchemas.register), async (req, res) => {
+  try {
+    const { email, password, firstName, lastName, phone } = req.body;
 
-// Create candidate
-router.post('/', checkRole('ADMIN', 'HR'), asyncHandler(async (req, res) => {
-  const errors = validationResult(req);
-  if (!errors.isEmpty()) {
-    return res.status(400).json({ 
-      message: 'Validation errors',
-      errors: errors.array()
+    // Check if candidate already exists
+    const existingCandidate = await database.findOne('candidates', { email });
+    if (existingCandidate) {
+      return res.status(400).json({
+        success: false,
+        message: 'Candidate with this email already exists'
+      });
+    }
+
+    // Hash password
+    const hashedPassword = await bcrypt.hash(password, 12);
+
+    // Create candidate
+    const candidate = {
+      email,
+      password: hashedPassword,
+      firstName,
+      lastName,
+      phone,
+      status: 'ACTIVE',
+      profileComplete: false,
+      resumeUploaded: false,
+      createdAt: new Date(),
+      updatedAt: new Date()
+    };
+
+    const result = await database.insertOne('candidates', candidate);
+
+    // Generate JWT token
+    const token = jwt.sign(
+      { 
+        candidateId: result.insertedId.toString(),
+        email: candidate.email,
+        role: 'CANDIDATE'
+      },
+      process.env.JWT_SECRET,
+      { expiresIn: '7d' }
+    );
+
+    res.status(201).json({
+      success: true,
+      message: 'Candidate registered successfully',
+      data: {
+        candidateId: result.insertedId,
+        email: candidate.email,
+        firstName: candidate.firstName,
+        lastName: candidate.lastName,
+        token
+      }
+    });
+
+  } catch (error) {
+    console.error('Candidate registration error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Internal server error',
+      error: error.message
     });
   }
+});
 
-  const {
-    firstName,
-    lastName,
-    email,
-    phone,
-    jobPostingId,
-    resumeUrl,
-    coverLetter,
-    experience,
-    skills,
-    education,
-    expectedSalary,
-    availability
-  } = req.body;
+// Candidate login
+router.post('/login', validateSchema(candidateSchemas.login), async (req, res) => {
+  try {
+    const { email, password } = req.body;
 
-  const candidate = {
-    firstName,
-    lastName,
-    email,
-    phone,
-    jobPostingId,
-    resumeUrl,
-    coverLetter: coverLetter || '',
-    experience: experience || [],
-    skills: skills || [],
-    education: education || [],
-    expectedSalary,
-    availability: availability || 'IMMEDIATE',
-    status: 'APPLIED',
-    appliedAt: new Date(),
-    createdAt: new Date(),
-    updatedAt: new Date()
-  };
-
-  const result = await database.insertOne('candidates', candidate);
-
-  res.status(201).json({
-    message: 'Candidate application submitted successfully',
-    candidate: {
-      id: result.insertedId,
-      ...candidate
+    // Find candidate
+    const candidate = await database.findOne('candidates', { email });
+    if (!candidate) {
+      return res.status(401).json({
+        success: false,
+        message: 'Invalid email or password'
+      });
     }
-  });
-}));
 
-// Update candidate
-router.put('/:id', checkRole('ADMIN', 'HR'), asyncHandler(async (req, res) => {
-  const { id } = req.params;
-  const updateData = req.body;
+    // Check password
+    const isPasswordValid = await bcrypt.compare(password, candidate.password);
+    if (!isPasswordValid) {
+      return res.status(401).json({
+        success: false,
+        message: 'Invalid email or password'
+      });
+    }
 
-  if (!ObjectId.isValid(id)) {
-    return res.status(400).json({ message: 'Invalid candidate ID' });
+    // Check if candidate is active
+    if (candidate.status !== 'ACTIVE') {
+      return res.status(401).json({
+        success: false,
+        message: 'Account is not active'
+      });
+    }
+
+    // Generate JWT token
+    const token = jwt.sign(
+      { 
+        candidateId: candidate._id.toString(),
+        email: candidate.email,
+        role: 'CANDIDATE'
+      },
+      process.env.JWT_SECRET,
+      { expiresIn: '7d' }
+    );
+
+    res.json({
+      success: true,
+      message: 'Login successful',
+      data: {
+        candidateId: candidate._id,
+        email: candidate.email,
+        firstName: candidate.firstName,
+        lastName: candidate.lastName,
+        profileComplete: candidate.profileComplete,
+        resumeUploaded: candidate.resumeUploaded,
+        token
+      }
+    });
+
+  } catch (error) {
+    console.error('Candidate login error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Internal server error',
+      error: error.message
+    });
   }
+});
 
-  updateData.updatedAt = new Date();
+// Get candidate profile
+router.get('/profile', authenticateCandidate, async (req, res) => {
+  try {
+    const candidate = await database.findOne('candidates', { _id: req.candidateId });
+    if (!candidate) {
+      return res.status(404).json({
+        success: false,
+        message: 'Candidate not found'
+      });
+    }
 
-  const result = await database.updateOne(
-    'candidates',
-    { _id: new ObjectId(id) },
-    { $set: updateData }
-  );
+    // Remove password from response
+    delete candidate.password;
 
-  if (result.matchedCount === 0) {
-    return res.status(404).json({ message: 'Candidate not found' });
+    res.json({
+      success: true,
+      data: candidate
+    });
+
+  } catch (error) {
+    console.error('Get candidate profile error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Internal server error',
+      error: error.message
+    });
   }
+});
 
-  res.json({
-    message: 'Candidate updated successfully',
-    updated: true
-  });
-}));
+// Update candidate profile
+router.put('/profile', authenticateCandidate, validateSchema(candidateSchemas.updateProfile), async (req, res) => {
+  try {
+    const { firstName, lastName, phone, skills, experience, education } = req.body;
 
-// Update candidate status
-router.patch('/:id/status', checkRole('ADMIN', 'HR'), asyncHandler(async (req, res) => {
-  const { id } = req.params;
-  const { status, notes } = req.body;
+    const updateData = {
+      firstName,
+      lastName,
+      phone,
+      skills: skills || [],
+      experience: experience || [],
+      education: education || [],
+      profileComplete: true,
+      updatedAt: new Date()
+    };
 
-  if (!ObjectId.isValid(id)) {
-    return res.status(400).json({ message: 'Invalid candidate ID' });
+    const result = await database.updateOne(
+      'candidates',
+      { _id: req.candidateId },
+      { $set: updateData }
+    );
+
+    if (result.matchedCount === 0) {
+      return res.status(404).json({
+        success: false,
+        message: 'Candidate not found'
+      });
+    }
+
+    res.json({
+      success: true,
+      message: 'Profile updated successfully'
+    });
+
+  } catch (error) {
+    console.error('Update candidate profile error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Internal server error',
+      error: error.message
+    });
   }
+});
 
-  if (!['APPLIED', 'SCREENING', 'INTERVIEW', 'OFFER', 'HIRED', 'REJECTED'].includes(status)) {
-    return res.status(400).json({ message: 'Invalid status' });
+// Upload resume
+router.post('/resume', authenticateCandidate, upload.single('resume'), async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({
+        success: false,
+        message: 'No resume file uploaded'
+      });
+    }
+
+    const resumeData = {
+      candidateId: req.candidateId,
+      fileName: req.file.filename,
+      originalName: req.file.originalname,
+      filePath: req.file.path,
+      fileSize: req.file.size,
+      uploadedAt: new Date(),
+      status: 'UPLOADED',
+      aiProcessed: false
+    };
+
+    // Save resume record
+    const resumeResult = await database.insertOne('candidate_resumes', resumeData);
+
+    // Update candidate record
+    await database.updateOne(
+      'candidates',
+      { _id: req.candidateId },
+      { 
+        $set: { 
+          resumeUploaded: true,
+          resumeId: resumeResult.insertedId,
+          updatedAt: new Date()
+        }
+      }
+    );
+
+    res.json({
+      success: true,
+      message: 'Resume uploaded successfully',
+      data: {
+        resumeId: resumeResult.insertedId,
+        fileName: resumeData.fileName,
+        fileSize: resumeData.fileSize
+      }
+    });
+
+  } catch (error) {
+    console.error('Resume upload error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Internal server error',
+      error: error.message
+    });
   }
+});
 
-  const updateData = {
-    status,
-    updatedAt: new Date()
-  };
+// Get available job postings
+router.get('/jobs', authenticateCandidate, async (req, res) => {
+  try {
+    const { page = 1, limit = 10, department, location } = req.query;
+    const skip = (page - 1) * limit;
 
-  if (notes) {
-    updateData.notes = notes;
-  }
+    let query = { status: 'PUBLISHED' };
+    
+    if (department) {
+      query.department = { $regex: department, $options: 'i' };
+    }
+    
+    if (location) {
+      query.location = { $regex: location, $options: 'i' };
+    }
 
-  if (status === 'HIRED') {
-    updateData.hiredAt = new Date();
-  }
-
-  const result = await database.updateOne(
-    'candidates',
-    { _id: new ObjectId(id) },
-    { $set: updateData }
-  );
-
-  if (result.matchedCount === 0) {
-    return res.status(404).json({ message: 'Candidate not found' });
-  }
-
-  res.json({
-    message: `Candidate status updated to ${status}`,
-    status
-  });
-}));
-
-// Delete candidate
-router.delete('/:id', checkRole('ADMIN', 'HR'), asyncHandler(async (req, res) => {
-  const { id } = req.params;
-
-  if (!ObjectId.isValid(id)) {
-    return res.status(400).json({ message: 'Invalid candidate ID' });
-  }
-
-  const result = await database.deleteOne('candidates', { _id: new ObjectId(id) });
-
-  if (result.deletedCount === 0) {
-    return res.status(404).json({ message: 'Candidate not found' });
-  }
-
-  res.json({
-    message: 'Candidate deleted successfully',
-    deleted: true
-  });
-}));
-
-// Get candidates by job posting
-router.get('/job/:jobPostingId', checkRole('ADMIN', 'HR', 'MANAGER'), asyncHandler(async (req, res) => {
-  const { jobPostingId } = req.params;
-  const { status, page = 1, limit = 10 } = req.query;
-  const skip = (page - 1) * limit;
-
-  if (!ObjectId.isValid(jobPostingId)) {
-    return res.status(400).json({ message: 'Invalid job posting ID' });
-  }
-
-  let query = { jobPostingId };
-  if (status) query.status = status;
-
-  const candidates = await database.find('candidates', query, {
-    skip,
-    limit,
-    sort: { appliedAt: -1 }
-  });
-
-  const total = await database.count('candidates', query);
-
-  res.json({
-    candidates,
-    pagination: {
-      page: parseInt(page),
+    const jobs = await database.find('job_postings', query, {
+      skip: parseInt(skip),
       limit: parseInt(limit),
-      total,
-      pages: Math.ceil(total / limit)
+      sort: { postedAt: -1 }
+    });
+
+    const totalJobs = await database.count('job_postings', query);
+
+    res.json({
+      success: true,
+      data: {
+        jobs,
+        pagination: {
+          currentPage: parseInt(page),
+          totalPages: Math.ceil(totalJobs / limit),
+          totalJobs,
+          hasNext: page * limit < totalJobs,
+          hasPrev: page > 1
+        }
+      }
+    });
+
+  } catch (error) {
+    console.error('Get jobs error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Internal server error',
+      error: error.message
+    });
+  }
+});
+
+// Apply for a job
+router.post('/apply/:jobId', authenticateCandidate, validateSchema(candidateSchemas.jobApplication), async (req, res) => {
+  try {
+    const { jobId } = req.params;
+    const candidateId = req.candidateId;
+
+    // Check if job exists
+    const job = await database.findOne('job_postings', { _id: jobId });
+    if (!job) {
+      return res.status(404).json({
+        success: false,
+        message: 'Job posting not found'
+      });
     }
-  });
-}));
+
+    // Check if candidate has uploaded resume
+    const candidate = await database.findOne('candidates', { _id: candidateId });
+    if (!candidate.resumeUploaded) {
+      return res.status(400).json({
+        success: false,
+        message: 'Please upload your resume before applying'
+      });
+    }
+
+    // Check if already applied
+    const existingApplication = await database.findOne('candidate_applications', {
+      candidateId: candidateId,
+      jobPostingId: jobId
+    });
+
+    if (existingApplication) {
+      return res.status(400).json({
+        success: false,
+        message: 'You have already applied for this job'
+      });
+    }
+
+    // Create application
+    const application = {
+      candidateId,
+      jobPostingId: jobId,
+      resumeId: candidate.resumeId,
+      status: 'APPLIED',
+      appliedAt: new Date(),
+      createdAt: new Date(),
+      updatedAt: new Date()
+    };
+
+    const result = await database.insertOne('candidate_applications', application);
+
+    // Update job posting application count
+    await database.updateOne(
+      'job_postings',
+      { _id: jobId },
+      { $inc: { currentApplications: 1 } }
+    );
+
+    res.status(201).json({
+      success: true,
+      message: 'Application submitted successfully',
+      data: {
+        applicationId: result.insertedId,
+        jobTitle: job.title,
+        appliedAt: application.appliedAt
+      }
+    });
+
+  } catch (error) {
+    console.error('Job application error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Internal server error',
+      error: error.message
+    });
+  }
+});
+
+// Get candidate applications
+router.get('/applications', authenticateCandidate, async (req, res) => {
+  try {
+    const { page = 1, limit = 10 } = req.query;
+    const skip = (page - 1) * limit;
+    const candidateId = req.candidateId;
+
+    const applications = await database.find('candidate_applications', 
+      { candidateId },
+      {
+        skip: parseInt(skip),
+        limit: parseInt(limit),
+        sort: { appliedAt: -1 }
+      }
+    );
+
+    // Populate job details for each application
+    const populatedApplications = await Promise.all(
+      applications.map(async (app) => {
+        const job = await database.findOne('job_postings', { _id: app.jobPostingId });
+        return {
+          ...app,
+          job: job ? {
+            title: job.title,
+            department: job.department,
+            location: job.location,
+            status: job.status
+          } : null
+        };
+      })
+    );
+
+    const totalApplications = await database.count('candidate_applications', { candidateId });
+
+    res.json({
+      success: true,
+      data: {
+        applications: populatedApplications,
+        pagination: {
+          currentPage: parseInt(page),
+          totalPages: Math.ceil(totalApplications / limit),
+          totalApplications,
+          hasNext: page * limit < totalApplications,
+          hasPrev: page > 1
+        }
+      }
+    });
+
+  } catch (error) {
+    console.error('Get applications error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Internal server error',
+      error: error.message
+    });
+  }
+});
 
 module.exports = router;

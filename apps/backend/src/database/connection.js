@@ -110,9 +110,26 @@ class Database {
       await this.createIndexIfNotExists('job_postings', { postedAt: -1 });
 
       // Candidates indexes
-      await this.createIndexIfNotExists('candidates', { email: 1 });
-      await this.createIndexIfNotExists('candidates', { jobPostingId: 1 });
+      await this.createIndexIfNotExists('candidates', { email: 1 }, { unique: true });
       await this.createIndexIfNotExists('candidates', { status: 1 });
+      await this.createIndexIfNotExists('candidates', { createdAt: -1 });
+
+      // Candidate applications indexes
+      await this.createIndexIfNotExists('candidate_applications', { candidateId: 1 });
+      await this.createIndexIfNotExists('candidate_applications', { jobPostingId: 1 });
+      await this.createIndexIfNotExists('candidate_applications', { status: 1 });
+      await this.createIndexIfNotExists('candidate_applications', { appliedAt: -1 });
+
+      // Interview sessions indexes
+      await this.createIndexIfNotExists('interview_sessions', { candidateId: 1 });
+      await this.createIndexIfNotExists('interview_sessions', { managerId: 1 });
+      await this.createIndexIfNotExists('interview_sessions', { jobPostingId: 1 });
+      await this.createIndexIfNotExists('interview_sessions', { status: 1 });
+      await this.createIndexIfNotExists('interview_sessions', { scheduledAt: 1 });
+
+      // Candidate resumes indexes
+      await this.createIndexIfNotExists('candidate_resumes', { candidateId: 1 });
+      await this.createIndexIfNotExists('candidate_resumes', { uploadedAt: -1 });
 
       console.log('✅ Database indexes ready');
     } catch (error) {

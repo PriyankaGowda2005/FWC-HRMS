@@ -1,6 +1,7 @@
 import React from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useLocation } from 'react-router-dom'
+import useScrollToTop from '../hooks/useScrollToTop'
 
 /**
  * PageTransition Component - FWC Design System
@@ -8,6 +9,9 @@ import { useLocation } from 'react-router-dom'
  */
 const PageTransition = ({ children }) => {
   const location = useLocation()
+
+  // Scroll to top when route changes with a slight delay for smooth transition
+  useScrollToTop({ smooth: true, delay: 100 })
 
   const pageVariants = {
     initial: {
