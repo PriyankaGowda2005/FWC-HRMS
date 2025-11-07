@@ -7,7 +7,38 @@ const { asyncHandler } = require('../middleware/errorHandler');
 
 const router = express.Router();
 
-// Apply auth middleware to all routes
+// Public endpoint for job postings (for HR screening)
+router.get('/public', verifyToken, checkRole('ADMIN', 'HR', 'MANAGER'), asyncHandler(async (req, res) => {
+  const { status, department, page = 1, limit = 50 } = req.query;
+  const skip = (page - 1) * limit;
+
+  let query = {};
+  if (status) query.status = status;
+  if (department) query.department = department;
+
+  const jobPostings = await database.find('job_postings', query, {
+    skip,
+    limit,
+    sort: { createdAt: -1 }
+  });
+
+  const total = await database.count('job_postings', query);
+
+  res.json({
+    success: true,
+    data: {
+      jobPostings,
+      pagination: {
+        page: parseInt(page),
+        limit: parseInt(limit),
+        total,
+        pages: Math.ceil(total / limit)
+      }
+    }
+  });
+}));
+
+// Apply auth middleware to all remaining routes
 router.use(verifyToken);
 
 // Get all job postings
@@ -55,7 +86,19 @@ router.get('/:id', checkRole('ADMIN', 'HR', 'MANAGER'), asyncHandler(async (req,
 }));
 
 // Create job posting
-router.post('/', checkRole('ADMIN', 'HR'), asyncHandler(async (req, res) => {
+router.post('/', checkRole('ADMIN', 'HR'), [
+  body('title').notEmpty().withMessage('Job title is required'),
+  body('department').notEmpty().withMessage('Department is required'),
+  body('description').notEmpty().withMessage('Job description is required'),
+  body('location').optional().isString(),
+  body('employmentType').optional().isIn(['FULL_TIME', 'PART_TIME', 'CONTRACT', 'INTERN', 'FREELANCE']),
+  body('experienceLevel').optional().isIn(['ENTRY_LEVEL', 'MID_LEVEL', 'SENIOR_LEVEL', 'EXECUTIVE']),
+  body('salaryRange').optional().isString(),
+  body('requirements').optional().isArray(),
+  body('responsibilities').optional().isArray(),
+  body('benefits').optional().isArray(),
+  body('applicationDeadline').optional().isISO8601()
+], asyncHandler(async (req, res) => {
   const errors = validationResult(req);
   if (!errors.isEmpty()) {
     return res.status(400).json({ 

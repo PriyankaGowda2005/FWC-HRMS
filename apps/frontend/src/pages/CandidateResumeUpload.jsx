@@ -1,5 +1,5 @@
-import React, { useState, useRef } from 'react'
-import { motion } from 'framer-motion'
+import React, { useState, useRef, useEffect } from 'react'
+import { motion, AnimatePresence } from 'framer-motion'
 import { useCandidateAuth } from '../contexts/CandidateAuthContext'
 import Button from '../components/UI/Button'
 import Icon from '../components/UI/Icon'
@@ -12,7 +12,16 @@ const CandidateResumeUpload = () => {
   const [uploadedFile, setUploadedFile] = useState(null)
   const [uploadProgress, setUploadProgress] = useState(0)
   const [uploadStatus, setUploadStatus] = useState('idle') // idle, uploading, success, error
+  const [validationError, setValidationError] = useState('')
+  const [showPreview, setShowPreview] = useState(false)
   const fileInputRef = useRef(null)
+
+  // Reset validation error when file changes
+  useEffect(() => {
+    if (uploadedFile) {
+      setValidationError('')
+    }
+  }, [uploadedFile])
 
   const handleDrag = (e) => {
     e.preventDefault()
@@ -40,16 +49,28 @@ const CandidateResumeUpload = () => {
     }
   }
 
-  const handleFile = async (file) => {
-    // Validate file type
-    const allowedTypes = ['application/pdf', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document']
+  const validateFile = (file) => {
+    const allowedTypes = [
+      'application/pdf', 
+      'application/msword', 
+      'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+    ]
+    
     if (!allowedTypes.includes(file.type)) {
-      setUploadStatus('error')
-      return
+      return 'Please upload a PDF, DOC, or DOCX file only.'
     }
 
-    // Validate file size (5MB limit)
     if (file.size > 5 * 1024 * 1024) {
+      return 'File size must be less than 5MB.'
+    }
+
+    return null
+  }
+
+  const handleFile = async (file) => {
+    const validation = validateFile(file)
+    if (validation) {
+      setValidationError(validation)
       setUploadStatus('error')
       return
     }
@@ -57,17 +78,18 @@ const CandidateResumeUpload = () => {
     setUploadedFile(file)
     setUploadStatus('uploading')
     setUploadProgress(0)
+    setValidationError('')
 
-    // Simulate upload progress
+    // Realistic upload progress simulation
     const progressInterval = setInterval(() => {
       setUploadProgress(prev => {
-        if (prev >= 90) {
+        if (prev >= 95) {
           clearInterval(progressInterval)
           return prev
         }
-        return prev + 10
+        return prev + Math.random() * 15
       })
-    }, 200)
+    }, 150)
 
     try {
       const result = await uploadResume(file)
@@ -81,13 +103,15 @@ const CandidateResumeUpload = () => {
           setUploadStatus('idle')
           setUploadedFile(null)
           setUploadProgress(0)
-        }, 3000)
+        }, 2000)
       } else {
         setUploadStatus('error')
+        setValidationError(result.error || 'Upload failed. Please try again.')
       }
     } catch (error) {
       clearInterval(progressInterval)
       setUploadStatus('error')
+      setValidationError('Upload failed. Please try again.')
     }
   }
 
@@ -103,236 +127,443 @@ const CandidateResumeUpload = () => {
     const extension = fileName.split('.').pop().toLowerCase()
     switch (extension) {
       case 'pdf':
-        return 'shield'
+        return 'document-text'
       case 'doc':
       case 'docx':
-        return 'star'
+        return 'document'
       default:
-        return 'star'
+        return 'document'
     }
   }
 
-  return (
-    <div className="space-y-6">
-      {/* Page Header */}
-      <div className="md:flex md:items-center md:justify-between">
-        <div className="flex-1 min-w-0">
-          <h2 className="text-2xl font-bold leading-7 text-gray-900 sm:text-3xl sm:truncate">
-            Resume Upload
-          </h2>
-          <p className="mt-1 text-sm text-gray-500">
-            Upload your resume to apply for positions
-          </p>
-        </div>
-        <div className="mt-4 flex md:mt-0 md:ml-4">
-          <Button
-            variant="secondary"
-            onClick={() => window.history.back()}
-          >
-            <Icon name="arrow-left" size="sm" className="mr-2" />
-            Back
-          </Button>
-        </div>
-      </div>
+  const getFileTypeColor = (fileName) => {
+    const extension = fileName.split('.').pop().toLowerCase()
+    switch (extension) {
+      case 'pdf':
+        return 'text-red-600 bg-red-50'
+      case 'doc':
+      case 'docx':
+        return 'text-blue-600 bg-blue-50'
+      default:
+        return 'text-gray-600 bg-gray-50'
+    }
+  }
 
-      {/* Current Resume Status */}
-      {candidate?.resumeUploaded && (
-        <Card className="p-6 bg-blue-50 border-blue-200">
-          <div className="flex items-center">
-            <div className="flex-shrink-0">
-              <Icon name="check-circle" size="md" className="text-blue-600" />
+  const resetUpload = () => {
+    setUploadStatus('idle')
+    setUploadedFile(null)
+    setUploadProgress(0)
+    setValidationError('')
+    setShowPreview(false)
+  }
+
+  return (
+    <div className="max-w-4xl mx-auto space-y-8">
+      {/* Enhanced Page Header */}
+      <motion.div 
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="text-center space-y-4"
+      >
+        <div className="inline-flex items-center justify-center w-16 h-16 bg-gradient-to-br from-blue-500 to-purple-600 rounded-2xl mb-4">
+          <Icon name="document-text" size="lg" className="text-white" />
+        </div>
+        <h1 className="text-3xl font-bold text-gray-900">
+          {candidate?.resumeUploaded ? 'Manage Your Resume' : 'Upload Your Resume'}
+        </h1>
+        <p className="text-lg text-gray-600 max-w-2xl mx-auto">
+          {candidate?.resumeUploaded 
+            ? 'Your resume is ready for job applications. Upload a new version to replace it.'
+            : 'Upload your resume to start applying for positions and showcase your skills.'
+          }
+        </p>
+      </motion.div>
+
+      {/* Current Resume Status - Enhanced */}
+      <AnimatePresence>
+        {candidate?.resumeUploaded && (
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.95 }}
+          >
+            <Card className="p-6 bg-gradient-to-r from-green-50 to-emerald-50 border-green-200">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center space-x-4">
+                  <div className="flex-shrink-0">
+                    <div className="w-12 h-12 bg-green-100 rounded-full flex items-center justify-center">
+                      <Icon name="check-circle" size="lg" className="text-green-600" />
+                    </div>
+                  </div>
+                  <div>
+                    <h3 className="text-lg font-semibold text-green-800">
+                      Resume Successfully Uploaded
+                    </h3>
+                    <p className="text-green-700 mt-1">
+                      Your resume is ready for job applications. Upload a new version below to replace it.
+                    </p>
+                  </div>
+                </div>
+                <div className="flex space-x-2">
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    onClick={() => setShowPreview(!showPreview)}
+                  >
+                    <Icon name="eye" size="sm" className="mr-2" />
+                    {showPreview ? 'Hide' : 'View'} Details
+                  </Button>
+                </div>
+              </div>
+              
+              {showPreview && (
+                <motion.div
+                  initial={{ opacity: 0, height: 0 }}
+                  animate={{ opacity: 1, height: 'auto' }}
+                  exit={{ opacity: 0, height: 0 }}
+                  className="mt-4 pt-4 border-t border-green-200"
+                >
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
+                    <div>
+                      <span className="text-green-600 font-medium">Status:</span>
+                      <span className="ml-2 text-green-700">Ready for Applications</span>
+                    </div>
+                    <div>
+                      <span className="text-green-600 font-medium">Uploaded:</span>
+                      <span className="ml-2 text-green-700">
+                        {candidate.updatedAt ? new Date(candidate.updatedAt).toLocaleDateString() : 'Recently'}
+                      </span>
+                    </div>
+                    <div>
+                      <span className="text-green-600 font-medium">Format:</span>
+                      <span className="ml-2 text-green-700">PDF/DOC/DOCX</span>
+                    </div>
+                  </div>
+                </motion.div>
+              )}
+            </Card>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Enhanced Upload Area */}
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.1 }}
+      >
+        <Card className="p-8">
+          {/* Upload Zone */}
+          <div
+            className={`relative border-2 border-dashed rounded-2xl p-12 text-center transition-all duration-300 cursor-pointer group ${
+              dragActive
+                ? 'border-blue-400 bg-blue-50 scale-105'
+                : uploadStatus === 'success'
+                ? 'border-green-400 bg-green-50'
+                : uploadStatus === 'error'
+                ? 'border-red-400 bg-red-50'
+                : 'border-gray-300 hover:border-blue-300 hover:bg-blue-50'
+            }`}
+            onDragEnter={handleDrag}
+            onDragLeave={handleDrag}
+            onDragOver={handleDrag}
+            onDrop={handleDrop}
+            onClick={() => !uploadStatus && fileInputRef.current?.click()}
+          >
+            {/* Background Pattern */}
+            <div className="absolute inset-0 opacity-5">
+              <div className="absolute top-4 left-4 w-8 h-8 border-2 border-gray-300 rounded"></div>
+              <div className="absolute top-8 right-8 w-6 h-6 border-2 border-gray-300 rounded"></div>
+              <div className="absolute bottom-8 left-8 w-4 h-4 border-2 border-gray-300 rounded"></div>
+              <div className="absolute bottom-4 right-4 w-10 h-10 border-2 border-gray-300 rounded"></div>
             </div>
-            <div className="ml-3">
-              <h3 className="text-sm font-medium text-blue-800">
-                Resume Currently Uploaded
-              </h3>
-              <p className="text-sm text-blue-700 mt-1">
-                You have a resume on file. Upload a new resume below to replace it.
-              </p>
+
+            <AnimatePresence mode="wait">
+              {uploadStatus === 'uploading' ? (
+                <motion.div
+                  key="uploading"
+                  initial={{ opacity: 0, scale: 0.8 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  exit={{ opacity: 0, scale: 0.8 }}
+                  className="space-y-6"
+                >
+                  <div className="relative">
+                    <div className="w-20 h-20 mx-auto bg-blue-100 rounded-full flex items-center justify-center">
+                      <LoadingSpinner />
+                    </div>
+                    <div className="absolute inset-0 flex items-center justify-center">
+                      <span className="text-2xl font-bold text-blue-600">{uploadProgress}%</span>
+                    </div>
+                  </div>
+                  <div className="space-y-3">
+                    <h3 className="text-lg font-semibold text-gray-900">
+                      Uploading {uploadedFile?.name}
+                    </h3>
+                    <div className="w-full bg-gray-200 rounded-full h-3 overflow-hidden">
+                      <motion.div
+                        className="bg-gradient-to-r from-blue-500 to-purple-600 h-3 rounded-full"
+                        initial={{ width: 0 }}
+                        animate={{ width: `${uploadProgress}%` }}
+                        transition={{ duration: 0.3 }}
+                      />
+                    </div>
+                    <p className="text-sm text-gray-600">
+                      {uploadProgress < 50 ? 'Processing file...' : 
+                       uploadProgress < 90 ? 'Uploading to server...' : 
+                       'Finalizing upload...'}
+                    </p>
+                  </div>
+                </motion.div>
+              ) : uploadStatus === 'success' ? (
+                <motion.div
+                  key="success"
+                  initial={{ opacity: 0, scale: 0.8 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  exit={{ opacity: 0, scale: 0.8 }}
+                  className="space-y-6"
+                >
+                  <motion.div
+                    initial={{ scale: 0 }}
+                    animate={{ scale: 1 }}
+                    transition={{ type: "spring", duration: 0.6 }}
+                    className="w-20 h-20 mx-auto bg-green-100 rounded-full flex items-center justify-center"
+                  >
+                    <Icon name="check-circle" size="xl" className="text-green-600" />
+                  </motion.div>
+                  <div className="space-y-2">
+                    <h3 className="text-xl font-semibold text-green-900">
+                      Upload Successful!
+                    </h3>
+                    <p className="text-green-700">
+                      Your resume has been processed and is ready for job applications.
+                    </p>
+                  </div>
+                </motion.div>
+              ) : uploadStatus === 'error' ? (
+                <motion.div
+                  key="error"
+                  initial={{ opacity: 0, scale: 0.8 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  exit={{ opacity: 0, scale: 0.8 }}
+                  className="space-y-6"
+                >
+                  <div className="w-20 h-20 mx-auto bg-red-100 rounded-full flex items-center justify-center">
+                    <Icon name="exclamation-triangle" size="xl" className="text-red-600" />
+                  </div>
+                  <div className="space-y-3">
+                    <h3 className="text-lg font-semibold text-red-900">
+                      Upload Failed
+                    </h3>
+                    <p className="text-red-700">
+                      {validationError || error || 'Please try again with a valid file.'}
+                    </p>
+                    <Button
+                      variant="primary"
+                      size="sm"
+                      onClick={resetUpload}
+                    >
+                      <Icon name="refresh" size="sm" className="mr-2" />
+                      Try Again
+                    </Button>
+                  </div>
+                </motion.div>
+              ) : (
+                <motion.div
+                  key="idle"
+                  initial={{ opacity: 0, scale: 0.8 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  exit={{ opacity: 0, scale: 0.8 }}
+                  className="space-y-6"
+                >
+                  <motion.div
+                    animate={{ y: [0, -10, 0] }}
+                    transition={{ duration: 2, repeat: Infinity }}
+                    className="w-20 h-20 mx-auto bg-gradient-to-br from-blue-100 to-purple-100 rounded-2xl flex items-center justify-center group-hover:scale-110 transition-transform"
+                  >
+                    <Icon name="cloud-arrow-up" size="xl" className="text-blue-600" />
+                  </motion.div>
+                  <div className="space-y-3">
+                    <h3 className="text-xl font-semibold text-gray-900">
+                      {candidate?.resumeUploaded ? 'Replace Your Resume' : 'Upload Your Resume'}
+                    </h3>
+                    <p className="text-gray-600">
+                      Drag and drop your resume here, or click to browse files
+                    </p>
+                    <div className="flex items-center justify-center space-x-6 text-sm text-gray-500">
+                      <div className="flex items-center space-x-2">
+                        <Icon name="document-text" size="sm" className="text-red-500" />
+                        <span>PDF</span>
+                      </div>
+                      <div className="flex items-center space-x-2">
+                        <Icon name="document" size="sm" className="text-blue-500" />
+                        <span>DOC/DOCX</span>
+                      </div>
+                      <div className="flex items-center space-x-2">
+                        <Icon name="shield" size="sm" className="text-gray-500" />
+                        <span>Max 5MB</span>
+                      </div>
+                    </div>
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept=".pdf,.doc,.docx"
+              onChange={handleFileInput}
+              className="hidden"
+            />
+          </div>
+
+          {/* File Preview - Enhanced */}
+          <AnimatePresence>
+            {uploadedFile && uploadStatus !== 'uploading' && uploadStatus !== 'success' && (
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -20 }}
+                className="mt-8"
+              >
+                <Card className="p-6 bg-gray-50 border-gray-200">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center space-x-4">
+                      <div className={`w-12 h-12 rounded-lg flex items-center justify-center ${getFileTypeColor(uploadedFile.name)}`}>
+                        <Icon name={getFileIcon(uploadedFile.name)} size="lg" />
+                      </div>
+                      <div>
+                        <h4 className="font-semibold text-gray-900 truncate max-w-xs">
+                          {uploadedFile.name}
+                        </h4>
+                        <p className="text-sm text-gray-500">
+                          {formatFileSize(uploadedFile.size)} • {uploadedFile.type.split('/')[1].toUpperCase()}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex space-x-2">
+                      <Button
+                        variant="secondary"
+                        size="sm"
+                        onClick={resetUpload}
+                      >
+                        <Icon name="x-mark" size="sm" className="mr-2" />
+                        Remove
+                      </Button>
+                      <Button
+                        variant="primary"
+                        size="sm"
+                        onClick={() => handleFile(uploadedFile)}
+                        disabled={loading}
+                      >
+                        <Icon name="cloud-arrow-up" size="sm" className="mr-2" />
+                        Upload Now
+                      </Button>
+                    </div>
+                  </div>
+                </Card>
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </Card>
+      </motion.div>
+
+      {/* Enhanced Guidelines */}
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.2 }}
+      >
+        <Card className="p-8">
+          <div className="text-center mb-6">
+            <h3 className="text-xl font-semibold text-gray-900 mb-2">
+              Resume Best Practices
+            </h3>
+            <p className="text-gray-600">
+              Follow these guidelines to create an effective resume
+            </p>
+          </div>
+          
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="space-y-4">
+              <div className="flex items-start space-x-3">
+                <div className="w-8 h-8 bg-green-100 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
+                  <Icon name="check-circle" size="sm" className="text-green-600" />
+                </div>
+                <div>
+                  <h4 className="font-medium text-gray-900">Professional Format</h4>
+                  <p className="text-sm text-gray-600 mt-1">
+                    Use clean, professional formatting with standard fonts like Arial or Calibri
+                  </p>
+                </div>
+              </div>
+              
+              <div className="flex items-start space-x-3">
+                <div className="w-8 h-8 bg-green-100 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
+                  <Icon name="check-circle" size="sm" className="text-green-600" />
+                </div>
+                <div>
+                  <h4 className="font-medium text-gray-900">Complete Information</h4>
+                  <p className="text-sm text-gray-600 mt-1">
+                    Include contact details, work experience, education, and relevant skills
+                  </p>
+                </div>
+              </div>
+            </div>
+            
+            <div className="space-y-4">
+              <div className="flex items-start space-x-3">
+                <div className="w-8 h-8 bg-green-100 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
+                  <Icon name="check-circle" size="sm" className="text-green-600" />
+                </div>
+                <div>
+                  <h4 className="font-medium text-gray-900">Keep It Updated</h4>
+                  <p className="text-sm text-gray-600 mt-1">
+                    Regularly update your resume with latest achievements and skills
+                  </p>
+                </div>
+              </div>
+              
+              <div className="flex items-start space-x-3">
+                <div className="w-8 h-8 bg-green-100 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
+                  <Icon name="check-circle" size="sm" className="text-green-600" />
+                </div>
+                <div>
+                  <h4 className="font-medium text-gray-900">PDF Format</h4>
+                  <p className="text-sm text-gray-600 mt-1">
+                    Save as PDF for best compatibility and professional appearance
+                  </p>
+                </div>
+              </div>
             </div>
           </div>
         </Card>
-      )}
+      </motion.div>
 
-      {/* Upload Area */}
-      <Card className="p-8">
-        <div className="text-center">
-          <div className="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-blue-100">
-            <Icon name="star" size="md" className="text-blue-600" />
-          </div>
-          <h3 className="mt-4 text-lg font-medium text-gray-900">
-            {candidate?.resumeUploaded ? 'Replace Your Resume' : 'Upload Your Resume'}
-          </h3>
-          <p className="mt-2 text-sm text-gray-500">
-            {candidate?.resumeUploaded 
-              ? 'Upload a new resume to replace your current one'
-              : 'Drag and drop your resume here, or click to browse'
-            }
-          </p>
-        </div>
-
-        {/* Drag and Drop Area */}
-        <div
-          className={`mt-6 border-2 border-dashed rounded-lg p-8 text-center transition-colors ${
-            dragActive
-              ? 'border-blue-400 bg-blue-50'
-              : uploadStatus === 'success'
-              ? 'border-green-400 bg-green-50'
-              : uploadStatus === 'error'
-              ? 'border-red-400 bg-red-50'
-              : 'border-gray-300 hover:border-gray-400'
-          }`}
-          onDragEnter={handleDrag}
-          onDragLeave={handleDrag}
-          onDragOver={handleDrag}
-          onDrop={handleDrop}
+      {/* Action Buttons */}
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.3 }}
+        className="flex justify-center space-x-4"
+      >
+        <Button
+          variant="secondary"
+          onClick={() => window.history.back()}
         >
-          {uploadStatus === 'uploading' ? (
-            <div className="space-y-4">
-              <LoadingSpinner />
-              <div className="space-y-2">
-                <p className="text-sm font-medium text-gray-900">
-                  Uploading {uploadedFile?.name}...
-                </p>
-                <div className="w-full bg-gray-200 rounded-full h-2">
-                  <div
-                    className="bg-blue-600 h-2 rounded-full transition-all duration-300"
-                    style={{ width: `${uploadProgress}%` }}
-                  />
-                </div>
-                <p className="text-xs text-gray-500">{uploadProgress}% complete</p>
-              </div>
-            </div>
-          ) : uploadStatus === 'success' ? (
-            <div className="space-y-4">
-              <Icon name="check-circle" size="lg" className="mx-auto text-green-600" />
-              <div>
-                <p className="text-sm font-medium text-green-900">
-                  Resume uploaded successfully!
-                </p>
-                <p className="text-sm text-green-700 mt-1">
-                  Your resume has been processed and is ready for job applications.
-                </p>
-              </div>
-            </div>
-          ) : uploadStatus === 'error' ? (
-            <div className="space-y-4">
-              <Icon name="shield" size="lg" className="mx-auto text-red-600" />
-              <div>
-                <p className="text-sm font-medium text-red-900">
-                  Upload failed
-                </p>
-                <p className="text-sm text-red-700 mt-1">
-                  {error || 'Please try again with a valid PDF, DOC, or DOCX file (max 5MB).'}
-                </p>
-              </div>
-              <Button
-                variant="primary"
-                size="sm"
-                onClick={() => {
-                  setUploadStatus('idle')
-                  setUploadedFile(null)
-                  setUploadProgress(0)
-                }}
-              >
-                Try Again
-              </Button>
-            </div>
-          ) : (
-            <div className="space-y-4">
-              <Icon name="star" size="lg" className="mx-auto text-gray-400" />
-              <div>
-                <p className="text-sm text-gray-600">
-                  Supported formats: PDF, DOC, DOCX
-                </p>
-                <p className="text-sm text-gray-500">
-                  Maximum file size: 5MB
-                </p>
-              </div>
-              <Button
-                variant="primary"
-                onClick={() => fileInputRef.current?.click()}
-                disabled={loading}
-              >
-                <Icon name="star" size="sm" className="mr-2" />
-                {candidate?.resumeUploaded ? 'Choose New Resume' : 'Choose File'}
-              </Button>
-            </div>
-          )}
-
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept=".pdf,.doc,.docx"
-            onChange={handleFileInput}
-            className="hidden"
-          />
-        </div>
-
-        {/* File Preview */}
-        {uploadedFile && uploadStatus !== 'uploading' && uploadStatus !== 'success' && (
-          <div className="mt-6 border border-gray-200 rounded-lg p-4">
-            <div className="flex items-center space-x-3">
-              <div className="flex-shrink-0">
-                <Icon name={getFileIcon(uploadedFile.name)} size="md" className="text-gray-400" />
-              </div>
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium text-gray-900 truncate">
-                  {uploadedFile.name}
-                </p>
-                <p className="text-sm text-gray-500">
-                  {formatFileSize(uploadedFile.size)}
-                </p>
-              </div>
-              <div className="flex-shrink-0">
-                <Button
-                  variant="secondary"
-                  size="sm"
-                  onClick={() => {
-                    setUploadedFile(null)
-                    setUploadStatus('idle')
-                  }}
-                >
-                  Remove
-                </Button>
-              </div>
-            </div>
-          </div>
+          <Icon name="arrow-left" size="sm" className="mr-2" />
+          Back to Dashboard
+        </Button>
+        {candidate?.resumeUploaded && (
+          <Button
+            variant="primary"
+            onClick={() => window.location.href = '/candidate-portal/jobs'}
+          >
+            <Icon name="briefcase" size="sm" className="mr-2" />
+            Browse Jobs
+          </Button>
         )}
-      </Card>
-
-      {/* Upload Guidelines */}
-      <Card className="p-6">
-        <h3 className="text-lg font-medium text-gray-900 mb-4">
-          Resume Upload Guidelines
-        </h3>
-        <div className="space-y-3">
-          <div className="flex items-start">
-            <Icon name="check-circle" size="sm" className="text-green-600 mt-0.5 mr-3" />
-            <p className="text-sm text-gray-700">
-              Use a clear, professional format with standard fonts
-            </p>
-          </div>
-          <div className="flex items-start">
-            <Icon name="check-circle" size="sm" className="text-green-600 mt-0.5 mr-3" />
-            <p className="text-sm text-gray-700">
-              Include your contact information, work experience, and education
-            </p>
-          </div>
-          <div className="flex items-start">
-            <Icon name="check-circle" size="sm" className="text-green-600 mt-0.5 mr-3" />
-            <p className="text-sm text-gray-700">
-              Keep your resume up-to-date with your latest skills and achievements
-            </p>
-          </div>
-          <div className="flex items-start">
-            <Icon name="check-circle" size="sm" className="text-green-600 mt-0.5 mr-3" />
-            <p className="text-sm text-gray-700">
-              Save your resume as a PDF for best compatibility
-            </p>
-          </div>
-        </div>
-      </Card>
+      </motion.div>
     </div>
   )
 }

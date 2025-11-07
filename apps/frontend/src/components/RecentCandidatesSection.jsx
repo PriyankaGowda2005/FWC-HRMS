@@ -34,7 +34,7 @@ const RecentCandidatesSection = () => {
   // Fetch active job postings for screening/invitation
   const { data: jobPostingsData, isLoading: jobsLoading } = useQuery(
     'active-job-postings',
-    () => jobPostingAPI.getAll({ status: 'PUBLISHED' }),
+    () => jobPostingAPI.getForScreening({ status: 'PUBLISHED' }),
     { enabled: showScreeningModal || showInviteModal }
   );
 
