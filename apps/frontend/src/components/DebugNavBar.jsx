@@ -17,7 +17,6 @@ const DebugNavBar = () => {
   }, [])
 
   const navigation = [
-    { name: 'Home', href: '/' },
     { name: 'Who we serve', href: '/who-we-serve' },
     { name: 'What we do', href: '/what-we-do' },
     { name: 'Who we are', href: '/who-we-are' },
@@ -28,7 +27,7 @@ const DebugNavBar = () => {
 
   return (
     <header className={`fixed inset-x-0 top-0 z-50 transition-all duration-300 ${
-      isScrolled ? 'bg-white/90 backdrop-blur-md shadow-sm' : 'bg-white shadow-lg'
+      isScrolled ? 'bg-white shadow-lg' : 'bg-white shadow-lg'
     }`}>
       <nav className="mx-auto flex max-w-7xl items-center justify-between px-4 py-4 sm:px-6 lg:px-8">
         <div className="flex lg:flex-1">

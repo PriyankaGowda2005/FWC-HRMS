@@ -6,25 +6,40 @@ import { staggerContainer, itemFadeIn } from './motionVariants'
 
 /**
  * Footer Link Component
- * Individual footer link with hover effects
+ * Individual footer link with hover effects and proper navigation handling
  */
 const FooterLink = ({ href, children, external = false, ...props }) => {
-  const LinkComponent = external ? 'a' : Link
+  if (external) {
+    return (
+      <motion.div
+        whileHover={{ x: 4 }}
+        transition={{ duration: 0.2 }}
+      >
+        <a
+          href={href}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="text-gray-300 hover:text-white transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 rounded-sm cursor-pointer"
+          {...props}
+        >
+          {children}
+        </a>
+      </motion.div>
+    )
+  }
   
   return (
     <motion.div
       whileHover={{ x: 4 }}
       transition={{ duration: 0.2 }}
     >
-      <LinkComponent
-        href={external ? href : undefined}
-        to={external ? undefined : href}
-        className="text-gray-600 hover:text-primary-600 transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 rounded-sm"
-        {...(external && { target: '_blank', rel: 'noopener noreferrer' })}
+      <Link
+        to={href}
+        className="text-gray-300 hover:text-white transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 rounded-sm cursor-pointer"
         {...props}
       >
         {children}
-      </LinkComponent>
+      </Link>
     </motion.div>
   )
 }

@@ -4,21 +4,53 @@ const { ObjectId } = require('mongodb');
 const database = require('../database/connection');
 const { verifyToken, checkRole } = require('../middleware/authMiddleware');
 const { asyncHandler } = require('../middleware/errorHandler');
+const axios = require('axios');
 
 const router = express.Router();
 
-// Apply auth middleware to all routes
-router.use(verifyToken);
+// Debug endpoint to test ML service connection
+router.get('/debug/ml', asyncHandler(async (req, res) => {
+  try {
+    const mlServiceUrl = process.env.ML_SERVICE_URL || 'http://localhost:8000';
+    console.log('🔍 Debug: Checking ML service at:', mlServiceUrl);
+    
+    const response = await axios.get(`${mlServiceUrl}/health`, {
+      timeout: 5000
+    });
+    
+    console.log('✅ Debug: ML service response:', response.status);
+    
+    res.json({
+      success: true,
+      mlServiceUrl,
+      status: response.status,
+      data: response.data
+    });
+  } catch (error) {
+    console.error('❌ Debug Error:', error.message);
+    res.json({
+      success: false,
+      error: error.message,
+      mlServiceUrl: process.env.ML_SERVICE_URL || 'http://localhost:8000'
+    });
+  }
+}));
 
-// Get AI services status
+// Public AI services status endpoint (no auth required)
 router.get('/services/status', asyncHandler(async (req, res) => {
   try {
     // Check ML service health
     const mlServiceUrl = process.env.ML_SERVICE_URL || 'http://localhost:8000';
-    const response = await fetch(`${mlServiceUrl}/health`);
+    console.log('🔍 Checking ML service at:', mlServiceUrl);
     
-    if (response.ok) {
-      const mlHealth = await response.json();
+    const response = await axios.get(`${mlServiceUrl}/health`, {
+      timeout: 5000
+    });
+    
+    console.log('✅ ML service response:', response.status, response.data);
+    
+    if (response.status === 200) {
+      const mlHealth = response.data;
       res.json({
         available: true,
         services: {
@@ -34,7 +66,8 @@ router.get('/services/status', asyncHandler(async (req, res) => {
       throw new Error('ML service not responding');
     }
   } catch (error) {
-    console.error('AI Services Status Error:', error);
+    console.error('❌ AI Services Status Error:', error.message);
+    console.error('❌ Error details:', error);
     res.json({
       available: false,
       services: {
@@ -48,6 +81,9 @@ router.get('/services/status', asyncHandler(async (req, res) => {
     });
   }
 }));
+
+// Apply auth middleware to all remaining routes
+router.use(verifyToken);
 
 // Analyze resume
 router.post('/resume/analyze', checkRole('ADMIN', 'HR'), [

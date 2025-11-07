@@ -1,9 +1,15 @@
+require('dotenv').config();
 const bcrypt = require('bcrypt');
 const database = require('../database/connection');
 
 const seedData = async () => {
   try {
     console.log('🌱 Starting database seeding...');
+    
+    // Connect to database first
+    console.log('🔌 Connecting to database...');
+    await database.connect();
+    console.log('✅ Database connected successfully');
 
     // Clear existing data (optional - remove in production)
     console.log('🧹 Clearing existing data...');
@@ -319,8 +325,18 @@ const seedData = async () => {
       console.log(`${index + 1}. ${job.title} - ${job.department} (${job.location})`);
     });
 
+    // Disconnect from database
+    await database.disconnect();
+    console.log('🔌 Database disconnected');
+
   } catch (error) {
     console.error('❌ Error seeding database:', error);
+    // Try to disconnect even if there was an error
+    try {
+      await database.disconnect();
+    } catch (disconnectError) {
+      console.error('❌ Error disconnecting from database:', disconnectError);
+    }
     throw error;
   }
 };

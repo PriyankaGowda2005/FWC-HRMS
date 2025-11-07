@@ -117,12 +117,19 @@ const WhyChooseUs = () => {
   ]
 
   return (
-    <div className="min-h-screen bg-white">
+    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-indigo-900 relative overflow-hidden">
+      {/* Animated Background Elements */}
+      <div className="absolute inset-0 overflow-hidden">
+        <div className="absolute -top-40 -right-40 w-80 h-80 bg-gradient-to-br from-blue-500/20 to-purple-500/20 rounded-full blur-3xl animate-pulse"></div>
+        <div className="absolute -bottom-40 -left-40 w-80 h-80 bg-gradient-to-br from-purple-500/20 to-pink-500/20 rounded-full blur-3xl animate-pulse delay-1000"></div>
+        <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-96 h-96 bg-gradient-to-br from-cyan-500/10 to-blue-500/10 rounded-full blur-3xl animate-pulse delay-500"></div>
+      </div>
+      
       <NavBar />
       
-      <main className="pt-20">
+      <main className="relative pt-32">
         {/* Hero Section */}
-        <section className="py-20 bg-gradient-to-br from-primary-50 to-accent-50">
+        <section className="py-20 relative">
           <div className="max-w-7xl mx-auto px-6 lg:px-8">
             <motion.div
               initial={{ opacity: 0, y: 20 }}
@@ -130,10 +137,13 @@ const WhyChooseUs = () => {
               transition={{ duration: 0.6 }}
               className="text-center"
             >
-              <h1 className="text-display font-bold text-gray-900 mb-6">
-                Why Choose <span className="gradient-text">FWC HRMS</span>
+              <div className="inline-block bg-gradient-to-r from-blue-500 to-purple-600 text-white px-8 py-3 rounded-full text-sm font-semibold mb-8 shadow-2xl hover:shadow-blue-500/25 transition-all duration-300 hover:scale-105">
+                Why Choose Us
+              </div>
+              <h1 className="text-5xl sm:text-6xl lg:text-7xl font-bold text-white mb-8 font-heading leading-tight">
+                Why Choose <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-400 via-purple-400 to-pink-400">FWC HRMS</span>
               </h1>
-              <p className="text-body-lg text-gray-600 max-w-3xl mx-auto">
+              <p className="text-xl text-gray-300 max-w-4xl mx-auto leading-relaxed mb-12">
                 Discover what makes us the preferred choice for organizations worldwide 
                 looking to transform their HR operations.
               </p>
@@ -142,7 +152,7 @@ const WhyChooseUs = () => {
         </section>
 
         {/* Advantages Section */}
-        <section className="py-20">
+        <section className="py-20 relative">
           <div className="max-w-7xl mx-auto px-6 lg:px-8">
             <motion.div
               initial={{ opacity: 0, y: 20 }}
@@ -151,10 +161,10 @@ const WhyChooseUs = () => {
               transition={{ duration: 0.6 }}
               className="text-center mb-16"
             >
-              <h2 className="text-h2 font-bold text-gray-900 mb-4">
-                Our Competitive Advantages
+              <h2 className="text-4xl sm:text-5xl font-bold text-white mb-6">
+                Our Competitive <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-purple-400">Advantages</span>
               </h2>
-              <p className="text-body-lg text-gray-600 max-w-3xl mx-auto">
+              <p className="text-xl text-gray-300 max-w-3xl mx-auto">
                 We don't just provide HR software – we deliver transformative solutions 
                 that drive real business results.
               </p>
@@ -169,25 +179,25 @@ const WhyChooseUs = () => {
             >
               {advantages.map((advantage, index) => (
                 <motion.div key={index} variants={itemFadeIn}>
-                  <Card variant="elevated" className="h-full">
+                  <div className="bg-white/10 backdrop-blur-lg border border-white/20 rounded-2xl p-8 h-full hover:bg-white/15 transition-all duration-300 group">
                     <div className="space-y-6">
                       <div className="flex items-center space-x-4">
-                        <div className="w-16 h-16 bg-gradient-to-br from-primary-100 to-accent-100 rounded-2xl flex items-center justify-center">
-                          <Icon name={advantage.icon} size="xl" className="text-primary-600" />
+                        <div className="w-16 h-16 bg-gradient-to-br from-blue-500/20 to-purple-500/20 rounded-2xl flex items-center justify-center group-hover:scale-110 transition-transform duration-300">
+                          <Icon name={advantage.icon} size="xl" className="text-blue-400" />
                         </div>
                         <div>
-                          <h3 className="text-h4 font-semibold text-gray-900">{advantage.title}</h3>
+                          <h3 className="text-xl font-semibold text-white">{advantage.title}</h3>
                         </div>
                       </div>
                       
-                      <p className="text-gray-600">{advantage.description}</p>
+                      <p className="text-gray-300">{advantage.description}</p>
                       
-                      <div className="bg-gradient-to-r from-primary-50 to-accent-50 rounded-lg p-4">
-                        <div className="text-2xl font-bold text-primary-600 mb-1">{advantage.metric}</div>
-                        <div className="text-sm text-gray-600">{advantage.metricLabel}</div>
+                      <div className="bg-gradient-to-r from-blue-500/20 to-purple-500/20 rounded-lg p-4">
+                        <div className="text-2xl font-bold text-blue-400 mb-1">{advantage.metric}</div>
+                        <div className="text-sm text-gray-300">{advantage.metricLabel}</div>
                       </div>
                     </div>
-                  </Card>
+                  </div>
                 </motion.div>
               ))}
             </motion.div>
@@ -195,7 +205,7 @@ const WhyChooseUs = () => {
         </section>
 
         {/* Comparison Section */}
-        <section className="py-20 bg-gray-50">
+        <section className="py-20 relative">
           <div className="max-w-7xl mx-auto px-6 lg:px-8">
             <motion.div
               initial={{ opacity: 0, y: 20 }}
@@ -204,10 +214,10 @@ const WhyChooseUs = () => {
               transition={{ duration: 0.6 }}
               className="text-center mb-16"
             >
-              <h2 className="text-h2 font-bold text-gray-900 mb-4">
-                How We Compare
+              <h2 className="text-4xl sm:text-5xl font-bold text-white mb-6">
+                How We <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-purple-400">Compare</span>
               </h2>
-              <p className="text-body-lg text-gray-600 max-w-3xl mx-auto">
+              <p className="text-xl text-gray-300 max-w-3xl mx-auto">
                 See how FWC HRMS outperforms traditional HR solutions across key metrics.
               </p>
             </motion.div>
@@ -217,25 +227,25 @@ const WhyChooseUs = () => {
               initial="initial"
               whileInView="animate"
               viewport={{ once: true }}
-              className="bg-white rounded-2xl shadow-fwc-lg overflow-hidden"
+              className="bg-white/10 backdrop-blur-lg border border-white/20 rounded-2xl overflow-hidden"
             >
               <div className="overflow-x-auto">
                 <table className="w-full">
-                  <thead className="bg-gray-50">
+                  <thead className="bg-white/10">
                     <tr>
-                      <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900">Feature</th>
-                      <th className="px-6 py-4 text-center text-sm font-semibold text-primary-600">FWC HRMS</th>
-                      <th className="px-6 py-4 text-center text-sm font-semibold text-gray-600">Competitors</th>
-                      <th className="px-6 py-4 text-center text-sm font-semibold text-green-600">Advantage</th>
+                      <th className="px-6 py-4 text-left text-sm font-semibold text-white">Feature</th>
+                      <th className="px-6 py-4 text-center text-sm font-semibold text-blue-400">FWC HRMS</th>
+                      <th className="px-6 py-4 text-center text-sm font-semibold text-gray-300">Competitors</th>
+                      <th className="px-6 py-4 text-center text-sm font-semibold text-green-400">Advantage</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-gray-200">
+                  <tbody className="divide-y divide-white/20">
                     {comparisons.map((comparison, index) => (
-                      <motion.tr key={index} variants={itemFadeIn}>
-                        <td className="px-6 py-4 text-sm font-medium text-gray-900">{comparison.feature}</td>
-                        <td className="px-6 py-4 text-sm text-center text-primary-600 font-semibold">{comparison.fwc}</td>
-                        <td className="px-6 py-4 text-sm text-center text-gray-600">{comparison.competitor}</td>
-                        <td className="px-6 py-4 text-sm text-center text-green-600 font-semibold">{comparison.advantage}</td>
+                      <motion.tr key={index} variants={itemFadeIn} className="hover:bg-white/5 transition-colors duration-300">
+                        <td className="px-6 py-4 text-sm font-medium text-white">{comparison.feature}</td>
+                        <td className="px-6 py-4 text-sm text-center text-blue-400 font-semibold">{comparison.fwc}</td>
+                        <td className="px-6 py-4 text-sm text-center text-gray-300">{comparison.competitor}</td>
+                        <td className="px-6 py-4 text-sm text-center text-green-400 font-semibold">{comparison.advantage}</td>
                       </motion.tr>
                     ))}
                   </tbody>
@@ -246,7 +256,7 @@ const WhyChooseUs = () => {
         </section>
 
         {/* Testimonials Section */}
-        <section className="py-20">
+        <section className="py-20 relative">
           <div className="max-w-7xl mx-auto px-6 lg:px-8">
             <motion.div
               initial={{ opacity: 0, y: 20 }}
@@ -255,10 +265,10 @@ const WhyChooseUs = () => {
               transition={{ duration: 0.6 }}
               className="text-center mb-16"
             >
-              <h2 className="text-h2 font-bold text-gray-900 mb-4">
-                What Our Customers Say
+              <h2 className="text-4xl sm:text-5xl font-bold text-white mb-6">
+                What Our Customers <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-purple-400">Say</span>
               </h2>
-              <p className="text-body-lg text-gray-600 max-w-3xl mx-auto">
+              <p className="text-xl text-gray-300 max-w-3xl mx-auto">
                 Don't just take our word for it – hear from the organizations that have 
                 transformed their HR operations with FWC HRMS.
               </p>
@@ -273,7 +283,7 @@ const WhyChooseUs = () => {
             >
               {testimonials.map((testimonial, index) => (
                 <motion.div key={index} variants={itemFadeIn}>
-                  <Card variant="elevated" className="h-full">
+                  <div className="bg-white/10 backdrop-blur-lg border border-white/20 rounded-2xl p-8 h-full hover:bg-white/15 transition-all duration-300 group">
                     <div className="space-y-6">
                       <div className="flex items-center space-x-1 mb-4">
                         {[...Array(5)].map((_, i) => (
@@ -281,17 +291,17 @@ const WhyChooseUs = () => {
                         ))}
                       </div>
                       
-                      <blockquote className="text-gray-700 italic">
+                      <blockquote className="text-gray-300 italic">
                         "{testimonial.quote}"
                       </blockquote>
                       
-                      <div className="border-t pt-4">
-                        <div className="font-semibold text-gray-900">{testimonial.author}</div>
-                        <div className="text-sm text-gray-600">{testimonial.role}</div>
-                        <div className="text-sm text-primary-600 font-medium">{testimonial.company}</div>
+                      <div className="border-t border-white/20 pt-4">
+                        <div className="font-semibold text-white">{testimonial.author}</div>
+                        <div className="text-sm text-gray-300">{testimonial.role}</div>
+                        <div className="text-sm text-blue-400 font-medium">{testimonial.company}</div>
                       </div>
                     </div>
-                  </Card>
+                  </div>
                 </motion.div>
               ))}
             </motion.div>
@@ -299,7 +309,7 @@ const WhyChooseUs = () => {
         </section>
 
         {/* CTA Section */}
-        <section className="py-20 bg-gradient-to-br from-primary-900 to-accent-500">
+        <section className="py-20 relative">
           <div className="max-w-7xl mx-auto px-6 lg:px-8">
             <motion.div
               initial={{ opacity: 0, y: 20 }}
@@ -308,10 +318,10 @@ const WhyChooseUs = () => {
               transition={{ duration: 0.6 }}
               className="text-center"
             >
-              <h2 className="text-h2 font-bold text-white mb-4">
-                Ready to Experience the Difference?
+              <h2 className="text-4xl sm:text-5xl font-bold text-white mb-6">
+                Ready to Experience the <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-purple-400">Difference?</span>
               </h2>
-              <p className="text-body-lg text-white/90 mb-8 max-w-2xl mx-auto">
+              <p className="text-xl text-gray-300 mb-8 max-w-2xl mx-auto">
                 Join thousands of organizations that have chosen FWC HRMS to transform 
                 their HR operations and achieve remarkable results.
               </p>
@@ -319,7 +329,7 @@ const WhyChooseUs = () => {
                 <motion.button
                   whileHover={{ scale: 1.05 }}
                   whileTap={{ scale: 0.95 }}
-                  className="px-8 py-3 bg-white text-primary-900 font-semibold rounded-lg shadow-fwc hover:shadow-fwc-lg transition-all duration-300"
+                  className="px-8 py-3 bg-gradient-to-r from-blue-500 to-purple-600 text-white font-semibold rounded-lg shadow-2xl hover:shadow-blue-500/25 transition-all duration-300"
                   onClick={() => window.location.href = '/login'}
                 >
                   Start Free Trial
@@ -327,7 +337,7 @@ const WhyChooseUs = () => {
                 <motion.button
                   whileHover={{ scale: 1.05 }}
                   whileTap={{ scale: 0.95 }}
-                  className="px-8 py-3 border-2 border-white text-white font-semibold rounded-lg hover:bg-white hover:text-primary-900 transition-all duration-300"
+                  className="px-8 py-3 border-2 border-white text-white font-semibold rounded-lg hover:bg-white hover:text-slate-900 transition-all duration-300"
                   onClick={() => window.location.href = '/contact'}
                 >
                   Schedule Demo
