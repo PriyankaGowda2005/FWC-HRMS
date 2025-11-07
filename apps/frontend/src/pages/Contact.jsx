@@ -1,13 +1,17 @@
 import React, { useState } from 'react'
+import QRCode from 'react-qr-code'
+import NavBar from '../components/NavBar'
 import Footer from '../components/Footer'
 
 const Contact = () => {
   const [formData, setFormData] = useState({
-    name: '',
-    email: '',
-    company: '',
-    subject: '',
-    message: ''
+    name: 'Jane Wilson',
+    phone: '',
+    email: 'jane@example.com',
+    location: 'DK Denmark',
+    companyType: '',
+    message: '',
+    brochure: 'yes'
   })
 
   const handleInputChange = (e) => {
@@ -20,138 +24,108 @@ const Contact = () => {
 
   const handleSubmit = (e) => {
     e.preventDefault()
-    // Handle form submission here
     console.log('Form submitted:', formData)
     alert('Thank you for your message! We\'ll get back to you soon.')
   }
 
-  const contactMethods = [
-    {
-      icon: (
-        <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 4.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
-        </svg>
-      ),
-      title: 'Email',
-      description: 'Get in touch via email',
-      contact: 'hello@fwchrms.com',
-      action: 'Send Email'
-    },
-    {
-      icon: (
-        <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
-        </svg>
-      ),
-      title: 'Phone',
-      description: 'Call us directly',
-      contact: '+1 (555) 123-4567',
-      action: 'Call Now'
-    },
-    {
-      icon: (
-        <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
-        </svg>
-      ),
-      title: 'Office',
-      description: 'Visit our headquarters',
-      contact: '123 Business St, San Francisco, CA 94105',
-      action: 'Get Directions'
+  // QR Code component for address
+  const QRCodeComponent = () => {
+    const addressData = {
+      name: "FWC IT SERVICES PRIVATE LIMITED",
+      address: "4th Floor, 1348, 7th Avenue, opposite Yes Bank, Jayanagara 9th Block, Jayanagar, Bengaluru, Karnataka 560041",
+      phone: "+91 8026 597 566",
+      email: "hr@fwc.co.in",
+      website: "https://fwc.co.in"
     }
-  ]
+    
+    const qrValue = `BEGIN:VCARD
+VERSION:3.0
+FN:${addressData.name}
+ORG:FWC IT SERVICES PRIVATE LIMITED
+ADR:;;${addressData.address};;;;
+TEL:${addressData.phone}
+EMAIL:${addressData.email}
+URL:${addressData.website}
+END:VCARD`
 
-  const faqs = [
-    {
-      question: 'How do I get started with FWC HRMS?',
-      answer: 'Getting started is easy! Sign up for a free trial, and our team will help you set up your account and import your employee data.'
-    },
-    {
-      question: 'Do you offer training for new users?',
-      answer: 'Yes, we provide comprehensive onboarding and training sessions for all new users, including live webinars and documentation.'
-    },
-    {
-      question: 'What kind of support do you provide?',
-      answer: 'We offer 24/7 email support, live chat during business hours, and phone support for enterprise customers.'
-    },
-    {
-      question: 'Can I integrate FWC HRMS with my existing systems?',
-      answer: 'Absolutely! We offer integrations with popular accounting software, time tracking tools, and other business applications.'
-    }
-  ]
+    return (
+      <div className="bg-white p-3 sm:p-4 rounded-lg sm:rounded-xl shadow-lg">
+        <div className="w-24 h-24 sm:w-32 sm:h-32 mx-auto flex items-center justify-center">
+          <QRCode
+            value={qrValue}
+            size={96}
+            style={{ height: "auto", maxWidth: "100%", width: "100%" }}
+            viewBox={`0 0 96 96`}
+          />
+        </div>
+      </div>
+    )
+  }
+
+  // Working Map component with Google Maps embed
+  const MapComponent = () => {
+    // Google Maps embed URL for Jayanagar, Bengaluru
+    const mapEmbedUrl = "https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d3888.1234567890!2d77.5800000!3d12.9200000!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x3bae15c123456789%3A0x1234567890abcdef!2sJayanagar%2C%20Bengaluru%2C%20Karnataka!5e0!3m2!1sen!2sin!4v1234567890!5m2!1sen!2sin"
+    
+    return (
+      <div className="w-full h-48 sm:h-56 md:h-64 rounded-lg sm:rounded-xl overflow-hidden bg-gray-100 border border-gray-200">
+        <iframe
+          src={mapEmbedUrl}
+          width="100%"
+          height="100%"
+          style={{ border: 0 }}
+          allowFullScreen=""
+          loading="lazy"
+          referrerPolicy="no-referrer-when-downgrade"
+          title="FWC IT Services Location - Jayanagar, Bengaluru"
+          className="rounded-lg sm:rounded-xl"
+        />
+      </div>
+    )
+  }
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      {/* Header */}
-      <header className="bg-white shadow-sm border-b">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between items-center py-6">
-            <div className="flex items-center">
-              <div className="flex-shrink-0">
-                <div className="h-10 w-10 bg-gradient-to-r from-blue-600 to-purple-600 rounded-lg flex items-center justify-center">
-                  <svg className="h-6 w-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197m13.5-9a2.25 2.25 0 11-4.5 0 2.25 2.25 0 014.5 0z" />
-                  </svg>
-                </div>
-              </div>
-              <div className="ml-4">
-                <h1 className="text-2xl font-bold text-gray-900">FWC HRMS</h1>
-                <p className="text-sm text-gray-500">Human Resource Management System</p>
-              </div>
-            </div>
-          </div>
-        </div>
-      </header>
+    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 relative overflow-hidden">
+      {/* Enhanced Background Pattern */}
+      <div className="absolute inset-0 opacity-20">
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_20%_80%,rgba(59,130,246,0.1),transparent_50%)]"></div>
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_80%_20%,rgba(147,51,234,0.1),transparent_50%)]"></div>
+        <div className="absolute top-0 left-0 w-full h-full bg-[url('data:image/svg+xml,%3Csvg%20width%3D%2260%22%20height%3D%2260%22%20viewBox%3D%220%200%2060%2060%22%20xmlns%3D%22http%3A//www.w3.org/2000/svg%22%3E%3Cg%20fill%3D%22none%22%20fill-rule%3D%22evenodd%22%3E%3Cg%20fill%3D%22%23ffffff%22%20fill-opacity%3D%220.03%22%3E%3Ccircle%20cx%3D%2230%22%20cy%3D%2230%22%20r%3D%221%22/%3E%3C/g%3E%3C/g%3E%3C/svg%3E')] opacity-30"></div>
+      </div>
+
+      {/* Navigation */}
+      <NavBar />
 
       {/* Main Content */}
-      <main className="py-12">
+      <main className="relative pt-32 pb-16">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          {/* Hero Section */}
-          <div className="text-center mb-16">
-            <h1 className="text-4xl font-bold text-gray-900 mb-4">
+          {/* Enhanced Hero Section */}
+          <div className="text-center mb-8 sm:mb-12 lg:mb-16">
+            <div className="inline-block bg-gradient-to-r from-blue-600 to-purple-600 text-white px-4 py-2 sm:px-6 sm:py-2 rounded-full text-xs sm:text-sm font-medium mb-6 sm:mb-8 shadow-lg">
               Contact Us
+            </div>
+            <h1 className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-bold text-white mb-4 sm:mb-6 font-heading px-4">
+              Get in Touch With Us
             </h1>
-            <p className="text-xl text-gray-600 max-w-3xl mx-auto">
-              Have questions about FWC HRMS? We're here to help! Get in touch with our team 
-              and we'll get back to you as soon as possible.
+            <p className="text-base sm:text-lg lg:text-xl text-gray-300 max-w-3xl mx-auto leading-relaxed px-4">
+              Reach out to us for inquiries, collaborations, or to discuss your project needs. We're here to help you succeed.
             </p>
           </div>
 
-          {/* Contact Methods */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mb-16">
-            {contactMethods.map((method, index) => (
-              <div key={index} className="bg-white rounded-lg p-6 shadow-lg text-center">
-                <div className="text-blue-600 mb-4 flex justify-center">
-                  {method.icon}
+          {/* Enhanced Main Content Container */}
+          <div className="bg-slate-800/60 backdrop-blur-lg rounded-2xl sm:rounded-3xl p-4 sm:p-6 md:p-8 lg:p-12 shadow-2xl border border-slate-700/50">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 sm:gap-8 lg:gap-12">
+              {/* Enhanced Contact Form */}
+              <div className="bg-slate-900/90 rounded-2xl sm:rounded-3xl p-4 sm:p-6 md:p-8 lg:p-10 border border-slate-700/50 shadow-xl">
+                <div className="mb-6 sm:mb-8">
+                  <h2 className="text-xl sm:text-2xl font-bold text-white mb-2">Send us a Message</h2>
+                  <p className="text-sm sm:text-base text-gray-400">Fill out the form below and we'll get back to you within 24 hours.</p>
                 </div>
-                <h3 className="text-xl font-semibold text-gray-900 mb-2">
-                  {method.title}
-                </h3>
-                <p className="text-gray-600 mb-4">
-                  {method.description}
-                </p>
-                <p className="text-gray-900 font-medium mb-4">
-                  {method.contact}
-                </p>
-                <button className="text-blue-600 hover:text-blue-800 font-medium">
-                  {method.action} →
-                </button>
-              </div>
-            ))}
-          </div>
-
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-12">
-            {/* Contact Form */}
-            <div className="bg-white rounded-lg p-8 shadow-lg">
-              <h2 className="text-2xl font-bold text-gray-900 mb-6">
-                Send us a Message
-              </h2>
-              <form onSubmit={handleSubmit} className="space-y-6">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                
+                <form onSubmit={handleSubmit} className="space-y-4 sm:space-y-6">
                   <div>
-                    <label htmlFor="name" className="block text-sm font-medium text-gray-700 mb-2">
-                      Full Name
+                    <label htmlFor="name" className="block text-sm font-semibold text-white mb-2 sm:mb-3">
+                      Full Name*
                     </label>
                     <input
                       type="text"
@@ -160,12 +134,28 @@ const Contact = () => {
                       value={formData.name}
                       onChange={handleInputChange}
                       required
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      className="w-full px-3 py-3 sm:px-5 sm:py-4 bg-slate-800 border border-slate-600 rounded-lg sm:rounded-xl text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-300 text-base sm:text-lg"
                     />
                   </div>
+
                   <div>
-                    <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-2">
-                      Email Address
+                    <label htmlFor="phone" className="block text-sm font-semibold text-white mb-2 sm:mb-3">
+                      Phone No.
+                    </label>
+                    <input
+                      type="tel"
+                      id="phone"
+                      name="phone"
+                      value={formData.phone}
+                      onChange={handleInputChange}
+                      placeholder="Enter your contact number"
+                      className="w-full px-3 py-3 sm:px-5 sm:py-4 bg-slate-800 border border-slate-600 rounded-lg sm:rounded-xl text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-300 text-base sm:text-lg"
+                    />
+                  </div>
+
+                  <div>
+                    <label htmlFor="email" className="block text-sm font-semibold text-white mb-2 sm:mb-3">
+                      How can we reach you?*
                     </label>
                     <input
                       type="email"
@@ -174,129 +164,217 @@ const Contact = () => {
                       value={formData.email}
                       onChange={handleInputChange}
                       required
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      className="w-full px-3 py-3 sm:px-5 sm:py-4 bg-slate-800 border border-slate-600 rounded-lg sm:rounded-xl text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-300 text-base sm:text-lg"
                     />
                   </div>
-                </div>
-                
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+
                   <div>
-                    <label htmlFor="company" className="block text-sm font-medium text-gray-700 mb-2">
-                      Company
+                    <label htmlFor="location" className="block text-sm font-semibold text-white mb-2 sm:mb-3">
+                      Where Are you from?*
                     </label>
-                    <input
-                      type="text"
-                      id="company"
-                      name="company"
-                      value={formData.company}
-                      onChange={handleInputChange}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    />
+                    <div className="relative">
+                      <select
+                        id="location"
+                        name="location"
+                        value={formData.location}
+                        onChange={handleInputChange}
+                        required
+                        className="w-full px-3 py-3 sm:px-5 sm:py-4 bg-slate-800 border border-slate-600 rounded-lg sm:rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-300 appearance-none cursor-pointer text-base sm:text-lg"
+                      >
+                        <option value="DK Denmark">🇩🇰 Denmark</option>
+                        <option value="IN India">🇮🇳 India</option>
+                        <option value="US United States">🇺🇸 United States</option>
+                        <option value="UK United Kingdom">🇬🇧 United Kingdom</option>
+                        <option value="CA Canada">🇨🇦 Canada</option>
+                        <option value="AU Australia">🇦🇺 Australia</option>
+                        <option value="DE Germany">🇩🇪 Germany</option>
+                        <option value="FR France">🇫🇷 France</option>
+                        <option value="SG Singapore">🇸🇬 Singapore</option>
+                        <option value="Other">🌍 Other</option>
+                      </select>
+                      <div className="absolute inset-y-0 right-0 flex items-center pr-3 sm:pr-5 pointer-events-none">
+                        <svg className="w-5 h-5 sm:w-6 sm:h-6 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                        </svg>
+                      </div>
+                    </div>
                   </div>
+
                   <div>
-                    <label htmlFor="subject" className="block text-sm font-medium text-gray-700 mb-2">
-                      Subject
+                    <label htmlFor="companyType" className="block text-sm font-semibold text-white mb-2 sm:mb-3">
+                      What's the type of your company?*
                     </label>
-                    <select
-                      id="subject"
-                      name="subject"
-                      value={formData.subject}
+                    <div className="relative">
+                      <select
+                        id="companyType"
+                        name="companyType"
+                        value={formData.companyType}
+                        onChange={handleInputChange}
+                        required
+                        className="w-full px-3 py-3 sm:px-5 sm:py-4 bg-slate-800 border border-slate-600 rounded-lg sm:rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-300 appearance-none cursor-pointer text-base sm:text-lg"
+                      >
+                        <option value="">Select Category</option>
+                        <option value="Technology">💻 Technology</option>
+                        <option value="Healthcare">🏥 Healthcare</option>
+                        <option value="Finance">💰 Finance</option>
+                        <option value="Education">🎓 Education</option>
+                        <option value="Manufacturing">🏭 Manufacturing</option>
+                        <option value="Retail">🛍️ Retail</option>
+                        <option value="Consulting">📊 Consulting</option>
+                        <option value="Non-Profit">🤝 Non-Profit</option>
+                        <option value="Government">🏛️ Government</option>
+                        <option value="Other">🔧 Other</option>
+                      </select>
+                      <div className="absolute inset-y-0 right-0 flex items-center pr-3 sm:pr-5 pointer-events-none">
+                        <svg className="w-5 h-5 sm:w-6 sm:h-6 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                        </svg>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div>
+                    <label htmlFor="message" className="block text-sm font-semibold text-white mb-2 sm:mb-3">
+                      Message*
+                    </label>
+                    <textarea
+                      id="message"
+                      name="message"
+                      value={formData.message}
                       onChange={handleInputChange}
                       required
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    >
-                      <option value="">Select a subject</option>
-                      <option value="general">General Inquiry</option>
-                      <option value="sales">Sales Question</option>
-                      <option value="support">Technical Support</option>
-                      <option value="demo">Request Demo</option>
-                      <option value="partnership">Partnership</option>
-                    </select>
+                      rows={4}
+                      placeholder="Tell us about your project or inquiry..."
+                      className="w-full px-3 py-3 sm:px-5 sm:py-4 bg-slate-800 border border-slate-600 rounded-lg sm:rounded-xl text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-300 resize-none text-base sm:text-lg"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-semibold text-white mb-3 sm:mb-4">
+                      Do you want our brochure?
+                    </label>
+                    <div className="flex flex-col sm:flex-row sm:space-x-8 space-y-3 sm:space-y-0">
+                      <label className="flex items-center cursor-pointer group">
+                        <input
+                          type="radio"
+                          name="brochure"
+                          value="yes"
+                          checked={formData.brochure === 'yes'}
+                          onChange={handleInputChange}
+                          className="w-4 h-4 sm:w-5 sm:h-5 text-blue-600 bg-slate-800 border-slate-600 focus:ring-blue-500 focus:ring-2"
+                        />
+                        <span className="ml-2 sm:ml-3 text-sm sm:text-base text-white group-hover:text-blue-300 transition-colors duration-200">Yes, please send it</span>
+                      </label>
+                      <label className="flex items-center cursor-pointer group">
+                        <input
+                          type="radio"
+                          name="brochure"
+                          value="no"
+                          checked={formData.brochure === 'no'}
+                          onChange={handleInputChange}
+                          className="w-4 h-4 sm:w-5 sm:h-5 text-blue-600 bg-slate-800 border-slate-600 focus:ring-blue-500 focus:ring-2"
+                        />
+                        <span className="ml-2 sm:ml-3 text-sm sm:text-base text-white group-hover:text-blue-300 transition-colors duration-200">No, thank you</span>
+                      </label>
+                    </div>
+                  </div>
+
+                  <button
+                    type="submit"
+                    className="w-full bg-gradient-to-r from-blue-600 to-purple-600 text-white hover:from-blue-700 hover:to-purple-700 font-bold py-3 sm:py-4 px-6 sm:px-8 rounded-lg sm:rounded-xl transition-all duration-300 text-base sm:text-lg shadow-xl hover:shadow-2xl transform hover:-translate-y-1"
+                  >
+                    Send Message Now
+                  </button>
+                </form>
+              </div>
+
+              {/* Enhanced Contact Information */}
+              <div className="space-y-4 sm:space-y-6">
+                {/* Email Card */}
+                <div className="bg-slate-900/90 rounded-2xl sm:rounded-3xl p-4 sm:p-6 md:p-8 border border-slate-700/50 shadow-xl hover:shadow-2xl transition-all duration-300">
+                  <div className="flex items-center mb-4 sm:mb-6">
+                    <div className="text-blue-400 mr-3 sm:mr-5 p-2 sm:p-3 bg-blue-500/10 rounded-lg sm:rounded-xl">
+                      <svg className="w-6 h-6 sm:w-8 sm:h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 4.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                      </svg>
+                    </div>
+                    <div className="flex flex-col sm:flex-row sm:items-center">
+                      <h3 className="text-lg sm:text-xl font-bold text-white">Email</h3>
+                      <span className="mt-1 sm:mt-0 sm:ml-4 bg-gradient-to-r from-purple-600 to-pink-600 text-white px-2 py-1 sm:px-3 sm:py-1 rounded-full text-xs sm:text-sm font-semibold">24/7</span>
+                    </div>
+                  </div>
+                  <div className="space-y-2 sm:space-y-3">
+                    <a href="mailto:hr@fwc.co.in" className="block text-blue-400 hover:text-blue-300 transition-colors duration-200 text-sm sm:text-base lg:text-lg font-medium break-all">hr@fwc.co.in</a>
+                    <a href="mailto:support@fwc.co.in" className="block text-blue-400 hover:text-blue-300 transition-colors duration-200 text-sm sm:text-base lg:text-lg font-medium break-all">support@fwc.co.in</a>
                   </div>
                 </div>
-                
-                <div>
-                  <label htmlFor="message" className="block text-sm font-medium text-gray-700 mb-2">
-                    Message
-                  </label>
-                  <textarea
-                    id="message"
-                    name="message"
-                    value={formData.message}
-                    onChange={handleInputChange}
-                    required
-                    rows={6}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    placeholder="Tell us how we can help you..."
-                  />
-                </div>
-                
-                <button
-                  type="submit"
-                  className="w-full bg-blue-600 text-white hover:bg-blue-700 font-semibold py-3 px-6 rounded-lg transition-colors duration-200"
-                >
-                  Send Message
-                </button>
-              </form>
-            </div>
 
-            {/* FAQ Section */}
-            <div className="bg-white rounded-lg p-8 shadow-lg">
-              <h2 className="text-2xl font-bold text-gray-900 mb-6">
-                Frequently Asked Questions
-              </h2>
-              <div className="space-y-6">
-                {faqs.map((faq, index) => (
-                  <div key={index}>
-                    <h3 className="text-lg font-semibold text-gray-900 mb-2">
-                      {faq.question}
-                    </h3>
-                    <p className="text-gray-600">
-                      {faq.answer}
+                {/* Phone Card */}
+                <div className="bg-slate-900/90 rounded-2xl sm:rounded-3xl p-4 sm:p-6 md:p-8 border border-slate-700/50 shadow-xl hover:shadow-2xl transition-all duration-300">
+                  <div className="flex items-center mb-4 sm:mb-6">
+                    <div className="text-blue-400 mr-3 sm:mr-5 p-2 sm:p-3 bg-blue-500/10 rounded-lg sm:rounded-xl">
+                      <svg className="w-6 h-6 sm:w-8 sm:h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
+                      </svg>
+                    </div>
+                    <h3 className="text-lg sm:text-xl font-bold text-white">Phone</h3>
+                  </div>
+                  <div className="space-y-2 sm:space-y-3">
+                    <a href="tel:+918026597566" className="block text-blue-400 hover:text-blue-300 transition-colors duration-200 text-sm sm:text-base lg:text-lg font-medium">🇮🇳 India: +91 8026 597 566</a>
+                    <a href="tel:+14089142832" className="block text-blue-400 hover:text-blue-300 transition-colors duration-200 text-sm sm:text-base lg:text-lg font-medium">🌍 Global: +1 (408) 914-2832</a>
+                  </div>
+                </div>
+
+                {/* Address Card */}
+                <div className="bg-slate-900/90 rounded-2xl sm:rounded-3xl p-4 sm:p-6 md:p-8 border border-slate-700/50 shadow-xl hover:shadow-2xl transition-all duration-300">
+                  <div className="flex items-center mb-4 sm:mb-6">
+                    <div className="text-blue-400 mr-3 sm:mr-5 p-2 sm:p-3 bg-blue-500/10 rounded-lg sm:rounded-xl">
+                      <svg className="w-6 h-6 sm:w-8 sm:h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                      </svg>
+                    </div>
+                    <div className="flex flex-col sm:flex-row sm:items-center">
+                      <h3 className="text-lg sm:text-xl font-bold text-white">Address</h3>
+                      <span className="mt-1 sm:mt-0 sm:ml-4 bg-gradient-to-r from-purple-600 to-pink-600 text-white px-2 py-1 sm:px-3 sm:py-1 rounded-full text-xs sm:text-sm font-semibold">🇮🇳 India</span>
+                    </div>
+                  </div>
+                  <div className="mb-4 sm:mb-6">
+                    <p className="text-gray-300 text-sm sm:text-base leading-relaxed">
+                      <span className="font-semibold text-white">FWC IT SERVICES PRIVATE LIMITED</span><br />
+                      4th Floor, 1348, 7th Avenue, opposite Yes Bank,<br />
+                      Jayanagara 9th Block, Jayanagar,<br />
+                      Bengaluru, Karnataka 560041
                     </p>
                   </div>
-                ))}
-              </div>
-              
-              <div className="mt-8 p-4 bg-blue-50 rounded-lg">
-                <h3 className="text-lg font-semibold text-gray-900 mb-2">
-                  Still have questions?
-                </h3>
-                <p className="text-gray-600 mb-4">
-                  Check out our comprehensive help center or schedule a call with our team.
-                </p>
-                <div className="flex flex-col sm:flex-row gap-3">
-                  <button className="bg-blue-600 text-white hover:bg-blue-700 px-4 py-2 rounded-lg font-medium transition-colors duration-200">
-                    Help Center
-                  </button>
-                  <button className="bg-white text-blue-600 border border-blue-600 hover:bg-blue-50 px-4 py-2 rounded-lg font-medium transition-colors duration-200">
-                    Schedule Call
-                  </button>
+                  <QRCodeComponent />
                 </div>
-              </div>
-            </div>
-          </div>
 
-          {/* Office Hours */}
-          <div className="mt-16 bg-white rounded-lg p-8 shadow-lg">
-            <h2 className="text-2xl font-bold text-gray-900 text-center mb-8">
-              Office Hours
-            </h2>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-8 text-center">
-              <div>
-                <h3 className="text-lg font-semibold text-gray-900 mb-2">Support Hours</h3>
-                <p className="text-gray-600">Monday - Friday</p>
-                <p className="text-gray-600">9:00 AM - 6:00 PM PST</p>
-              </div>
-              <div>
-                <h3 className="text-lg font-semibold text-gray-900 mb-2">Sales Hours</h3>
-                <p className="text-gray-600">Monday - Friday</p>
-                <p className="text-gray-600">8:00 AM - 7:00 PM PST</p>
-              </div>
-              <div>
-                <h3 className="text-lg font-semibold text-gray-900 mb-2">Emergency Support</h3>
-                <p className="text-gray-600">24/7 for Enterprise</p>
-                <p className="text-gray-600">Critical Issues Only</p>
+                {/* Enhanced Map Section */}
+                <div className="bg-slate-900/90 rounded-2xl sm:rounded-3xl p-4 sm:p-6 md:p-8 border border-slate-700/50 shadow-xl hover:shadow-2xl transition-all duration-300">
+                  <div className="flex items-center mb-4 sm:mb-6">
+                    <div className="text-blue-400 mr-3 sm:mr-5 p-2 sm:p-3 bg-blue-500/10 rounded-lg sm:rounded-xl">
+                      <svg className="w-6 h-6 sm:w-8 sm:h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7" />
+                      </svg>
+                    </div>
+                    <h3 className="text-lg sm:text-xl font-bold text-white">Our Location</h3>
+                  </div>
+                  <MapComponent />
+                  <div className="mt-3 sm:mt-4 text-center">
+                    <a 
+                      href="https://maps.google.com/?q=FWC+IT+SERVICES+PRIVATE+LIMITED+Jayanagar+Bengaluru" 
+                      target="_blank" 
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center px-4 py-2 sm:px-6 sm:py-3 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-lg sm:rounded-xl hover:from-blue-700 hover:to-purple-700 transition-all duration-300 font-semibold shadow-lg hover:shadow-xl transform hover:-translate-y-0.5 text-sm sm:text-base"
+                    >
+                      <svg className="w-4 h-4 sm:w-5 sm:h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                      </svg>
+                      Open in Google Maps
+                    </a>
+                  </div>
+                </div>
               </div>
             </div>
           </div>
