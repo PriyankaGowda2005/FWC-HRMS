@@ -267,7 +267,7 @@ router.get('/', [
 router.post('/', [
   checkRole('ADMIN', 'HR'),
   ...payrollCreateSchema
-], asyncHandler(async: req, res) => {
+], asyncHandler(async (req, res) => {
   const errors = validationResult(req);
   if (!errors.isEmpty()) {
     return res.status(400).json({ 

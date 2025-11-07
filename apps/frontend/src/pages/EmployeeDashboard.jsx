@@ -41,35 +41,8 @@ const EmployeeDashboard = () => {
   const employee = profileData?.data.employee
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      {/* Header */}
-      <header className="bg-white shadow">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between items-center py-6">
-            <div>
-              <h1 className="text-3xl font-bold text-gray-900">Employee Dashboard</h1>
-              <p className="mt-1 text-sm text-gray-500">
-                Welcome back, {user?.employee?.firstName} {user?.employee?.lastName}
-              </p>
-            </div>
-            <div className="flex items-center space-x-4">
-              <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
-                {user?.role}
-              </span>
-              <button
-                onClick={handleLogout}
-                className="btn-secondary"
-              >
-                Logout
-              </button>
-            </div>
-          </div>
-        </div>
-      </header>
-
-      {/* Main Content */}
-      <main className="max-w-full mx-auto py-6 sm:px-6 lg:px-8">
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+    <div className="space-y-6">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* Personal Info */}
           <div className="lg:col-span-2">
             <div className="card">
@@ -210,7 +183,6 @@ const EmployeeDashboard = () => {
             </div>
           </div>
         </div>
-      </main>
     </div>
   )
 }

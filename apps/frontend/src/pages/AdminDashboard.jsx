@@ -65,60 +65,33 @@ const AdminDashboard = () => {
   const pagination = employeesData?.data.pagination || {}
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      {/* Header */}
-      <header className="bg-white shadow">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between items-center py-6">
-            <div>
-              <h1 className="text-3xl font-bold text-gray-900">Admin Dashboard</h1>
-              <p className="mt-1 text-sm text-gray-500">
-                Welcome back, {user?.employee?.firstName} {user?.employee?.lastName}
-              </p>
-            </div>
-            <div className="flex items-center space-x-4">
-              <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
-                {user?.role}
-              </span>
-              <button
-                onClick={handleLogout}
-                className="btn-secondary"
-              >
-                Logout
-              </button>
-            </div>
-          </div>
-        </div>
-      </header>
-
-      {/* Main Content */}
-      <main className="max-w-7xl mx-auto py-6 sm:px-6 lg:px-8">
-        {/* Stats Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-          <div className="card">
-            <h3 className="text-lg font-medium text-gray-900 mb-2">Total Employees</h3>
-            <p className="text-3xl font-bold text-primary-600">{pagination.total || 0}</p>
-          </div>
-          <div className="card">
-            <h3 className="text-lg font-medium text-gray-900 mb-2">Active Employees</h3>
-            <p className="text-3xl font-bold text-green-600">{employees.filter(emp => emp.isActive).length}</p>
-          </div>
-          <div className="card">
-            <h3 className="text-lg font-medium text-gray-900 mb-2">Departments</h3>
-            <p className="text-3xl font-bold text-blue-600">
-              {new Set(employees.map(emp => emp.department).filter(Boolean)).size}
-            </p>
-          </div>
-        </div>
-
-        {/* Employees Table */}
+    <div className="space-y-6">
+      {/* Stats Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         <div className="card">
-          <div className="flex justify-between items-center mb-6">
-            <h2 className="text-xl font-bold text-gray-900">Employees</h2>
-            <button className="btn-primary">
-              Add Employee
-            </button>
-          </div>
+          <h3 className="text-lg font-medium text-gray-900 mb-2">Total Employees</h3>
+          <p className="text-3xl font-bold text-primary-600">{pagination.total || 0}</p>
+        </div>
+        <div className="card">
+          <h3 className="text-lg font-medium text-gray-900 mb-2">Active Employees</h3>
+          <p className="text-3xl font-bold text-green-600">{employees.filter(emp => emp.isActive).length}</p>
+        </div>
+        <div className="card">
+          <h3 className="text-lg font-medium text-gray-900 mb-2">Departments</h3>
+          <p className="text-3xl font-bold text-blue-600">
+            {new Set(employees.map(emp => emp.department).filter(Boolean)).size}
+          </p>
+        </div>
+      </div>
+
+      {/* Employees Table */}
+      <div className="card">
+        <div className="flex justify-between items-center mb-6">
+          <h2 className="text-xl font-bold text-gray-900">Employees</h2>
+          <button className="btn-primary">
+            Add Employee
+          </button>
+        </div>
 
           <div className="overflow-x-auto">
             <table className="min-w-full divide-y divide-gray-200">
@@ -240,7 +213,6 @@ const AdminDashboard = () => {
             </div>
           )}
         </div>
-      </main>
     </div>
   )
 }

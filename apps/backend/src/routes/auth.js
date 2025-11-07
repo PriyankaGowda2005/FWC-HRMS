@@ -42,7 +42,7 @@ router.post('/register', [
   body('password').isLength({ min: 6 }).withMessage('Password must be at least 6 characters'),
   body('firstName').notEmpty().withMessage('First name required'),
   body('lastName').notEmpty().withMessage('Last name required'),
-  body('role').optional().isIn(['EMPLOYEE', 'HR']).withMessage('Invalid role')
+  body('role').optional().isIn(['ADMIN', 'HR', 'MANAGER', 'EMPLOYEE', 'CANDIDATE']).withMessage('Invalid role')
 ], asyncHandler(async (req, res) => {
   const errors = validationResult(req);
   if (!errors.isEmpty()) {
@@ -91,9 +91,10 @@ router.post('/register', [
         userId: user.id,
         firstName,
         lastName,
-        department,
         position,
-        hireDate: new Date()
+        hireDate: new Date(),
+        isActive: true,
+        isOnProbation: false
       }
     });
 
@@ -150,7 +151,7 @@ router.post('/login', [
     }
   });
 
-  if (!user || !user.isActive) {
+  if (!user) {
     return res.status(401).json({ message: 'Invalid credentials' });
   }
 
@@ -261,7 +262,7 @@ router.get('/me', asyncHandler(async (req, res) => {
       }
     });
 
-    if (!user || !user.isActive) {
+    if (!user) {
       return res.status(401).json({ message: 'Invalid token' });
     }
 

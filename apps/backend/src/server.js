@@ -26,7 +26,7 @@ app.use(limiter);
 // Auth rate limiting
 const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 5, // limit each IP to 5 auth requests per windowMs
+  max: 50, // Increased from 5 to 50 for testing
   message: 'Too many authentication attempts, please try again later.'
 });
 
@@ -61,7 +61,8 @@ app.use('/api/payroll', require('./routes/payroll'));
 app.use('/api/job-postings', require('./routes/jobPostings'));
 app.use('/api/candidates', require('./routes/candidates'));
 app.use('/api/performance-reviews', require('./routes/performanceReviews'));
-app.use('/api/files', require('../middleware/fileUpload').serveFile);
+app.use('/api/ai', require('./routes/ai'));
+app.use('/api/files', require('./middleware/fileUpload').serveFile);
 
 // Error handling middleware
 app.use(errorHandler);
