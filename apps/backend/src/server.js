@@ -36,7 +36,7 @@ const authLimiter = rateLimit({
 });
 
 // CORS configuration
-app.use(cors({
+const corsOptions = {
   origin: [
     process.env.FRONTEND_URL || 'http://localhost:5173',
     'http://localhost:5174',
@@ -44,9 +44,21 @@ app.use(cors({
     'http://localhost:5175'
   ],
   credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'Accept']
-}));
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+  allowedHeaders: [
+    'Content-Type',
+    'Authorization',
+    'Accept',
+    'Cache-Control',
+    'Pragma',
+    'Expires',
+    'X-Requested-With',
+    'X-XSRF-TOKEN'
+  ]
+};
+app.use(cors(corsOptions));
+// Explicitly enable pre-flight across-the-board
+app.options('*', cors(corsOptions));
 
 // Body parsing middleware
 app.use(express.json({ limit: '10mb' }));

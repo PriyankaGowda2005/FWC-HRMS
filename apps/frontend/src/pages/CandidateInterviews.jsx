@@ -27,7 +27,7 @@ const CandidateInterviews = () => {
   const { data: interviewsData, isLoading: interviewsLoading, error: interviewsError } = useQuery({
     queryKey: ['candidate-interviews', activeTab],
     queryFn: () => candidateInterviewsAPI.getMyInterviews({ 
-      status: activeTab === 'all' ? undefined : activeTab.toUpperCase(),
+      status: activeTab === 'all' || activeTab === 'upcoming' ? undefined : activeTab.toUpperCase(),
       sortBy: 'scheduledAt',
       sortOrder: 'asc'
     }),
@@ -80,6 +80,21 @@ const CandidateInterviews = () => {
 
   const interviews = interviewsData?.data || [];
   const applications = applicationsData?.data || [];
+
+  // Filter interviews based on active tab
+  const filteredInterviews = interviews.filter(interview => {
+    switch (activeTab) {
+      case 'upcoming':
+        return isUpcoming(interview.scheduledAt) && interview.status === 'SCHEDULED';
+      case 'confirmed':
+        return interview.status === 'CONFIRMED';
+      case 'completed':
+        return interview.status === 'COMPLETED';
+      case 'all':
+      default:
+        return true;
+    }
+  });
 
   const handleConfirmInterview = (interviewId) => {
     if (window.confirm('Are you sure you want to confirm your attendance for this interview?')) {
@@ -209,7 +224,7 @@ const CandidateInterviews = () => {
 
           {/* Interviews List */}
           <div className="space-y-6">
-            {interviews.length === 0 ? (
+            {filteredInterviews.length === 0 ? (
               <Card className="p-8 text-center">
                 <Icon name="calendar" className="mx-auto h-12 w-12 text-gray-400 mb-4" />
                 <h3 className="text-lg font-medium text-gray-900 mb-2">No interviews found</h3>
@@ -221,7 +236,7 @@ const CandidateInterviews = () => {
                 </p>
               </Card>
             ) : (
-              interviews.map((interview) => {
+              filteredInterviews.map((interview) => {
                 const { date, time } = formatDateTime(interview.scheduledAt);
                 const upcoming = isUpcoming(interview.scheduledAt);
                 

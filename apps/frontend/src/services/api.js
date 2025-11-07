@@ -23,6 +23,13 @@ api.interceptors.request.use(
       config.headers.Authorization = `Bearer ${token}`
     }
     
+    // Add cache-busting headers for job postings
+    if (config.url?.includes('job-postings')) {
+      config.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate'
+      config.headers['Pragma'] = 'no-cache'
+      config.headers['Expires'] = '0'
+    }
+    
     console.log('🔍 API Request:', config.method?.toUpperCase(), config.url, {
       hasToken: !!token,
       tokenType: token ? (localStorage.getItem('token') ? 'regular' : 'candidate') : 'none',
@@ -61,7 +68,7 @@ api.interceptors.response.use(
     }
     
     // Handle network errors
-    if (error.code === 'NETWORK_ERROR' || error.message === 'Network Error') {
+    if (error.code === 'ERR_NETWORK' || error.code === 'NETWORK_ERROR' || error.message === 'Network Error') {
       console.error('🌐 Network Error: Backend server is not accessible')
       console.error('💡 Please ensure backend is running on http://localhost:3001')
       console.error('🔍 Check: http://localhost:3001/health')
@@ -171,18 +178,38 @@ export const performanceAPI = {
 
 // Job Posting API
 export const jobPostingAPI = {
-  getAll: ({ status, departmentId, urgency, page, limit } = {}) => 
-    api.get(`/job-postings?${new URLSearchParams({ status, departmentId, urgency, page, limit }).toString()}`),
+  getAll: ({ status, departmentId, department, urgency, page, limit } = {}) => {
+    // Build query params without undefined values and align keys with backend
+    const params = new URLSearchParams()
+    if (status) params.set('status', status)
+    // Prefer explicit department param; fall back to departmentId if provided
+    const dept = department || departmentId
+    if (dept) params.set('department', dept)
+    if (page) params.set('page', page)
+    if (limit) params.set('limit', limit)
+    // 'urgency' is not supported by backend route; avoid sending it to prevent mismatches
+    const qs = params.toString()
+    const url = qs ? `/job-postings?${qs}` : '/job-postings'
+    return api.get(url)
+  },
   getPublic: ({ employmentType, location, department, remote, page, limit, search } = {}) =>
     api.get(`/job-postings/public?${new URLSearchParams({ employmentType, location, department, remote, page, limit, search }).toString()}`),
-  getForScreening: ({ status, department, page, limit } = {}) =>
-    api.get(`/job-postings/public?${new URLSearchParams({ status, department, page, limit }).toString()}`),
+  getForScreening: ({ status = 'PUBLISHED', department, page = 1, limit = 500 } = {}) => {
+    const params = new URLSearchParams()
+    if (status) params.set('status', status)
+    if (department) params.set('department', department)
+    if (page) params.set('page', page)
+    if (limit) params.set('limit', limit)
+    const qs = params.toString()
+    const url = qs ? `/job-postings?${qs}` : '/job-postings'
+    return api.get(url)
+  },
   getById: (id) => api.get(`/job-postings/${id}`),
   getPublicById: (id) => api.get(`/job-postings/public/${id}`),
   create: (data) => api.post('/job-postings', data),
   update: (id, data) => api.put(`/job-postings/${id}`, data),
   delete: (id) => api.delete(`/job-postings/${id}`),
-  publish: (id) => api.post(`/job-postings/${id}/publish`),
+  publish: (id) => api.patch(`/job-postings/${id}/publish`),
   close: (id) => api.post(`/job-postings/${id}/close`),
 }
 
@@ -542,6 +569,8 @@ export const jobAttachmentsAPI = {
 export const interviewsAPI = {
   // Schedule interview
   scheduleInterview: (data) => api.post('/interviews/schedule', data),
+  // Schedule AI interview (no attachment required)
+  scheduleAIInterview: (data) => api.post('/interviews/schedule-ai', data),
   
   // Get interviews for a manager
   getManagerInterviews: (managerId, params = {}) => api.get(`/interviews/manager/${managerId}`, { params }),

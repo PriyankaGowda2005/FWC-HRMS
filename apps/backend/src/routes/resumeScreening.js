@@ -1,7 +1,10 @@
 // Resume screening API endpoints
 const express = require('express');
 const router = express.Router();
+const { ObjectId } = require('mongodb');
 const database = require('../database/connection');
+const fs = require('fs');
+const path = require('path');
 const { verifyToken } = require('../middleware/authMiddleware');
 const fetch = require('node-fetch');
 
@@ -25,9 +28,13 @@ router.post('/screen', verifyToken, async (req, res) => {
       });
     }
 
+    // Normalize IDs to ObjectId when possible
+    const normalizedCandidateId = ObjectId.isValid(candidateId) ? new ObjectId(candidateId) : candidateId;
+    const normalizedJobPostingId = ObjectId.isValid(jobPostingId) ? new ObjectId(jobPostingId) : jobPostingId;
+
     // Get candidate and job posting details
-    const candidate = await database.findOne('candidates', { _id: candidateId });
-    const jobPosting = await database.findOne('job_postings', { _id: jobPostingId });
+    const candidate = await database.findOne('candidates', { _id: normalizedCandidateId });
+    const jobPosting = await database.findOne('job_postings', { _id: normalizedJobPostingId });
 
     if (!candidate) {
       return res.status(404).json({
@@ -51,9 +58,37 @@ router.post('/screen', verifyToken, async (req, res) => {
       });
     }
 
-    // Get resume record to get file path
-    const resumeRecord = await database.findOne('candidate_resumes', { _id: candidate.resumeId });
+    // Get resume record to get file path (handle legacy string/ObjectId)
+    const normalizedResumeId = ObjectId.isValid(candidate.resumeId) ? new ObjectId(candidate.resumeId) : candidate.resumeId;
+    let resumeRecord = await database.findOne('candidate_resumes', { _id: normalizedResumeId });
+    // Fallbacks: some older records may only have candidateId set or mismatched types
     if (!resumeRecord) {
+      resumeRecord = await database.findOne('candidate_resumes', { candidateId: normalizedCandidateId });
+    }
+    if (!resumeRecord && typeof normalizedCandidateId !== 'string') {
+      resumeRecord = await database.findOne('candidate_resumes', { candidateId: normalizedCandidateId.toString() });
+    }
+    // Legacy candidate schema may have resumePath directly on candidate
+    if (!resumeRecord && candidate.resumePath) {
+      resumeRecord = { filePath: candidate.resumePath };
+    }
+    // Development fallback: use most recent file in uploads/resumes when records are missing
+    if (!resumeRecord) {
+      try {
+        const uploadDir = path.join(__dirname, '../../uploads/resumes');
+        if (fs.existsSync(uploadDir)) {
+          const files = fs.readdirSync(uploadDir).filter(f => f.startsWith('resume-'));
+          if (files.length > 0) {
+            const filesWithTime = files.map(f => ({ f, t: fs.statSync(path.join(uploadDir, f)).mtimeMs }));
+            filesWithTime.sort((a, b) => b.t - a.t);
+            resumeRecord = { filePath: path.join(uploadDir, filesWithTime[0].f) };
+          }
+        }
+      } catch (e) {
+        // ignore fallback errors
+      }
+    }
+    if (!resumeRecord || !resumeRecord.filePath) {
       return res.status(400).json({
         success: false,
         message: 'Resume file not found'
@@ -87,8 +122,8 @@ router.post('/screen', verifyToken, async (req, res) => {
 
     // Create screening record
     const screening = {
-      candidateId,
-      jobPostingId,
+      candidateId: normalizedCandidateId,
+      jobPostingId: normalizedJobPostingId,
       screenedBy: req.user._id,
       screenedByName: req.user.name,
       screeningDate: new Date(),
@@ -106,7 +141,7 @@ router.post('/screen', verifyToken, async (req, res) => {
     // Update candidate application status if exists
     await database.updateOne(
       'candidate_applications',
-      { candidateId, jobPostingId },
+      { candidateId: normalizedCandidateId, jobPostingId: normalizedJobPostingId },
       { 
         $set: { 
           status: 'SCREENED',

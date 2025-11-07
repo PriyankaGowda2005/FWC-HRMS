@@ -4,6 +4,7 @@ const router = express.Router();
 const database = require('../database/connection');
 const { verifyToken } = require('../middleware/authMiddleware');
 const Queue = require('bull');
+const { ObjectId } = require('mongodb');
 
 // Initialize email queue
 let emailQueue;
@@ -189,6 +190,51 @@ router.post('/schedule', verifyToken, async (req, res) => {
   }
 });
 
+// Schedule AI interview (no attachment required)
+router.post('/schedule-ai', verifyToken, async (req, res) => {
+  try {
+    if (!['MANAGER', 'HR', 'ADMIN'].includes(req.user.role)) {
+      return res.status(403).json({ success: false, message: 'Access denied. Manager, HR, or Admin role required.' });
+    }
+
+    const { candidateId, jobPostingId, scheduledAt, meetingLink, interviewNotes, interviewers = [], duration = 45 } = req.body;
+    if (!candidateId || !jobPostingId) {
+      return res.status(400).json({ success: false, message: 'candidateId and jobPostingId are required' });
+    }
+
+    const normalizedCandidateId = ObjectId.isValid(candidateId) ? new ObjectId(candidateId) : candidateId;
+    const normalizedJobPostingId = ObjectId.isValid(jobPostingId) ? new ObjectId(jobPostingId) : jobPostingId;
+
+    const candidate = await database.findOne('candidates', { _id: normalizedCandidateId });
+    const jobPosting = await database.findOne('job_postings', { _id: normalizedJobPostingId });
+    if (!candidate) return res.status(404).json({ success: false, message: 'Candidate not found' });
+    if (!jobPosting) return res.status(404).json({ success: false, message: 'Job posting not found' });
+
+    const interview = {
+      candidateId: normalizedCandidateId,
+      jobPostingId: normalizedJobPostingId,
+      scheduledBy: req.user._id,
+      scheduledByName: req.user.name,
+      scheduledAt: scheduledAt ? new Date(scheduledAt) : new Date(Date.now() + 60 * 60 * 1000),
+      interviewType: 'AI',
+      location: 'VIRTUAL',
+      meetingLink: meetingLink || null,
+      interviewNotes: interviewNotes || '',
+      interviewers: Array.isArray(interviewers) ? interviewers : [],
+      duration: parseInt(duration) || 45,
+      status: 'SCHEDULED',
+      createdAt: new Date()
+    };
+
+    const interviewResult = await database.insertOne('interviews', interview);
+
+    res.json({ success: true, message: 'AI interview scheduled successfully', data: { interviewId: interviewResult.insertedId, scheduledAt: interview.scheduledAt } });
+  } catch (error) {
+    console.error('Schedule AI interview error:', error);
+    res.status(500).json({ success: false, message: 'Internal server error', error: error.message });
+  }
+});
+
 // Get interviews for a manager
 router.get('/manager/:managerId', verifyToken, async (req, res) => {
   try {
@@ -203,8 +249,8 @@ router.get('/manager/:managerId', verifyToken, async (req, res) => {
       });
     }
 
-    // Build filter
-    const filter = { scheduledBy: managerId };
+    // Build filter: show interviews scheduled by manager or where manager is listed as interviewer
+    const filter = { $or: [ { scheduledBy: managerId }, { interviewers: { $in: [managerId] } } ] };
     if (status) filter.status = status;
     
     if (dateRange) {
