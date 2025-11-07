@@ -1,0 +1,486 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mongodb"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  email     String   @unique
+  username  String   @unique
+  password  String
+  role      UserRole @default(EMPLOYEE)
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relation to Employee
+  employee Employee?
+
+  @@map("users")
+}
+
+model Employee {
+  id              String    @id @default(auto()) @map("_id") @db.ObjectId
+  userId          String    @unique
+  employeeId      String?   @unique // Company employee ID
+  firstName       String
+  lastName        String
+  phoneNumber     String?
+  personalEmail   String?
+  dateOfBirth     DateTime?
+  address         String?
+  emergencyContact Json?
+  
+  // Job Information
+  departmentId    String?
+  position        String?
+  salary          Float?
+  hourlyRate      Float?
+  employmentType  EmploymentType @default(FULL_TIME)
+  workLocation    String?
+  supervisorId    String?
+  
+  // Dates
+  hireDate        DateTime?
+  probationEndDate DateTime?
+  lastPromotionDate DateTime?
+  terminationDate DateTime?
+  
+  // Status
+  isActive        Boolean   @default(true)
+  isOnProbation   Boolean   @default(false)
+  
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  // Relations
+  user                   User                     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  department             Department?              @relation("DepartmentEmployees", fields: [departmentId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  supervisor             Employee?                @relation("EmployeeSupervisor", fields: [supervisorId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  subordinates           Employee[]               @relation("EmployeeSupervisor")
+  
+  // HR Relations
+  attendance           Attendance[]
+  leaveRequests        LeaveRequest[]
+  payrollRecords       Payroll[]
+  performanceReviews   PerformanceReview[]
+  approvedLeaveRequests LeaveRequest[] @relation("LeaveApprover")
+  managedDepartments   Department[] @relation("DepartmentManager")
+
+  @@map("employees")
+}
+
+// Department and Organizational Structure
+model Department {
+  id              String    @id @default(auto()) @map("_id") @db.ObjectId
+  name            String    @unique
+  description     String?
+  costCenter      String?   @unique
+  budget          Float?
+  managerId       String?
+  parentDepartmentId String?
+  location        String?
+  isActive        Boolean   @default(true)
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  // Relations
+  manager           Employee?                @relation("DepartmentManager", fields: [managerId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  employees         Employee[]               @relation("DepartmentEmployees")
+  parentDepartment  Department?             @relation("DepartmentHierarchy", fields: [parentDepartmentId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  subDepartments    Department[]             @relation("DepartmentHierarchy")
+  jobPostings       JobPosting[]
+
+  @@map("departments")
+}
+
+// Attendance Management
+model Attendance {
+  id              String    @id @default(auto()) @map("_id") @db.ObjectId
+  employeeId      String
+  date            DateTime
+  clockIn         DateTime?
+  clockOut        DateTime?
+  hoursWorked     Float?
+  overtimeHours   Float?
+  breakTime       Float?    @default(0)
+  status          AttendanceStatus @default(PRESENT)
+  workFromHome    Boolean   @default(false)
+  notes           String?
+  createdBy       String?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  // Relations
+  employee Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@unique([employeeId, date])
+  @@map("attendance")
+}
+
+// Leave Management
+model LeaveRequest {
+  id              String    @id @default(auto()) @map("_id") @db.ObjectId
+  employeeId      String
+  leaveType       LeaveType
+  startDate       DateTime
+  endDate         DateTime
+  daysRequested   Float
+  reason          String?
+  status          LeaveStatus @default(PENDING)
+  approverId      String?
+  approvedAt      DateTime?
+  rejectedAt      DateTime?
+  rejectionReason String?
+  isEmergency     Boolean   @default(false)
+  workCoverage    String?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  // Relations
+  employee Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  approver Employee? @relation("LeaveApprover", fields: [approverId], references: [id], onDelete: NoAction)
+
+  @@map("leave_requests")
+}
+
+// Payroll Management
+model Payroll {
+  id              String    @id @default(auto()) @map("_id") @db.ObjectId
+  employeeId      String
+  payPeriodStart  DateTime
+  payPeriodEnd    DateTime
+  grossSalary     Float
+  basicSalary     Float
+  allowances      Json?
+  deductions      Json?
+  overtimePay     Float?    @default(0)
+  bonus           Float?    @default(0)
+  totalDeductions Float?    @default(0)
+  netSalary       Float
+  taxAmount       Float?
+  currency        String    @default("USD")
+  status          PayrollStatus @default(PROCESSING)
+  paidAt          DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  // Relations
+  employee Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@map("payroll")
+}
+
+// Performance Management
+model PerformanceReview {
+  id              String    @id @default(auto()) @map("_id") @db.ObjectId
+  employeeId      String
+  reviewPeriod    String
+  reviewType      ReviewType
+  reviewerId      String?
+  selfRating      Float?
+  reviewerRating  Float?
+  managerRating   Float?
+  peerRatings     Json?
+  overallRating   Float
+  goals           Json?
+  achievements    Json?
+  areasForImprovement Json?
+  feedback        String?
+  status          ReviewStatus @default(DRAFT)
+  completedAt     DateTime?
+  nextReviewDate  DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  // Relations
+  employee Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@map("performance_reviews")
+}
+
+// Job Postings and Recruitment
+model JobPosting {
+  id              String    @id @default(auto()) @map("_id") @db.ObjectId
+  title           String
+  departmentId    String?
+  description     String
+  requirements    Json?
+  responsibilities Json?
+  salaryMin       Float?
+  salaryMax       Float?
+  location        String?
+  employmentType  EmploymentType
+  remoteAllowed   Boolean   @default(false)
+  urgency         JobUrgency @default(NORMAL)
+  status          JobStatus @default(DRAFT)
+  postedBy        String
+  postedAt        DateTime?
+  closedAt        DateTime?
+  applicationDeadline DateTime?
+  maxApplications Int?
+  currentApplications Int    @default(0)
+  hiringManagerId String?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  // Relations
+  department     Department? @relation(fields: [departmentId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  candidates     Candidate[]
+
+  @@map("job_postings")
+}
+
+// Candidates and Applications
+model Candidate {
+  id              String    @id @default(auto()) @map("_id") @db.ObjectId
+  firstName       String
+  lastName        String
+  email           String
+  phoneNumber     String?
+  resumeFile      String?   // File path
+  coverLetter     String?
+  jobPostingId    String
+  status          CandidateStatus @default(APPLIED)
+  appliedAt       DateTime  @default(now())
+  source          ApplicationSource @default(COMPANY_WEBSITE)
+  experienceLevel ExperienceLevel @default(MID_LEVEL)
+  
+  // ML/AI Data
+  skills          Json?
+  fitScore        Float?
+  recommendedRole String?
+  isProcessed     Boolean   @default(false)
+  processedAt     DateTime?
+  processingError String?
+  
+  // Interview Data
+  interviewNotes  String?
+  interviewScore  Float?
+  interviewCompletedAt DateTime?
+  
+  // Additional Info
+  expectedSalary  Float?
+  availability    DateTime?
+  additionalNotes String?
+  
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  // Relations
+  jobPosting JobPosting @relation(fields: [jobPostingId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  interviews Interview[]
+
+  @@map("candidates")
+}
+
+// Interviews
+model Interview {
+  id              String    @id @default(auto()) @map("_id") @db.ObjectId
+  candidateId     String
+  interviewerId   String?
+  scheduledAt     DateTime
+  duration        Int?      // in minutes
+  type            InterviewType
+  status          InterviewStatus @default(SCHEDULED)
+  location        String?
+  meetingLink     String?
+  notes           String?
+  score           Float?
+  recommendations String?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  // Relations
+  candidate   Candidate @relation(fields: [candidateId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@map("interviews")
+}
+
+// Assessments and Tests
+model Assessment {
+  id              String    @id @default(auto()) @map("_id") @db.ObjectId
+  candidateId     String?
+  employeeId      String?
+  title           String
+  type            AssessmentType
+  questions       Json
+  timeLimit       Int?      // in minutes
+  passingScore    Float?
+  maximumScore    Float?
+  score           Float?
+  completedAt     DateTime?
+  status          AssessmentStatus @default(NOT_STARTED)
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@map("assessments")
+}
+
+// Audit Logs
+model AuditLog {
+  id              String    @id @default(auto()) @map("_id") @db.ObjectId
+  userId          String?
+  action          String
+  entity          String
+  entityId        String?
+  details         String?   // JSON string
+  ipAddress       String?
+  userAgent       String?
+  timestamp       DateTime  @default(now())
+
+  @@map("audit_logs")
+}
+
+// Enums
+enum UserRole {
+  ADMIN
+  HR
+  MANAGER
+  EMPLOYEE
+  CANDIDATE
+}
+
+enum EmploymentType {
+  FULL_TIME
+  PART_TIME
+  CONTRACT
+  INTERN
+  FREELANCE
+}
+
+enum AttendanceStatus {
+  PRESENT
+  ABSENT
+  LATE
+  HALF_DAY
+  VACATION
+  SICK
+  PERSONAL
+}
+
+enum LeaveType {
+  VACATION
+  SICK
+  PERSONAL
+  MATERNITY
+  PATERNITY
+  BEREAVEMENT
+  STUDY
+  EMERGENCY
+}
+
+enum LeaveStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  CANCELLED
+}
+
+enum PayrollStatus {
+  PROCESSING
+  APPROVED
+  PAID
+  DISPUTED
+}
+
+enum ReviewType {
+  ANNUAL
+  QUARTERLY
+  PROBATIONARY
+  PROJECT_BASED
+}
+
+enum ReviewStatus {
+  DRAFT
+  IN_PROGRESS
+  PENDING_APPROVAL
+  COMPLETED
+}
+
+enum JobUrgency {
+  LOW
+  NORMAL
+  HIGH
+  URGENT
+}
+
+enum JobStatus {
+  DRAFT
+  PUBLISHED
+  CLOSED
+  CANCELLED
+}
+
+enum CandidateStatus {
+  APPLIED
+  SCREENING
+  INTERVIEWED
+  TESTING
+  OFFERED
+  HIRED
+  REJECTED
+  WITHDRAWN
+}
+
+enum ApplicationSource {
+  COMPANY_WEBSITE
+  LINKEDIN
+  INDEED
+  GLASSDOOR
+  EMPLOYEE_REFERRAL
+  RECRUITER
+  CAMPUS_RECRUITMENT
+  OTHER
+}
+
+enum ExperienceLevel {
+  ENTRY_LEVEL
+  MID_LEVEL
+  SENIOR_LEVEL
+  EXECUTIVE
+}
+
+enum InterviewType {
+  PHONE_SCREENING
+  VIDEO_INTERVIEW
+  IN_PERSON
+  TECHNICAL
+  BEHAVIORAL
+  PANEL
+  HR_ROUND
+}
+
+enum InterviewStatus {
+  SCHEDULED
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+  NO_SHOW
+  RESCHEDULED
+}
+
+enum AssessmentType {
+  TECHNICAL_SKILLS
+  PROBLEM_SOLVING
+  COMMUNICATION
+  LEADERSHIP
+  COMPETENCY_BASED
+  PERSONALITY
+  IQ_TEST
+}
+
+enum AssessmentStatus {
+  NOT_STARTED
+  IN_PROGRESS
+  COMPLETED
+  EXPIRED
+  SUSPENDED
+}

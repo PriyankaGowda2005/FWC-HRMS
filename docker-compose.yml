@@ -1,0 +1,38 @@
+version: "3.8"
+
+services:
+  mongodb:
+    image: mongo:7.0
+    container_name: fwc-hrms-mongodb
+    restart: unless-stopped
+    ports:
+      - "27017:27017"
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: admin
+      MONGO_INITDB_ROOT_PASSWORD: password123
+      MONGO_INITDB_DATABASE: fwc_hrms
+    volumes:
+      - mongodb_data:/data/db
+      - ./scripts/mongo-init.js:/docker-entrypoint-initdb.d/mongo-init.js:ro
+    networks:
+      - hrms-network
+
+  ml-service:
+    build: ./services/ml
+    container_name: fwc-hrms-ml
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    environment:
+      - PYTHONUNBUFFERED=1
+    networks:
+      - hrms-network
+    depends_on:
+      - mongodb
+
+networks:
+  hrms-network:
+    driver: bridge
+
+volumes:
+  mongodb_data:
